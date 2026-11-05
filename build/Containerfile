@@ -1,0 +1,37 @@
+# Build and test image: the pinned Rust toolchain (rust-toolchain.toml), the mingw-w64 linker for
+# i686-pc-windows-gnu, Wine to run the Windows test binaries, and the tools of the gate and the release package.
+# Debian sid at the digest EItweaks' build image pins. Packages are not pinned: sid replaces versions faster than pins
+# would survive.
+
+FROM docker.io/library/debian:sid-slim@sha256:10e9e0d7aa4ed47205c7053f117199e6b06a9b17ac3eeb7f7bb1a818b963a803
+# hadolint ignore=DL3008
+RUN dpkg --add-architecture i386 \
+    && apt-get update -qq \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+        rustup gcc gcc-multilib libc6-dev gcc-mingw-w64-i686 g++-mingw-w64-i686 make git ca-certificates wine wine32:i386 \
+        zip curl \
+    && rm -rf /var/lib/apt/lists/*
+ENV WINEDEBUG=-all
+# Installs the toolchain the file names; a later change to it reinstalls on the next image build.
+COPY rust-toolchain.toml /toolchain/
+RUN cd /toolchain && rustup show
+# The gate's dependency and workflow checks and the package's licence notices, built from their locked dependency
+# sets.
+RUN cd /toolchain && cargo install --locked --root /usr/local cargo-deny@0.20.2 cargo-shear@1.14.0 zizmor@1.32.0 \
+    && cargo install --locked --root /usr/local --features cli cargo-about@0.9.3 \
+    && test -x /usr/local/bin/cargo-about \
+    && rm -rf /root/.cargo/registry
+# The workflow linter, from its release, checked against the release's published checksum.
+RUN curl -sfL -o /tmp/actionlint.tgz \
+        https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+    && echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/actionlint.tgz" | sha256sum -c - \
+    && tar -xzf /tmp/actionlint.tgz -C /usr/local/bin actionlint \
+    && rm /tmp/actionlint.tgz
+# The session's runtime folder, which Wine's Wayland driver looks up whenever a window-system DLL loads; unset, the
+# lookup prints an error into the test output. No compositor runs, so the driver finds none there and goes on.
+ENV XDG_RUNTIME_DIR=/root/.xdg-runtime
+RUN mkdir -m 0700 "$XDG_RUNTIME_DIR"
+# Creates the Wine prefix once, not on every test run.
+RUN wineboot --init && /usr/lib/i386-linux-gnu/wine/wineserver --wait
+# Runs as the image's root on purpose: under rootless podman that is the invoking user, so the build can write the
+# mounted source tree's target directory; a non-root USER would map to a subordinate uid that cannot.

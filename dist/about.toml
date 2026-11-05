@@ -1,0 +1,24 @@
+# cargo-about's settings for the release package's THIRD-PARTY-NOTICES.txt (`cargo xtask dist`): the licences of the
+# crates the Windows DLLs are built from.
+accepted = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "Unicode-3.0", "Zlib", "BSD-3-Clause"]
+targets = ["i686-pc-windows-gnu"]
+ignore-dev-dependencies = true
+# Build dependencies stay in: LuaJIT is compiled into addon.dll from luajit-src, a build dependency of mlua-sys.
+ignore-build-dependencies = false
+# eix's own crates (`publish = false`) are under LICENSE, not third-party notices.
+private = { ignore = true }
+
+# The crate's own LICENSE covers its build scripts; LuaJIT's COPYRIGHT covers the code linked into addon.dll (LuaJIT,
+# and the parts of Lua 5.1 it carries).
+[luajit-src.clarify]
+license = "MIT"
+
+[[luajit-src.clarify.files]]
+path = "LICENSE"
+license = "MIT"
+checksum = "dd595dee72a08369f1967ea7274989facb24ae126d4e6f4c834714ef10a22b11"
+
+[[luajit-src.clarify.files]]
+path = "luajit2/COPYRIGHT"
+license = "MIT"
+checksum = "6cda3076a8c09b31bb1f90da614ea89e7ee194589626eeac613e522849604e47"

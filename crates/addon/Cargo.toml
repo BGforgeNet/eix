@@ -1,0 +1,25 @@
+[package]
+name = "eix-addon"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "addon"
+crate-type = ["cdylib"]
+
+[features]
+# A build whose Apply panics at once, to check that the shipped abort path logs the panic and ends the process.
+test-panic = []
+
+[dependencies]
+eix-core = { path = "../core" }
+eix-engine = { path = "../engine" }
+eix-lua = { path = "../lua" }
+eix-sites = { path = "../sites" }
+eix-spelladdon = { path = "../spelladdon" }
+
+[lints]
+workspace = true

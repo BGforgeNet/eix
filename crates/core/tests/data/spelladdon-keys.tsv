@@ -1,0 +1,561 @@
+# section	key	kind	default
+skills	extendedskills	flag 0	0
+skills	skills	int	0
+stealing	extendedstealing	flag 9	0
+stealing	stealing	int	0
+gameplay	randomlessaimedhits	flag 52	0
+gameplay	bodypart	int	1
+gameplay	headmod	str	3
+gameplay	legmod	str	1
+gameplay	handmod	str	1
+gameplay	criticalmod	str	2
+gameplay	healthdowntoignore	str	10.25
+gameplay	rangeddistance	str	5.65
+gameplay	rangedweaponbackstabs	flag 51	0
+gameplay	newattackdefence	flag 2	0
+gameplay	divmod	str	100
+gameplay	submod	str	1
+gameplay	possessioncharmlink	flag 8	0
+gameplay	unlockmoney	flag 1	0
+gameplay	extendedparams	flag 5	0
+gameplay	manygameexe	flag 3	0
+gameplay	longnick	flag 6	0
+gameplay	fullexpforall	flag 11	0
+gameplay	enablekillsinmulti	flag 15	0
+gameplay	enablecheatsinmulti	flag 14	0
+gameplay	visionfix	flag 18	0
+gameplay	aggrmod	flag 19	0
+gameplay	aggrrange	not read	-
+gameplay	losehardcore	int	100000
+gameplay	losefactor1	int	15
+gameplay	losefactor2	int	5
+gameplay	losefactor3	int	5
+gameplay	difffactor	int	2
+gameplay	maxadd	int	2
+gameplay	follow	int	0
+gameplay	improve	int	0
+gameplay	loseallyfast	int	0
+gameplay	visiondependence	str	1.05
+gameplay	perssize	str	1.2
+gameplay	rewriteperssize	flag 13	0
+gameplay	newspells	flag 20	0
+gameplay	newspells_fireraze	flag 77	0
+gameplay	newspells_inspircharm	flag 78	0
+gameplay	newspells_spellsmachine	flag 79	0
+gameplay	newspells_invislichd	flag 80	0
+gameplay	importantalerts	flag 22	0
+gameplay	saveall	flag 23	0
+gameplay	unbreakablebodyparts	flag 24	0
+gameplay	bodypartbreakmodifier	str	4
+gameplay	extendedmerc	flag 21	0
+gameplay	maxcountofmerc	int	27
+gameplay	autorunmobfile	flag 25	0
+gameplay	noruinszoneanimation	flag 120	0
+gameplay	infinitydurability	not read	-
+gameplay	nonstopmanaregen	flag 26	0
+gameplay	splashdamageonair	flag 28	0
+gameplay	infiniteaddmobspawn	flag 29	0
+gameplay	batterycharge	flag 30	0
+gameplay	controlmagic	flag 32	0
+gameplay	slownessmultiplier	str	12
+gameplay	weaknessmultiplier	str	0.5
+gameplay	durcoeff	str	0.03
+gameplay	effcoeff	str	0.03
+gameplay	prot_fire	int	0
+gameplay	prot_electro	int	0
+gameplay	prot_acid	int	0
+gameplay	eagle_sight	int	0
+gameplay	infravision	int	0
+gameplay	detect_life	int	0
+gameplay	invisibility	int	0
+gameplay	silence	int	0
+gameplay	lichdom	int	0
+gameplay	stench	int	0
+gameplay	stun	int	0
+gameplay	antimagic	int	0
+gameplay	strength	int	0
+gameplay	weak	int	0
+gameplay	regeneration	int	0
+gameplay	feeblemind	int	0
+gameplay	speed	int	0
+gameplay	slow	int	0
+gameplay	enlarge	int	0
+gameplay	shrink	int	0
+gameplay	necro	int	0
+gameplay	destroy	int	0
+gameplay	bprot_fire	str	0.0
+gameplay	bprot_electro	str	0.0
+gameplay	bprot_acid	str	0.0
+gameplay	beagle_sight	str	0.0
+gameplay	binfravision	str	0.0
+gameplay	bdetect_life	str	0.0
+gameplay	binvisibility	str	0.0
+gameplay	bsilence	str	0.0
+gameplay	blichdom	str	0.0
+gameplay	bstench	str	0.0
+gameplay	bstun	str	0.0
+gameplay	bantimagic	str	0.0
+gameplay	bstrength	str	0.0
+gameplay	bweak	str	0.0
+gameplay	bregeneration	str	0.0
+gameplay	bfeeblemind	str	0.0
+gameplay	bspeed	str	0.0
+gameplay	bslow	str	0.0
+gameplay	benlarge	str	0.0
+gameplay	bshrink	str	0.0
+gameplay	bnecro	str	0.0
+gameplay	bdestroy	str	0.0
+gameplay	shopschanges	flag 33	0
+gameplay	rewritenpcvisionarc	flag 34	0
+gameplay	visionarc	str	-2
+gameplay	shopschanges	flag 33	0
+gameplay	archersdefence	flag 35	0
+gameplay	showallquestsinmulti	not read	-
+gameplay	infowindowschanges	flag 41	0
+gameplay	spellsaimod	not read	-
+gameplay	spellsarealwaysconstructable	not read	-
+gameplay	diffchange	flag 43	0
+gameplay	versionalerts	flag 47	0
+gameplay	nogameoveronleadersdeath	flag 48	0
+gameplay	lastspellsdamagetype	flag 49	0
+gameplay	astralbeam	int	5
+gameplay	destroyray	int	3
+gameplay	lightningbeam	int	5
+gameplay	firearrow	int	3
+gameplay	heroalwayscanrun	flag 56	0
+gameplay	npcsmana	flag 57	0
+gameplay	showtype	flag 58	0
+gameplay	speedboost	flag 59	0
+gameplay	speedbase	str	0.3
+gameplay	speedadd	str	5.0
+gameplay	damageboost	flag 60	0
+gameplay	str	str	100.0012
+gameplay	dex	str	100.0013
+gameplay	int	str	100.0014
+gameplay	changeweightrangebonuses	flag 61	0
+gameplay	weight	str	20.0
+gameplay	range	str	10.0
+gameplay	spellsprioritys	flag 62	0
+gameplay	sametarget	str	10.0
+gameplay	magicattack	str	10.0
+gameplay	damagemult	str	10.0
+gameplay	magicdamagemult	str	10.0
+gameplay	savedamagemult	str	10.0
+gameplay	rangecost	str	10.0
+gameplay	kickprice	str	10.0
+gameplay	changeexpforint	flag 64	0
+gameplay	expforint	str	1.0245
+gameplay	copystatscut	flag 65	0
+gameplay	removenpcsblock	flag 63	0
+gameplay	strengthstats	flag 66	0
+gameplay	strhp	str	0.005
+gameplay	strdmg	str	0.003
+gameplay	strweight	str	12.0
+gameplay	expirementalfxes	flag 67	0
+gameplay	shopsnewnormalchanges	flag 68	0
+gameplay	minsweapons	int	1
+gameplay	maxsweapons	int	10
+gameplay	minsarmorslight	not read	-
+gameplay	maxsarmorslight	not read	-
+gameplay	minsarmorsheavy	not read	-
+gameplay	maxsarmorsheavy	not read	-
+gameplay	minspotions	int	20
+gameplay	maxspotions	int	65
+gameplay	minsprototypes	int	1
+gameplay	maxsprototypes	int	10
+gameplay	minsrunes	int	20
+gameplay	maxsrunes	int	56
+gameplay	gipatb	str	0.5
+gameplay	gipatz	str	0.5
+gameplay	ingos	str	0.5
+gameplay	suslanger	str	0.5
+gameplay	jigran	str	0.5
+gameplay	liftchanges	flag 69	0
+gameplay	liftdebuffs	flag 70	0
+gameplay	liftkey	str	1.0
+gameplay	everyoneishero	flag 71	0
+gameplay	improvedstealing	flag 72	0
+gameplay	teleportboost	flag 74	0
+gameplay	standtrans	flag 81	0
+gameplay	possessionpatch	flag 82	0
+gameplay	waslootedtrans	flag 85	0
+gameplay	castscripttrans	flag 86	0
+gameplay	armorspell	flag 87	0
+gameplay	newrangedweapontypes	flag 88	0
+gameplay	inspirationintelligence	flag 89	0
+gameplay	lightsboost	flag 90	0
+gameplay	newlightsvalue	str	0.001
+gameplay	shrinkenlargerebalance	flag 91	0
+gameplay	hideobjecttrans	flag 92	0
+gameplay	hidefireworks	flag 93	0
+gameplay	wallsfrequency	flag 94	0
+gameplay	frequencyvalue	int	0
+gameplay	wallspercentage	flag 95	0
+gameplay	firepercentagevalue	str	0.1
+gameplay	lightningpercentagevalue	str	0.1
+gameplay	acidpercentagevalue	str	0.1
+gameplay	acidattack	flag 96	0
+gameplay	newperks	flag 97	0
+gameplay	dmgtypes	flag 98	0
+gameplay	dmgtypescount	int	6
+gameplay	avrgarmors	not read	-
+gameplay	itemslightchanges	flag 100	0
+gameplay	light00	str	1
+gameplay	light01	str	1
+gameplay	light02	str	1
+gameplay	light03	str	1
+gameplay	light04	str	1
+gameplay	light05	str	1
+gameplay	light06	str	1
+gameplay	light07	str	1
+gameplay	light08	str	1
+gameplay	light09	str	1
+gameplay	light10	str	1
+gameplay	light11	str	1
+gameplay	light12	str	1
+gameplay	light13	str	1
+gameplay	light14	str	1
+gameplay	light15	str	1
+gameplay	light16	str	1
+gameplay	light17	str	1
+gameplay	light18	str	1
+gameplay	light19	str	1
+gameplay	light20	str	1
+gameplay	light21	str	1
+gameplay	light22	str	1
+gameplay	light23	str	1
+gameplay	light24	str	1
+gameplay	light25	str	1
+gameplay	light26	str	1
+gameplay	light27	str	1
+gameplay	light28	str	1
+gameplay	light29	str	1
+gameplay	light30	str	1
+gameplay	light31	str	1
+gameplay	offensivespells	flag 101	0
+gameplay	nhits	flag 102	0
+gameplay	effectredraws	flag 103	0
+gameplay	npcsspellcastingtactics	flag 104	0
+gameplay	stenchremaster	flag 106	0
+gameplay	stenchmul	str	0.1
+gameplay	regenerationremaster	flag 107	0
+gameplay	regenerationmul	str	0.1
+gameplay	speedslowremaster	flag 108	0
+gameplay	speedslowmul	str	0.1
+gameplay	infowindowremake	flag 109	0
+gameplay	actionspatch	flag 110	0
+gameplay	actionsmul	str	0.2
+gameplay	actionsadd	str	10.0
+gameplay	mainmenuweather	flag 111	0
+gameplay	visioninweather	flag 112	0
+gameplay	visionweathermul	str	0.9
+gameplay	allodsinfo	flag 113	0
+gameplay	framex	str	75.0
+gameplay	framey	str	175.0
+gameplay	allowheroesarmors	flag 114	0
+gameplay	encumbrancemovespeed	flag 115	0
+gameplay	encumbrancemovemul	str	1.0
+gameplay	defaultspeedmul	str	1.0
+gameplay	minimumspeedmul	str	1.0
+gameplay	encumbranceattackspeed	flag 116	0
+gameplay	encumbranceattackmul	str	1.0
+gameplay	speedslowmovemul	str	1.0
+gameplay	notrash	flag 117	0
+gameplay	hptrans	flag 118	0
+gameplay	mptrans	flag 123	0
+gameplay	camp	flag 119	0
+gameplay	meterscale	flag 122	0
+gameplay	meter	str	15.0
+gameplay	newplayersafetyconditions	flag 124	0
+gameplay	safetymuldist	str	2.0
+gameplay	maxvisibilitymul	str	3.0
+gameplay	showmanaforeveryone	flag 121	0
+gameplay	genocideincvars	flag 125	0
+gameplay	genocidedipvars	flag 126	0
+gameplay	dontmergegipathzones	flag 127	0
+gameplay	backstabsforall	flag 129	0
+gameplay	sizerebalance	flag 130	0
+gameplay	nightpowervisionpatch	flag 131	0
+gameplay	visionevening	str	18.0
+gameplay	visionnight	str	22.0
+gameplay	visionmorning	str	4.0
+gameplay	visionday	str	8.0
+gameplay	visionmulpowbetween	str	0.250
+gameplay	giveunitspelltrans	flag 132	0
+gameplay	musictimings	flag 133	0
+gameplay	minmusictime	int	120000
+gameplay	maxmusictime	int	180000
+gameplay	fearpatch	flag 134	0
+gameplay	fearsafetydist	str	10.0
+gameplay	legsdamagedmul	str	0.6
+gameplay	playmusictrans	flag 135	0
+gameplay	notifydeaths	flag 136	0
+gameplay	exploredcolors	flag 137	0
+gameplay	exred	str	0.5
+gameplay	exgreen	str	0.5
+gameplay	exblue	str	0.5
+gameplay	disabledragon	flag 138	0
+gameplay	stupidenemies	flag 139	0
+gameplay	newcounters	flag 128	0
+gameplay	tohitcheck	int	1
+gameplay	tohitsub	str	0.0
+gameplay	tohitmul	str	5.5
+gameplay	increasinghitchance	flag 140	0
+gameplay	hitdistmul	str	2.0
+gameplay	hitdistadd	str	5.0
+gameplay	stableaggrmod	flag 141	0
+gameplay	runawaydistcontrol	flag 142	0
+gameplay	helloworld	flag 143	0
+gameplay	otherspellcastingai	flag 144	0
+gameplay	nightpower	flag 145	0
+gameplay	nightmeleemul	str	1.0
+gameplay	nightmeleeadd	str	1.0
+gameplay	castspellunittrans	flag 146	0
+gameplay	castspellpointtrans	flag 147	0
+gameplay	castspellpatch	flag 148	0
+gameplay	legendaryspellsystem	flag 149	0
+gameplay	linkremaster	flag 153	0
+gameplay	allowcastsonbriefings	flag 154	0
+gameplay	drawvisiblepatch	flag 155	0
+gameplay	fhrunetrans	flag 156	0
+gameplay	heroscanhideweapons	flag 157	0
+gameplay	newdifficultylevels	flag 158	0
+gameplay	fakesrcrune	flag 159	0
+gameplay	filtersarealwaysusing	flag 160	0
+gameplay	disableexppenalty	flag 161	0
+gameplay	unitsrunfromdangers	flag 162	0
+gameplay	newoptions	flag 163	0
+gameplay	tornadochanges	flag 164	0
+gameplay	tordmg	str	5.0
+gameplay	nightvisionincaves	flag 165	0
+gameplay	actionsdexteritymovespeed	flag 166	0
+gameplay	actmovemul	str	0.5
+gameplay	dexmovemul	str	0.01
+gameplay	removefrozenvar	flag 167	0
+gameplay	freemultiplayervars	flag 168	0
+gameplay	playingnewloadingscreens	flag 169	0
+gameplay	allysseeseachothers	flag 170	0
+gameplay	changesounds	flag 171	0
+gameplay	fireboom	str	5.0
+gameplay	cleveranimationsspeedup	flag 172	0
+gameplay	movetoobjecttrans	flag 173	0
+gameplay	hyperreactions	flag 174	0
+gameplay	groupseetrans	flag 175	0
+gameplay	unitseetrans	flag 176	0
+gameplay	newzonescpecificmusic	flag 177	0
+gameplay	notifylootings	flag 178	0
+gameplay	newallodsinmulti	flag 179	0
+gameplay	automaticruncontrol	flag 180	0
+gameplay	newallodsacks	flag 181	0
+gameplay	autocasts	flag 182	0
+gameplay	segmentsonexitenter	flag 183	0
+gameplay	maxsegments	int	1000
+gameplay	addsegments	int	0
+gameplay	exitenteractivityradius	str	70.0
+gameplay	hearingreactionspatch	flag 184	0
+gameplay	runtosoundsmul	str	1.0
+gameplay	randsoundfactor	str	1.0
+gameplay	strengthweakrebalance	flag 185	0
+gameplay	strengthweakmul	str	0.1
+gameplay	getplayertrans	flag 186	0
+gameplay	runtrans	flag 188	0
+gameplay	crawltrans	flag 189	0
+gameplay	getaiclasstrans	flag 195	0
+gameplay	bigmapspatch	flag 199	0
+gameplay	ultrafixes	flag 200	0
+gameplay	killunittrans	flag 203	0
+gameplay	fixworldtimetrans	flag 204	0
+gameplay	setspellaggressiontrans	flag 205	0
+gameplay	setplayertrans	flag 198	0
+gameplay	hiddenzonesexits	flag 207	0
+gameplay	duels	flag 208	0
+tech	scriptchecking	flag 201	0
+tech	drawunitsids	flag 202	0
+speed	allowmpspeed	flag 27	0
+speed	rewritespeed	flag 7	0
+speed	normal	int	55
+speed	fast	int	27
+speed	rewritespeedkey	flag 36	0
+speed	normalkey	int	5
+speed	fastkey	int	27
+speed	rewriteotherspeed	flag 44	0
+speed	normal1	int	55
+speed	normal2	int	55
+speed	gsgetvar	flag 45	0
+speed	gssetvar	flag 46	0
+speed	disablepause	flag 38	0
+speed	pause	int	0
+speed	disablepausekey	not read	-
+speed	pausekey	int	0
+rebalanceengine	useonlymindamage	flag 54	0
+rebalanceengine	rewriteherolevelcounting	flag 53	0
+rebalanceengine	mullvla	str	4.5
+rebalanceengine	divlvla	str	245.5
+rebalanceengine	addlvla	str	1.5
+rebalanceengine	addlvlb	str	0.5
+rebalanceengine	rewriteskillscounting	flag 10	0
+rebalanceengine	pow	str	1.1
+rebalanceengine	mul	str	4.5
+rebalanceengine	add	str	0.5
+rebalanceengine	rewriterunabilitytime	flag 12	0
+rebalanceengine	newrunsystem	flag 4	0
+rebalanceengine	runconst	str	0,006666666666
+rebalanceengine	backstabvisualbase	flag 73	0
+rebalanceengine	bsbase	int	300
+rebalanceengine	meleesum_low	flag 76	0
+rebalanceengine	meleesum_1	flag 83	0
+rebalanceengine	meleesum_2	flag 84	0
+animationsspeed	rewriteactionsspeed	flag 17	0
+animationsspeed	attackspeed	str	1
+animationsspeed	castspeed	str	1
+animationsspeed	hitspeed	str	1
+animationsspeed	deathspeed	str	1
+animationsspeed	specialspeed	str	1
+animationsspeed	idlespeed	str	1
+fonts	changefont	flag 31	0
+fonts	newfont1	str	Times New Roman
+fonts	newfont2	str	Times New Roman
+fonts	newfont3	str	Times New Roman
+fonts	newfont4	str	Times New Roman
+aicastertable	rebuildedaicastertable	flag 151	0
+aicastertable	0	int	8
+aicastertable	1	int	8
+aicastertable	2	int	8
+aicastertable	3	int	8
+aicastertable	4	int	8
+aicastertable	5	int	8
+aicastertable	6	int	8
+aicastertable	7	int	8
+aicastertable	8	int	8
+aicastertable	9	int	8
+aicastertable	10	int	8
+aicastertable	11	int	8
+aicastertable	12	int	8
+aicastertable	13	int	8
+aicastertable	14	int	8
+aicastertable	15	int	8
+aicastertable	16	int	8
+aicastertable	17	int	8
+aicastertable	18	int	8
+aicastertable	19	int	8
+aicastertable	20	int	8
+aicastertable	21	int	8
+aicastertable	22	int	8
+aicastertable	23	int	8
+aicastertable	24	int	8
+aicastertable	25	int	8
+aicastertable	26	int	8
+aicastertable	27	int	8
+aicastertable	28	int	8
+aicastertable	29	int	8
+aicastertable	30	int	8
+aicastertable	31	int	8
+aicastertable	32	int	8
+aicastertable	33	int	8
+aicastertable	34	int	8
+aicastertable	35	int	8
+aicastertable	36	int	8
+aicastertable	37	int	8
+aicastertable	38	int	8
+aicastertable	39	int	8
+aicastertable	40	int	8
+aicastertable	41	int	8
+aicastertable	42	int	8
+aicastertable	43	int	8
+aicastertable	44	int	8
+aicastertable	45	int	8
+aicastertable	46	int	8
+aicastertable	47	int	8
+aicastertable	48	int	8
+aicastertable	49	int	8
+aicastertable	50	int	8
+aicastertable	51	int	8
+aicastertable	52	int	8
+aicastertable	53	int	8
+aicastertable	54	not read	-
+aicastertable	55	not read	-
+aioffendtable	rebuildedaioffendtable	flag 152	0
+aioffendtable	0	int	8
+aioffendtable	1	int	8
+aioffendtable	2	int	8
+aioffendtable	3	int	8
+aioffendtable	4	int	8
+aioffendtable	5	int	8
+aioffendtable	6	int	8
+aioffendtable	7	int	8
+aioffendtable	8	int	8
+aioffendtable	9	int	8
+aioffendtable	10	int	8
+aioffendtable	11	int	8
+aioffendtable	12	int	8
+aioffendtable	13	int	8
+aioffendtable	14	int	8
+aioffendtable	15	int	8
+aioffendtable	16	int	8
+aioffendtable	17	int	8
+aioffendtable	18	int	8
+aioffendtable	19	int	8
+aioffendtable	20	int	8
+aioffendtable	21	int	8
+aioffendtable	22	int	8
+aioffendtable	23	int	8
+aioffendtable	24	int	8
+aioffendtable	25	int	8
+aioffendtable	26	int	8
+aioffendtable	27	int	8
+aioffendtable	28	int	8
+aioffendtable	29	int	8
+aioffendtable	30	int	8
+aioffendtable	31	int	8
+aioffendtable	32	int	8
+aioffendtable	33	int	8
+aioffendtable	34	int	8
+aioffendtable	35	int	8
+aioffendtable	36	int	8
+aioffendtable	37	int	8
+aioffendtable	38	not read	-
+aioffendtable	39	not read	-
+speedrun	timervars	flag 197	0
+speedrun	starthk	not read	-
+speedrun	pausehk	not read	-
+speedrun	resethk	not read	-
+speedrun	transhk	not read	-
+speedrun	topmost	not read	-
+speedrun	runbyvalue	not read	-
+speedrun	windowx	not read	-
+speedrun	windowy	not read	-
+speedrun	opacity	not read	-
+fonts	newfont5	str	Times New Roman
+gameplay	aggrrangemulmodifier	str	4
+gameplay	allvisible	flag 16	0
+gameplay	avgarmors	flag 99	0
+gameplay	balance	str	75.0
+gameplay	checkhero	int	1
+gameplay	enemysmana	flag 55	0
+gameplay	getleadertrans	flag 193	0
+gameplay	inflictdamagetrans	flag 194	0
+gameplay	isunitblockedtrans	flag 196	0
+gameplay	lietrans	flag 191	0
+gameplay	lvldurcoeff	str	0.03
+gameplay	maxmanatrans	flag 150	0
+gameplay	maxsarmors	int	10
+gameplay	maxswands	int	10
+gameplay	minsarmors	int	1
+gameplay	minswands	int	1
+gameplay	mul3	str	1.0
+gameplay	newbigtables	flag 187	0
+gameplay	parammax	str	35.0
+gameplay	parammin	str	15.0
+gameplay	pow3	str	1.0
+gameplay	resttrans	flag 192	0
+gameplay	setplayeraggressiontrans	flag 206	0
+gameplay	vampirism	flag 105	0
+gameplay	walktrans	flag 190	0
+rebalanceengine	difficultyreset	flag 75	0
+rebalanceengine	runconstex	str	0,5
+saves	savecontrol	flag 50	0
+speed	disablepausekey 	flag 37	0
+speed	fast2	int	27
+speed	showallquestsinmulti	flag 39	0
+speed	spellsaimod	flag 40	0
+speed	spellsarealwaysconstructable	flag 42	0

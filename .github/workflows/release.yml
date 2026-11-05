@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package and draft the release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      # Creates the draft release and uploads the package.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Gate in the build image
+        run: cargo xtask container
+      - name: Package
+        run: cargo xtask container dist
+        env:
+          EIX_TAG: ${{ github.ref_name }}
+      # A draft: the release is published by hand after a look at the package and the notes.
+      - name: Draft the release
+        run: gh release create "$TAG" target/container/dist/*.zip --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "eix ${TAG#v}" --notes-file target/container/dist/notes.md
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}

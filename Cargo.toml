@@ -1,0 +1,57 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/BGforgeNet/eix"
+publish = false
+
+# The canonical lint table; a module that needs `unsafe` carries `#![expect(unsafe_code, reason = "...")]`.
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "warn"
+undocumented_unsafe_blocks = "deny"
+multiple_unsafe_ops_per_block = "deny"
+mem_forget = "deny"
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+print_stdout = "deny"
+print_stderr = "deny"
+await_holding_lock = "deny"
+await_holding_refcell_ref = "deny"
+let_underscore_future = "deny"
+arc_with_non_send_sync = "deny"
+large_futures = "warn"
+unused_async = "warn"
+ptr_arg = "warn"
+needless_range_loop = "warn"
+wildcard_enum_match_arm = "warn"
+from_over_into = "warn"
+derive_partial_eq_without_eq = "warn"
+non_std_lazy_statics = "warn"
+ignore_without_reason = "warn"
+
+# A panic must never unwind into game.exe's frames; tests still unwind (Cargo ignores `panic` for them).
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+# Whole-program optimisation drops the engine code each DLL does not reach: the loader shrinks to about a seventh.
+lto = "fat"
+codegen-units = 1
+
+# The loader ships without symbols; addon.dll keeps its own for reading its crash dumps.
+[profile.release.package.eix-loader]
+strip = "symbols"

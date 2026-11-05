@@ -1,0 +1,18 @@
+[package]
+name = "eix-spelladdon"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "spelladdon"
+
+[dependencies]
+eix-core = { path = "../core" }
+eix-engine = { path = "../engine" }
+eix-sites = { path = "../sites" }
+
+[lints]
+workspace = true

@@ -1,0 +1,18 @@
+[package]
+name = "eix-loader"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "dinput"
+crate-type = ["cdylib"]
+
+[dependencies]
+eix-engine = { path = "../engine" }
+eix-sites = { path = "../sites" }
+
+[lints]
+workspace = true

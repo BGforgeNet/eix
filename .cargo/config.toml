@@ -1,0 +1,11 @@
+[target.i686-pc-windows-gnu]
+linker = "i686-w64-mingw32-gcc"
+runner = "wine"
+
+# LuaJIT's fixed PRNG seed keeps the string hash, and so `pairs` order over string keys, the same in every run, as
+# under the original's beta3. luajit-src runs `make -e`, so this reaches the target compile.
+[env]
+TARGET_CFLAGS = "-DLUAJIT_SECURITY_PRNG=0"
+
+[alias]
+xtask = "run -q -p xtask --"

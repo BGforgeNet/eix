@@ -1,0 +1,15 @@
+[package]
+name = "eix-lua"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+eix-core = { path = "../core" }
+eix-engine = { path = "../engine" }
+mlua = { version = "=0.12.2", features = ["luajit", "vendored"] }
+
+[lints]
+workspace = true

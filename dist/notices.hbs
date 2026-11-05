@@ -1,0 +1,16 @@
+Third-party notices for eix's dinput.dll and addon.dll
+
+eix itself is under the GNU General Public License, version 3 or later (LICENSE). The DLLs are built from the
+third-party crates below, each under the licence named above its list; some of them only run during the build.
+
+The Rust standard library (https://github.com/rust-lang/rust) is linked into both DLLs; it is offered under the MIT
+License or the Apache License 2.0, and taken here under the MIT License, whose text is below.
+{{#each licenses}}
+
+================================================================================
+{{name}}
+Used by: {{#each used_by}}{{crate.name}} {{crate.version}}{{#unless @last}}, {{/unless}}{{/each}}
+================================================================================
+
+{{{text}}}
+{{/each}}
