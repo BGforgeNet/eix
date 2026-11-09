@@ -86,13 +86,13 @@ extern "C" fn handler(settings: usize, ctx: &mut Context) {
 
 /// Off while both settings are 0.
 pub(super) fn off(setup: &Setup) -> Option<String> {
-    let s = &setup.options.settings;
+    let s = &setup.options.eix.fixes;
     (s.keep_running_on_focus_loss == 0 && s.clip_cursor_to_window == 0)
         .then(|| "KeepRunningOnFocusLoss and ClipCursorToWindow are 0".to_owned())
 }
 
 pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
-    let s = &setup.options.settings;
+    let s = &setup.options.eix.fixes;
     let settings = if s.keep_running_on_focus_loss != 0 {
         KEEP_RUNNING
     } else {
@@ -128,8 +128,8 @@ mod tests {
     fn it_is_off_only_when_both_settings_are_0() {
         let with = |keep, clip| {
             let mut setup = Setup::default();
-            setup.options.settings.keep_running_on_focus_loss = keep;
-            setup.options.settings.clip_cursor_to_window = clip;
+            setup.options.eix.fixes.keep_running_on_focus_loss = keep;
+            setup.options.eix.fixes.clip_cursor_to_window = clip;
             off(&setup)
         };
         assert!(with(0, 0).is_some());

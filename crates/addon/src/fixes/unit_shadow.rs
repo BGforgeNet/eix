@@ -89,7 +89,7 @@ fn with_word(bytes: &[u8], at: usize, value: u32) -> Vec<u8> {
 
 /// The setting's reason to leave the fix out, with a warning for a value the renderer cannot take.
 pub(super) fn off(setup: &Setup) -> Option<String> {
-    let value = setup.options.settings.unit_shadow_resolution;
+    let value = setup.options.eix.fixes.unit_shadow_resolution;
     match unit_shadow_size(value) {
         Some(64) => Some("UnitShadowResolution is 64".to_owned()),
         Some(_) => None,
@@ -107,7 +107,7 @@ pub(super) fn off(setup: &Setup) -> Option<String> {
 }
 
 pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
-    let value = setup.options.settings.unit_shadow_resolution;
+    let value = setup.options.eix.fixes.unit_shadow_resolution;
     let side = match unit_shadow_size(value) {
         Some(side) if side > 64 => side,
         _ => return Err(format!("UnitShadowResolution {value} is not 128 or 256").into()),
@@ -143,7 +143,7 @@ mod tests {
 
     fn setup(value: u32) -> Setup {
         let mut setup = Setup::default();
-        setup.options.settings.unit_shadow_resolution = value;
+        setup.options.eix.fixes.unit_shadow_resolution = value;
         setup
     }
 

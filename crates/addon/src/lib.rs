@@ -80,7 +80,7 @@ fn addon_main(token: &game::BeforeWinMain) {
         "",
     );
     fixes::run(token, &setup);
-    auto_pause::install(token, &setup.mod_dir);
+    auto_pause::install(token, setup.options.eix.auto_pause);
     // SpellAddonXa.asi loads with the game's sound start-up, which a command with work after the patch groups ends
     // the process before.
     if !command.late {

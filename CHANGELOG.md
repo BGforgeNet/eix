@@ -12,18 +12,18 @@ First release.
 - Built-in SpellAddon: every feature key of SpellAddon 20.6's spelladdon.ini, read from the mod folder or the game
   folder. A separate `SpellAddon*.asi` is not loaded. The package's `spelladdon.ini` has every feature off apart from
   bug fixes.
-- [Engine fixes](docs/engine-fixes.md): 34 fixes of game.exe crashes, hangs, leaks and slow paths, behind the
-  `EngineFixes` setting; KeepWindowOnFocusLoss, SmoothCamera, PlayerListOnJoin and SkipDiscCheck (the starter's
-  game.exe starts without the game disc) each have their own setting.
+- [Engine fixes](docs/engine-fixes.md): 34 fixes of game.exe crashes, hangs, leaks and slow paths, behind eix.ini's
+  `[EngineFixes] Enabled`; KeepWindowOnFocusLoss, SmoothCamera, PlayerListOnJoin and SkipDiscCheck (the starter's
+  game.exe starts without the game disc) each have their own setting there.
 - Window and shadow settings, all off by default: `KeepRunningOnFocusLoss` (a windowed game keeps running when it
   loses the focus), `ClipCursorToWindow` (the cursor stays in the window) and `UnitShadowResolution` (128 or 256 for
   sharper unit shadows).
 - `UnitPanelSpells`, on by default: the unit panel's values page lists the spells of a unit outside the party, each
   with its icon and effect, and gets a scroll bar (the mouse wheel over the page scrolls it) when it outgrows the
   panel.
-- [eix.ini](docs/eix-ini.md), eix's own settings in the mod's folder. `[AutoPause]`, off in the package's copy: in
-  single player the game pauses when a party member's health drops below `Health` hit points or `HealthPercent` of
-  its maximum.
+- [eix.ini](docs/eix-ini.md), eix's own settings in the mod's folder: `[EngineFixes]`, the switches above, and
+  `[AutoPause]`, off by default: in single player the game pauses when a party member's health drops below `Health`
+  hit points or `HealthPercent` of its maximum.
 - `[MOD] ShowTutorialDefault` in config.reg: a mod sets whether tutorials show until the player chooses.
 - Bug reports: addon.log records the eix build and commit, the system, the game.exe build and the loaded modules; a
   crash adds a record naming the patch group, fix or feature behind each address, and its box points to the issue

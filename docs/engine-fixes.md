@@ -5,23 +5,16 @@ one module per fix, applied in table order after the patch groups.
 
 - A fix changes nothing a player sees, except the visible ones and the mod setting below.
 - No fix writes a place a SpellAddon feature patches, or changes what a multiplayer peer computes.
-- addon.log lists each fix under `fixes`: applied, failed with the reason, or off. With `EngineFixes` 0 one line
-  says no fix applied, and only the mod setting is listed.
+- addon.log lists each fix under `fixes`: applied, failed with the reason, or off. With `Enabled` 0 one line says no
+  fix applied, and only the mod setting is listed.
 
 ## Settings
 
-DWORD values under `HKCU\Software\Gipat.Ru\EI_Starter\Settings`:
-
-| Value | Effect |
-|---|---|
-| `EngineFixes` | 0: all fixes off; else on |
-| `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck`, `UnitPanelSpells` | 0: the game's behaviour for that fix; else on |
-| `UnitShadowResolution` | 64 (default): the game's; 128 or 256: sharper unit shadows; another value is logged and stays 64 |
-| `KeepRunningOnFocusLoss`, `ClipCursorToWindow` | 0 (default): off; else on |
+The switches are in [eix.ini](eix-ini.md#enginefixes)'s `[EngineFixes]` section.
 
 A mod's `config.reg` can set `[MOD] ShowTutorialDefault`: the "Show tutorial" option's value while the game has
 none stored, as on a first start. The game stores the option at exit, so the player's later choice wins. Without the
-key the game's default (on) stands. `EngineFixes` 0 does not turn it off.
+key the game's default (on) stands. `Enabled` 0 does not turn it off.
 
 ## Fixes
 
@@ -60,9 +53,9 @@ key the game's default (on) stands. `EngineFixes` 0 does not turn it off.
 
 ## Visible fixes
 
-Each has its setting above; `UnitShadowResolution`, `KeepRunningOnFocusLoss` and `ClipCursorToWindow` are off by
-default, the others on. The focus fixes change the window only, never full screen. `EngineFixes` 0 turns all of them
-off.
+Each has its own [setting](eix-ini.md#enginefixes); `UnitShadowResolution`, `KeepRunningOnFocusLoss` and
+`ClipCursorToWindow` are off by default, the others on. The focus fixes change the window only, never full screen.
+`Enabled` 0 turns all of them off.
 
 | Fix | Before | After |
 |---|---|---|

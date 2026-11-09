@@ -12,8 +12,7 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use eix_core::auto_pause::{HEALTH_KEY, Limits, PERCENT_KEY, SECTION, Watch};
-use eix_engine::ansi;
+use eix_core::auto_pause::{HEALTH_KEY, Limits, PERCENT_KEY, Watch};
 use eix_engine::game::net::{is_multiplayer_client, live_server};
 use eix_engine::game::player::{PlayerIterator, UnitMapNode};
 use eix_engine::game::stl::HashTable;
@@ -116,27 +115,13 @@ unsafe fn check() {
     unsafe { World::send_pause(CLIENT_WORLD.as_ptr(), 1) };
 }
 
-/// Reads `[AutoPause]` from the mod folder's eix.ini (`mod_dir` ends in `\`, empty for no mod) and hooks the tick
-/// when a limit is on.
-pub(crate) fn install(token: &BeforeWinMain, mod_dir: &[u8]) {
-    if mod_dir.is_empty() {
-        log::info("autopause", "off: no mod selected", "");
-        return;
-    }
-    let file = [mod_dir, b"eix.ini"].concat();
-    let shown = String::from_utf8_lossy(&file).into_owned();
-    let (limits, warnings) = Limits::from_values(
-        ansi::profile_int(SECTION.as_bytes(), HEALTH_KEY.as_bytes(), 0, &file),
-        ansi::profile_int(SECTION.as_bytes(), PERCENT_KEY.as_bytes(), 0, &file),
-    );
-    for w in &warnings {
-        log::warn("autopause", w, &shown);
-    }
+/// Hooks the tick when a limit of eix.ini's `[AutoPause]` is on.
+pub(crate) fn install(token: &BeforeWinMain, limits: Limits) {
     if !limits.any() {
         log::info(
             "autopause",
             &format!("off: {HEALTH_KEY} and {PERCENT_KEY} are 0"),
-            &shown,
+            "",
         );
         return;
     }
@@ -146,7 +131,7 @@ pub(crate) fn install(token: &BeforeWinMain, mod_dir: &[u8]) {
             "{HEALTH_KEY} {}, {PERCENT_KEY} {}",
             limits.health, limits.percent
         ),
-        &shown,
+        "",
     );
     if let Ok(mut state) = STATE.lock() {
         state.0 = limits;

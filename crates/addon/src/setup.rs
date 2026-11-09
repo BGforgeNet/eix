@@ -6,12 +6,14 @@ use std::os::windows::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 
 use eix_core::ei_plugin::{self, AsiFile};
+use eix_core::eix_ini::EixIni;
 use eix_core::mod_files::{ResConfig, with_slash};
 use eix_core::options::{
     AiReg, CommandLine, ConfigReg, Environment, Options, SETTING_DWORDS, SettingValue,
     SettingValues, Settings,
 };
 use eix_core::reg::{self, LoadError, Registry};
+use eix_engine::ansi;
 use eix_engine::dll::Dll;
 use eix_engine::registry;
 use eix_engine::win::{error_box, exit_process, from_ansi, narrow, to_ansi};
@@ -141,6 +143,27 @@ fn setting_values() -> SettingValues {
         );
     }
     values
+}
+
+/// eix.ini of the mod folder `mod_dir` (ending in `\`, empty for no mod); the defaults without a mod or a file.
+fn eix_ini(mod_dir: &[u8]) -> EixIni {
+    if mod_dir.is_empty() {
+        return EixIni::default();
+    }
+    let file = [mod_dir, b"eix.ini"].concat();
+    let shown = String::from_utf8_lossy(&file).into_owned();
+    if !path(&file).is_file() {
+        log::info("options", "no eix.ini: its defaults", &shown);
+        return EixIni::default();
+    }
+    log::info("options", "eix.ini", &shown);
+    let (ini, warnings) = EixIni::read(|section, key, default| {
+        ansi::profile_int(section.as_bytes(), key.as_bytes(), default, &file)
+    });
+    for w in &warnings {
+        log::warn("options", w, &shown);
+    }
+    ini
 }
 
 /// Reads a registry-format file. `None` where the original's loader fails (no such file, a folder, an empty file or
@@ -299,6 +322,7 @@ pub(crate) fn read_for(exe_enables_t2: bool, mod_dir: Vec<u8>) -> Setup {
         );
     }
     setup.options.settings = settings;
+    setup.options.eix = eix_ini(&mod_dir);
     setup.autoexec_lines = autoexec_lines();
     setup.autoexec_registry_lines = registry::hkcu_multi_string(SETTINGS, "Console AutoExec")
         .map(|lines| lines.iter().map(|l| to_ansi(l)).collect())

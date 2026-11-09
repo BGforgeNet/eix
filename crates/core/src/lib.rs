@@ -8,6 +8,7 @@ pub mod cli;
 pub mod console_edit;
 pub mod crash_record;
 pub mod ei_plugin;
+pub mod eix_ini;
 pub mod engine_fixes;
 pub mod fixes;
 pub mod groups;

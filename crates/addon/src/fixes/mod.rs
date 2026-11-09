@@ -1,7 +1,8 @@
 //! eix's own fixes of game.exe defects, beyond what the original addon and SpellAddon change
 //! (`docs/engine-fixes.md`). None writes a site a SpellAddon feature patches: SpellAddon applies later, and a
-//! feature that found our bytes would be left out. A fix a player can see has a setting of its own that turns it off;
-//! the registry value `EngineFixes` = 0 leaves them all out, but not the mod settings ([`MOD_SETTINGS`]).
+//! feature that found our bytes would be left out. A fix a player can see has a setting of its own in eix.ini's
+//! `[EngineFixes]` that turns it off; `Enabled` = 0 there leaves them all out, but not the mod settings
+//! ([`MOD_SETTINGS`]).
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -118,7 +119,7 @@ const FIXES: &[(&str, Option<Switch>, Build)] = &[
         "KeepWindowOnFocusLoss",
         Some(|s| {
             setting(
-                s.options.settings.keep_window_on_focus_loss,
+                s.options.eix.fixes.keep_window_on_focus_loss,
                 "KeepWindowOnFocusLoss",
             )
         }),
@@ -126,18 +127,18 @@ const FIXES: &[(&str, Option<Switch>, Build)] = &[
     ),
     (
         "SmoothCamera",
-        Some(|s| setting(s.options.settings.smooth_camera, "SmoothCamera")),
+        Some(|s| setting(s.options.eix.fixes.smooth_camera, "SmoothCamera")),
         smooth_camera::build,
     ),
     (
         "PlayerListOnJoin",
-        Some(|s| setting(s.options.settings.player_list_on_join, "PlayerListOnJoin")),
+        Some(|s| setting(s.options.eix.fixes.player_list_on_join, "PlayerListOnJoin")),
         player_list_on_join::build,
     ),
     (
         "SkipDiscCheck",
         Some(|s| {
-            setting(s.options.settings.skip_disc_check, "SkipDiscCheck")
+            setting(s.options.eix.fixes.skip_disc_check, "SkipDiscCheck")
                 .or_else(disc_check::not_needed)
         }),
         disc_check::build,
@@ -150,19 +151,20 @@ const FIXES: &[(&str, Option<Switch>, Build)] = &[
     ("WindowFocus", Some(window_focus::off), window_focus::build),
     (
         "UnitPanelSpells",
-        Some(|s| setting(s.options.settings.unit_panel_spells, "UnitPanelSpells")),
+        Some(|s| setting(s.options.eix.fixes.unit_panel_spells, "UnitPanelSpells")),
         unit_panel_spells::build,
     ),
 ];
 
-/// A mod's own settings that share the fixes' machinery: the mod chose them, so `EngineFixes` leaves them on.
+/// A mod's own settings that share the fixes' machinery: the mod chose them, so `[EngineFixes] Enabled` = 0 leaves
+/// them on.
 const MOD_SETTINGS: &[(&str, Option<Switch>, Build)] = &[(
     "ShowTutorialDefault",
     Some(show_tutorial_default::off),
     show_tutorial_default::build,
 )];
 
-/// The fixes, unless `EngineFixes` is 0, then the mod settings, in the order they apply.
+/// The fixes, unless `[EngineFixes] Enabled` is 0, then the mod settings, in the order they apply.
 fn selected(
     engine_fixes: u32,
 ) -> impl Iterator<Item = &'static (&'static str, Option<Switch>, Build)> {
@@ -170,13 +172,13 @@ fn selected(
     fixes.iter().chain(MOD_SETTINGS)
 }
 
-/// Applies every fix whose switch is not 0, unless `EngineFixes` is 0, and the mod settings the mod sets.
+/// Applies every fix whose switch is not 0, unless `[EngineFixes] Enabled` is 0, and the mod settings the mod sets.
 pub(crate) fn run(token: &BeforeWinMain, setup: &Setup) {
-    if setup.options.settings.engine_fixes == 0 {
-        log::info("fixes", "EngineFixes is 0: no fix applied", "");
+    if setup.options.eix.fixes.engine_fixes == 0 {
+        log::info("fixes", "[EngineFixes] Enabled is 0: no fix applied", "");
     }
     let mut tally = Tally::default();
-    for &(name, switch, build) in selected(setup.options.settings.engine_fixes) {
+    for &(name, switch, build) in selected(setup.options.eix.fixes.engine_fixes) {
         if let Some(reason) = switch.and_then(|off| off(setup)) {
             log::info("fixes", &format!("off: {reason}"), name);
             continue;
@@ -219,7 +221,7 @@ mod tests {
         // The one entry that builds only when its mod key is set.
         setup.options.config.mod_.show_tutorial_default = Some(0);
         // The one that builds only for a side the game does not have.
-        setup.options.settings.unit_shadow_resolution = 128;
+        setup.options.eix.fixes.unit_shadow_resolution = 128;
         let mut built = 0;
         let writes = selected(1)
             .flat_map(|&(name, _, build)| {

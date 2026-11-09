@@ -1,9 +1,20 @@
 # eix.ini
 
-eix's own settings, in `eix.ini` in the mod's folder (`Mods\<mod>`, beside its `config.reg`). The package's copy has
-everything off. Without the file, or with no mod selected, everything is off.
+eix's own settings, in `eix.ini` in the mod's folder (`Mods\<mod>`, beside its `config.reg`). Without the file, or
+with no mod selected, every key takes its default. The package's copy holds every key at its default.
 
-addon.log lists the values read, and each value left out with the reason.
+addon.log names the file read, and each value left out with the reason.
+
+## EngineFixes
+
+The switches of the [engine fixes](engine-fixes.md):
+
+| Key | Value |
+|---|---|
+| `Enabled` | 0: all fixes off; else on (default 1) |
+| `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck`, `UnitPanelSpells` | 0: the game's behaviour for that fix; else on (default 1) |
+| `UnitShadowResolution` | 64 (default): the game's; 128 or 256: sharper unit shadows; another value is logged and stays 64 |
+| `KeepRunningOnFocusLoss`, `ClipCursorToWindow` | 0 (default): off; else on |
 
 ## AutoPause
 

@@ -8,6 +8,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use eix_core::eix_ini::EixIni;
 use eix_core::groups::{Decision, Group};
 use eix_core::options::{
     AiReg, CommandLine, ConfigReg, Environment, MpZone, Options, SETTING_DWORDS, SettingValue,
@@ -403,6 +404,7 @@ fn all_on_options() -> Options {
         config: ConfigReg::from_registry(&parse("all.reg")),
         ai: AiReg::from_registry(&parse("all-ai.reg")),
         settings: Settings::from_values(&all_on_values()),
+        eix: EixIni::default(),
         env: Environment {
             mod_loaded: true,
             bink_dll_in_mod: true,
@@ -429,6 +431,7 @@ fn defaults_options() -> Options {
         config: ConfigReg::from_registry(&parse("defaults.reg")),
         ai: AiReg::default(),
         settings: Settings::from_values(&values),
+        eix: EixIni::default(),
         env: Environment {
             mod_loaded: true,
             // game.exe imports binkw32.dll, so it is loaded in every run.
@@ -668,68 +671,8 @@ fn every_dword_setting_is_in_the_list_the_addon_fetches() {
         s.mq_client,
         s.mp_speed_control,
         s.mp_console,
-        s.engine_fixes,
-        s.keep_window_on_focus_loss,
-        s.smooth_camera,
-        s.player_list_on_join,
-        s.skip_disc_check,
-        s.unit_shadow_resolution,
-        s.keep_running_on_focus_loss,
-        s.clip_cursor_to_window,
-        s.unit_panel_spells,
     ];
-    assert_eq!(read, [7; 18]);
-}
-
-#[test]
-fn the_visible_engine_fixes_are_on_unless_the_registry_says_zero() {
-    let with = |name: &str, v: Option<u32>| {
-        let values = v
-            .map(|v| (name.to_owned(), SettingValue::Dword(v)))
-            .into_iter()
-            .collect();
-        let s = Settings::from_values(&values);
-        (
-            s.keep_window_on_focus_loss,
-            s.smooth_camera,
-            s.player_list_on_join,
-            s.skip_disc_check,
-            s.unit_panel_spells,
-        )
-    };
-    assert_eq!(with("KeepWindowOnFocusLoss", None), (1, 1, 1, 1, 1));
-    assert_eq!(with("KeepWindowOnFocusLoss", Some(0)), (0, 1, 1, 1, 1));
-    assert_eq!(with("SmoothCamera", Some(0)), (1, 0, 1, 1, 1));
-    assert_eq!(with("PlayerListOnJoin", Some(0)), (1, 1, 0, 1, 1));
-    assert_eq!(with("SkipDiscCheck", Some(0)), (1, 1, 1, 0, 1));
-    assert_eq!(with("UnitPanelSpells", Some(0)), (1, 1, 1, 1, 0));
-}
-
-#[test]
-fn the_shadow_and_focus_settings_default_to_the_games_behaviour() {
-    let with = |name: &str, v: u32| {
-        let values = [(name.to_owned(), SettingValue::Dword(v))]
-            .into_iter()
-            .collect();
-        let s = Settings::from_values(&values);
-        (
-            s.unit_shadow_resolution,
-            s.keep_running_on_focus_loss,
-            s.clip_cursor_to_window,
-        )
-    };
-    let none = Settings::default();
-    assert_eq!(
-        (
-            none.unit_shadow_resolution,
-            none.keep_running_on_focus_loss,
-            none.clip_cursor_to_window
-        ),
-        (64, 0, 0)
-    );
-    assert_eq!(with("UnitShadowResolution", 256), (256, 0, 0));
-    assert_eq!(with("KeepRunningOnFocusLoss", 1), (64, 1, 0));
-    assert_eq!(with("ClipCursorToWindow", 1), (64, 0, 1));
+    assert_eq!(read, [7; 9]);
 }
 
 #[test]

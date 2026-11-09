@@ -6,6 +6,7 @@
 
 use std::collections::BTreeMap;
 
+use crate::eix_ini::EixIni;
 use crate::reg::Registry;
 
 /// Raw bytes of a string value; the format does not name a code page.
@@ -303,7 +304,7 @@ pub enum SettingValue {
 pub type SettingValues = BTreeMap<String, SettingValue>;
 
 /// The DWORD values [`Settings::from_values`] reads, which the caller fetches from the registry.
-pub const SETTING_DWORDS: [&str; 18] = [
+pub const SETTING_DWORDS: [&str; 9] = [
     "WideScreen",
     "ObjectsDrawRadius",
     "LandscapeDrawRadius",
@@ -313,15 +314,6 @@ pub const SETTING_DWORDS: [&str; 18] = [
     "MQ client",
     "MP Speed-control",
     "MP console",
-    "EngineFixes",
-    "KeepWindowOnFocusLoss",
-    "SmoothCamera",
-    "PlayerListOnJoin",
-    "SkipDiscCheck",
-    "UnitShadowResolution",
-    "KeepRunningOnFocusLoss",
-    "ClipCursorToWindow",
-    "UnitPanelSpells",
 ];
 
 /// The registry options with their defaults.
@@ -347,30 +339,6 @@ pub struct Settings {
     pub mp_speed_control: u32,
     /// `MP console`. Default 0.
     pub mp_console: u32,
-    /// `EngineFixes`, eix's own: 0 leaves out the fixes beyond the originals.
-    /// Default 1.
-    pub engine_fixes: u32,
-    /// `KeepWindowOnFocusLoss`, eix's own: 0 lets a windowed game minimise when it loses the focus, as the game does.
-    /// Default 1.
-    pub keep_window_on_focus_loss: u32,
-    /// `SmoothCamera`, eix's own: 0 moves the camera in whole game ticks, as the game does. Default 1.
-    pub smooth_camera: u32,
-    /// `PlayerListOnJoin`, eix's own: 0 leaves a joining client's player list empty until the next change of players,
-    /// as the game does. Default 1.
-    pub player_list_on_join: u32,
-    /// `SkipDiscCheck`, eix's own: 0 lets the starter's game.exe ask for the game disc, as it does. Default 1.
-    pub skip_disc_check: u32,
-    /// `UnitShadowResolution`, eix's own: the side in pixels of a unit's shadow texture; 64 is the game's, 128 and 256
-    /// are sharper ([`crate::engine_fixes::unit_shadow_size`]). Default 64.
-    pub unit_shadow_resolution: u32,
-    /// `KeepRunningOnFocusLoss`, eix's own: nonzero keeps a windowed game running when it loses the focus. Default 0:
-    /// the game pauses, as it does without eix (a single-player game would otherwise go on while the player is away).
-    pub keep_running_on_focus_loss: u32,
-    /// `ClipCursorToWindow`, eix's own: nonzero keeps the cursor inside a focused windowed game. Default 0.
-    pub clip_cursor_to_window: u32,
-    /// `UnitPanelSpells`, eix's own: 0 leaves a unit outside the player's party without its spells on the unit
-    /// panel's values page, as the game shows it. Default 1.
-    pub unit_panel_spells: u32,
     /// `VideoResolution`, `WxH`.
     pub video_resolution: Option<String>,
 }
@@ -409,15 +377,6 @@ impl Settings {
             mq_client: dword("MQ client", 0),
             mp_speed_control: dword("MP Speed-control", 0),
             mp_console: dword("MP console", 0),
-            engine_fixes: dword("EngineFixes", 1),
-            keep_window_on_focus_loss: dword("KeepWindowOnFocusLoss", 1),
-            smooth_camera: dword("SmoothCamera", 1),
-            player_list_on_join: dword("PlayerListOnJoin", 1),
-            skip_disc_check: dword("SkipDiscCheck", 1),
-            unit_shadow_resolution: dword("UnitShadowResolution", 64),
-            keep_running_on_focus_loss: dword("KeepRunningOnFocusLoss", 0),
-            clip_cursor_to_window: dword("ClipCursorToWindow", 0),
-            unit_panel_spells: dword("UnitPanelSpells", 1),
             video_resolution: match find("VideoResolution") {
                 Some(SettingValue::Text(v)) => Some(v.clone()),
                 _ => None,
@@ -485,6 +444,8 @@ pub struct Options {
     pub ai: AiReg,
     /// The registry options.
     pub settings: Settings,
+    /// The mod folder's eix.ini.
+    pub eix: EixIni,
     /// The game folder and process facts.
     pub env: Environment,
 }
