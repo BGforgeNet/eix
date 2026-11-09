@@ -23,12 +23,12 @@ over aliases: `[gameplay] avrgarmors` aliases `avgarmors`; `[gameplay] showallqu
 
 The tables give **active values**. Other values make no change unless marked skipped. A skipped value is logged
 and left out, and every other feature still applies. Switches retain a signed byte: use the listed values within
--128..127; larger values wrap and warn. `1+` below means 1..127. Byte parameters retain the low byte (0..255); 32-bit
-parameters retain 32 bits. Floating-point parameters accept decimal text with a sign and an exponent; use a decimal
-point. `runconst`, `runconstex`, `pow` and `expforint` read only their first 21 characters, take a leading `-`,
-ignore any other character that is not a digit, point or comma, and also accept a decimal comma (the original
-ignores the sign too). Other numeric text holds at most 31
-bytes; font text holds at most 47 bytes.
+-128..127; larger values wrap and warn. `1+` below means 1..127. Byte parameters retain the low byte (0..255), and
+other values warn; 32-bit parameters retain 32 bits. Floating-point parameters accept decimal text with a sign and
+an exponent; use a decimal point. `runconst`, `runconstex`, `pow` and `expforint` read only their first 21
+characters, take a leading `-`, ignore any other character that is not a digit, point or comma, and also accept a
+decimal comma (the original ignores the sign too). Other numeric text holds at most 31 bytes; font text holds at
+most 47 bytes.
 Parameters have no general range validation. Limits stated below describe their use, not an extra validator.
 
 Features apply in a fixed order, independent of INI order. Where two features change the same code, the later one
@@ -109,7 +109,7 @@ built-in settings.
 | `heroscanhideweapons` | 1: press the selected weapon's key again, or click its selected slot, to sheathe it. | :white_check_mark: |
 | `camp` | 1+: `SendStringEvent(0, "constr")` enters camp. 2+: the camera-track key (Home by default) also enters when player 0's `Camp` is nonzero, then sets `Camp=2`. With `newoptions>=1`, modes 2-12 omit Home; `newoptions=1` adds the camp binding and ability button. Each of 3, 4 and 13+ adds only its own extra: 3 tracks/removes quest items; 4 limits quick quest-item slots by `QuIs`; 13+ restore zone music on return and retain Home. | :white_check_mark::white_check_mark: the Home key without player 0 does nothing (the original runs into the next action); value 3's quest-item handling keeps the game's own steps |
 | `newoptions` | 1: add camp (action 60) and kick bindings (61, 62). Camp's action requires `camp>=2`; actions 60/61 otherwise end safely, with no kick behavior added. | :white_check_mark::white_check_mark: actions 60 and 61 end the battle screen's handling (the original jumps into garbage), unless `camp` defines 60 |
-| `newperks` | 1+: add Endurance (armour against all seven damage types) and Ghostliness (less visibility), and separate the magic-school skills. 2 also changes the school field used by spell descriptions. Ghostliness's loudness change is overwritten; only visibility retains it. | :white_check_mark: |
+| `newperks` | 1+: add Endurance (armour against all seven damage types) and Ghostliness (less visibility), and separate the magic-school skills. 2 also changes the school field used by spell descriptions. | :white_check_mark::white_check_mark: Ghostliness lowers loudness as well as visibility, and visibility stops at 0 (the original's loudness change is overwritten, and visibility can go below 0) |
 
 For `camp=3`, quest-item creation sets player 0's `q<item id>=2`; taking the item sets it to 0, except while camp
 entry strips items. Set `QuIs` to the active quest-item count when using `camp=4`.
@@ -281,8 +281,8 @@ Numbers used as integer indices, styles or IDs are rounded with the game's float
 | `[tech] scriptchecking` | 1-7: append script errors to `SAlog.txt`. 2, 4-7 also log mob loads. 1/2 do not record errors in the script. 3/4/6/7 return nonzero from error handling. 5 permits eight script-load errors to pass. 8+ are skipped. | 8 and up skipped (calls code the original never wrote); 1 and 2 write the line where the original crashes at the first script error |
 | `[tech] drawunitsids` | Prefix the unit-info name with its ID; truncate to 255 bytes. Safe with no selected unit. | :white_check_mark::white_check_mark: works without a unit (the original crashes); lines cut at 255 bytes |
 
-Loot notifications use hero IDs at least one billion. Death notifications and genocide use a strict
-greater-than-one-billion attacker/killer test; genocide treats victim IDs at or below that boundary as non-heroes.
+Loot and death notifications and genocide take IDs of at least one billion as heroes and lower IDs as non-heroes
+(the original's death and genocide tests take IDs strictly above one billion).
 
 With `newspells=1..3`, spell types 44-48 publish `S0e` (strength), `S1d` (duration), `S2t` (type), `S3x`/`S4y`
 (point) on the first server player; scripts can read them with `GSGetVar`. They give the caster hostile mask 29 and

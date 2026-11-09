@@ -26,4 +26,6 @@ First release.
   left is skipped with a warning; `FloatToStr` keeps a whole number's zeros and `Round` is exact; negative integers
   and signs in ai.reg and spelladdon.ini values keep their sign; the console pastes and repeats lines without a
   stray selection; the chat log escapes messages and shows colours; equal music pause limits no longer crash; every
-  renewed spell effect goes; an item with no maximum condition has a repair price.
+  renewed spell effect goes; an item with no maximum condition has a repair price; Ghostliness lowers loudness too
+  and visibility stops at 0; SpellAddon's hero tests all take IDs from one billion up; byte parameters outside
+  0..255 warn.

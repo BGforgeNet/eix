@@ -8,6 +8,8 @@
 //! The reads go through a [`Profile`]: in the game, the system's `GetPrivateProfile*A`, so the file's parsing
 //! (duplicate keys, case, white space around names) is the system's, as for the original.
 
+use std::ops::RangeInclusive;
+
 mod keys;
 pub mod number;
 
@@ -245,7 +247,9 @@ fn present(profile: &impl Profile, section: &str, name: &str) -> bool {
     profile.text(section, name, "", 2)[0] != 0 || profile.text(section, name, "x", 2)[0] == 0
 }
 
-fn flag_out_of_range(written: &str, value: i32) -> bool {
+/// Whether the number `written`, which the system read as `value`, lies outside `range`: either does, so a number
+/// that wraps into the range is caught too.
+fn out_of_range(written: &str, value: i32, range: RangeInclusive<i128>) -> bool {
     let text = written.trim();
     let unsigned = text.trim_start_matches(['-', '+']);
     let number = if let Some(hex) = unsigned
@@ -256,14 +260,20 @@ fn flag_out_of_range(written: &str, value: i32) -> bool {
     } else {
         text.parse::<i128>()
     };
-    i8::try_from(value).is_err()
+    !range.contains(&i128::from(value))
         || match number {
-            Ok(n) => i8::try_from(n).is_err(),
+            Ok(n) => !range.contains(&n),
             Err(e) => matches!(
                 e.kind(),
                 std::num::IntErrorKind::PosOverflow | std::num::IntErrorKind::NegOverflow
             ),
         }
+}
+
+/// The number written for a key, as the system reads its text.
+fn written(profile: &impl Profile, section: &str, name: &str) -> String {
+    let buffer = profile.text(section, name, "", 128);
+    String::from_utf8_lossy(buffer.split(|&c| c == 0).next().unwrap_or(&buffer)).into_owned()
 }
 
 impl Values {
@@ -290,9 +300,8 @@ impl Values {
                 match k.kind {
                 Kind::Flag { .. } => {
                     let value = profile.int(section, name, 0);
-                    let buffer = profile.text(section, name, "", 128);
-                    let written = String::from_utf8_lossy(buffer.split(|&c| c == 0).next().unwrap_or(&buffer));
-                    if flag_out_of_range(&written, value) {
+                    let written = written(profile, section, name);
+                    if out_of_range(&written, value, -128..=127) {
                         log(Diagnostic {
                             warning: true,
                             key: format!("[{}] {:?}", k.section, k.name),
@@ -301,7 +310,21 @@ impl Values {
                     }
                     Raw::Int(value)
                 },
-                Kind::Int { default, .. } => Raw::Int(profile.int(section, name, default)),
+                Kind::Int { default, width } => {
+                    let value = profile.int(section, name, default);
+                    if width == Width::Byte {
+                        // An absent key reads as empty text and takes its default, which is in range.
+                        let written = written(profile, section, name);
+                        if !written.is_empty() && out_of_range(&written, value, 0..=255) {
+                            log(Diagnostic {
+                                warning: true,
+                                key: format!("[{}] {:?}", k.section, k.name),
+                                message: format!("value {written} is outside the byte range 0..255; using {}", value as u8),
+                            });
+                        }
+                    }
+                    Raw::Int(value)
+                },
                 Kind::Text { default, size, .. } => {
                     Raw::Buffer(profile.text(section, name, default, size))
                 }

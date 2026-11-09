@@ -215,6 +215,39 @@ fn out_of_signed_byte_flags_warn_with_written_and_used_values() {
 }
 
 #[test]
+fn byte_parameters_outside_0_to_255_warn_with_written_and_used_values() {
+    let mut messages = Vec::new();
+    Values::read_with_diagnostics(
+        &Fake::with(&[
+            ("gameplay", "astralbeam", "300"),
+            ("gameplay", "destroyray", "255"),
+            ("gameplay", "firearrow", "-1"),
+            ("gameplay", "lightningbeam", "0"),
+        ]),
+        |d| messages.push(d),
+    );
+    let warned: Vec<_> = messages
+        .iter()
+        .map(|d| (d.warning, d.key.as_str(), d.message.as_str()))
+        .collect();
+    assert_eq!(
+        warned,
+        [
+            (
+                true,
+                "[gameplay] \"astralbeam\"",
+                "value 300 is outside the byte range 0..255; using 44"
+            ),
+            (
+                true,
+                "[gameplay] \"firearrow\"",
+                "value -1 is outside the byte range 0..255; using 255"
+            ),
+        ]
+    );
+}
+
+#[test]
 fn a_switch_that_wraps_to_zero_still_warns_with_the_written_number() {
     let mut messages = Vec::new();
     let v = Values::read_with_diagnostics(

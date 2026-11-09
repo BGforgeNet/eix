@@ -778,10 +778,8 @@ fn actions_patch(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 /// The two perks `newperks` adds, in the ids the game's own perks 0x17-0x19 leave free when they move up by two.
 const ENDURANCE: u32 = 0x17;
 const GHOSTLINESS: u32 = 0x18;
-/// `UnitStats::conspicuity[0].current` and `[3].current` (ei-rebuild's `UnitStats`): how visible and how loud the
-/// unit is.
+/// `UnitStats::conspicuity[0].current` (ei-rebuild's `UnitStats`): how visible the unit is.
 const VISIBILITY: u32 = 0xE4;
-const LOUDNESS: u32 = 0xFC;
 /// 0.01 in `.rdata`, the factor Ghostliness's level value goes through.
 const PERCENT: u32 = eix_sites::RDATA_73D09C as u32;
 
@@ -815,20 +813,22 @@ extern "C" fn endurance(_: usize, ctx: &mut Context) {
 }
 
 /// `UnitStats::Recompute` 0x52484E, after the replaced `mov [ebp - 4], 0`: Ghostliness's level value times 0.01 is
-/// taken from the visibility and the loudness. The refresh then stores the loudness it computed before (still on the
-/// x87 stack) over the latter, so only the visibility keeps the change.
+/// taken from the visibility, held at 0 as the refresh holds it, and from the loudness the refresh is computing (on
+/// the x87 stack, before its own hold at 0 and its store). The original takes it from the stored loudness, which the
+/// refresh then overwrites, and leaves the visibility below 0.
 extern "C" fn ghostliness(_: usize, ctx: &mut Context) {
     let Some(value) = perk_level(ctx.ebx, GHOSTLINESS) else {
         return;
     };
     let less = Ext::new(value).fmul(game_float(PERCENT).into());
-    for field in [LOUDNESS, VISIBILITY] {
-        let at = ctx.ebx + field;
-        // SAFETY: the statistics' conspicuity values, which the refresh reads and writes here.
-        let current = unsafe { read::<f32>(at) };
-        // SAFETY: as above.
-        unsafe { common::write(at, Ext::new(current.into()).fsub_ext(less).to_f32()) };
-    }
+    common::set_st0(Ext::new(common::st0().into()).fsub_ext(less).to_f32());
+    let at = ctx.ebx + VISIBILITY;
+    // SAFETY: the statistics' visibility, which the refresh stored just before.
+    let visible = Ext::new(unsafe { read::<f32>(at) }.into())
+        .fsub_ext(less)
+        .to_f32();
+    // SAFETY: as above.
+    unsafe { common::write(at, if 0.0 < visible { visible } else { 0.0 }) };
 }
 
 /// The refresh's store of the visibility, `fstp dword [ebx + 0xE4]`, and the clear after the loudness.

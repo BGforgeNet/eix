@@ -350,7 +350,8 @@ fn save_control(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     Ok(writes)
 }
 
-/// An id at or above it is a player's hero, below it any other unit (the notify features' test).
+/// An id at or above it is a player's hero, below it any other unit, for every feature here (the original's death
+/// and genocide tests take ids strictly above it, so id 1000000000 was a hero only for loot).
 const HERO_IDS: u32 = 1_000_000_000;
 
 /// `CUnitServer::OnDamaged` 0x553B85 (`lea ecx, [esi + 0xA74]`) as the victim dies: player 0's variable named after
@@ -361,7 +362,7 @@ extern "C" fn notify_death(arg: usize, ctx: &mut Context) {
     let victim = unsafe { controlled_unit_id(ctx.esi) };
     // SAFETY: EDI is the killing unit, live.
     let killer = unsafe { object_id(ctx.edi) };
-    let value = if arg == 2 && killer as u32 > HERO_IDS {
+    let value = if arg == 2 && killer as u32 >= HERO_IDS {
         2.0
     } else {
         1.0
@@ -482,8 +483,7 @@ unsafe fn genocide_records(rule: Genocide, attacker: u32, victim: u32) -> bool {
     // SAFETY: as above; +0x24C is a map object's owner.
     let owner = |o: u32| unsafe { read::<u32>(o + 0x24C) };
     match rule {
-        // Strictly above, unlike the notify features' test, as the original's hit and kill tests answer.
-        Genocide::Count | Genocide::HeroSide => attacker_id > HERO_IDS && victim_id <= HERO_IDS,
+        Genocide::Count | Genocide::HeroSide => attacker_id >= HERO_IDS && victim_id < HERO_IDS,
         Genocide::OwnerlessSide => owner(victim) == 0,
         Genocide::OwnedOnOwnerless => owner(attacker) != 0 && owner(victim) == 0,
     }
@@ -1744,6 +1744,25 @@ mod tests {
 
     fn ctx_values() -> eix_core::spelladdon::Values {
         values(&[])
+    }
+
+    #[test]
+    fn genocide_takes_one_billion_as_a_hero() {
+        // Two zeroed objects, large enough for the owner at +0x24C, with only their ids set.
+        let object = |id: i32| {
+            let mut o = vec![0u8; 0x250];
+            let at = offset_of!(EngineObject, id);
+            o[at..at + 4].copy_from_slice(&id.to_le_bytes());
+            o
+        };
+        let records = |attacker: i32, victim: i32| {
+            let (a, v) = (object(attacker), object(victim));
+            // SAFETY: both buffers outlive the call and hold every field it reads.
+            unsafe { genocide_records(Genocide::Count, a.as_ptr() as u32, v.as_ptr() as u32) }
+        };
+        assert!(records(1_000_000_000, 999_999_999));
+        assert!(!records(999_999_999, 5));
+        assert!(!records(1_000_000_001, 1_000_000_000));
     }
 
     #[test]
