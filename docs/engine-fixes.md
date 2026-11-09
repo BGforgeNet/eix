@@ -54,7 +54,7 @@ key the game's default (on) stands. `EngineFixes` 0 does not turn it off.
 | FindHandleLeak | each music track leaks a file search handle | closed |
 | LoadFailureLeaks | a failed read and two failed texture loads leak | freed |
 | TruncatedScript | a script ending mid-statement crashes or hangs the game | "Unexpected end of file" |
-| VertexLighting | 3DfpFPU.dll lights vertices in slow x87 code | SSE, four at a time, same colours bit for bit |
+| VertexLighting | 3DfpFPU.dll lights vertices in slow x87 code | SSE, four at a time, same colours bit for bit, also with Universal Mod's um-engine.dll |
 
 ## Visible fixes
 

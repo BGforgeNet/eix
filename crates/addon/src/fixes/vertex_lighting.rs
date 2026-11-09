@@ -44,8 +44,12 @@ const OPERANDS: [(usize, usize); 7] = [
     (0x4FE, 0x2_3434),
     (0x507, 0x2_3438),
 ];
-/// FNV-1a of the method's bytes with those operands zeroed: the code core's arithmetic follows.
-const METHOD_FNV: u64 = 0x13A3_D108_5943_0433;
+/// The method's first instructions, `push ebx; mov ebx, esp; sub esp, ..`: the five bytes another module's `jmp`
+/// takes (Universal Mod's um-engine.dll writes one from its own thread, at a time nothing orders against ours).
+const ENTRY: [u8; 5] = [0x53, 0x8B, 0xDC, 0x83, 0xEC];
+/// FNV-1a of the method's bytes with those operands and the entry zeroed: the code core's arithmetic follows. The
+/// entry is left out so a `jmp` written there does not stop ours: the slot is swapped, so the method is not reached.
+const METHOD_FNV: u64 = 0xAD21_20C0_87EB_37E2;
 /// The constants the operands address (1.0, 0.0, 255.0, 1.0, 1.0, 255.0, 1.0, 255.0, 255.0), in `.data1`, which no
 /// code of the library writes.
 const CONSTANTS: usize = 0x2_3418;
@@ -423,6 +427,11 @@ unsafe fn other_build(module: usize) -> Option<String> {
         }
         operand.fill(0);
     }
+    let entry = &mut code[..ENTRY.len()];
+    if *entry != ENTRY && entry[0] != 0xE9 {
+        return Some(format!("the method's entry differs ({entry:02X?})"));
+    }
+    entry.fill(0);
     let fnv = code.iter().fold(0xCBF2_9CE4_8422_2325_u64, |h, &b| {
         (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01B3)
     });
@@ -487,6 +496,10 @@ mod tests {
     use super::*;
 
     use eix_engine::dll::Dll;
+
+    /// Held by each test that loads the game's library: one test writes into its code, the others run it, and every
+    /// load of it in this process is the same module.
+    static LIBRARY: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     /// xorshift32: the same scenes on every run.
     struct Rng(u32);
@@ -748,6 +761,9 @@ mod tests {
     #[test]
     #[ignore = "a timing, not a check: EIX_GAME_DIR=<the game folder>, run with --nocapture"]
     fn timing() {
+        let _only = LIBRARY
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let dir = std::env::var("EIX_GAME_DIR").expect("EIX_GAME_DIR names the game folder");
         let path: Vec<u16> = format!("{dir}\\3dfpfpu.dll").encode_utf16().collect();
         let dll = Dll::load(&path).expect("3dfpfpu.dll loads");
@@ -782,7 +798,35 @@ mod tests {
 
     #[test]
     #[ignore = "needs the game's 3dfpfpu.dll: EIX_GAME_DIR=<the game folder, as a Windows path>"]
+    fn another_modules_jump_at_the_entry_still_takes_ours() {
+        let _only = LIBRARY
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let dir = std::env::var("EIX_GAME_DIR").expect("EIX_GAME_DIR names the game folder");
+        let path: Vec<u16> = format!("{dir}\\3dfpfpu.dll").encode_utf16().collect();
+        let dll = Dll::load(&path).expect("3dfpfpu.dll loads");
+        let method = dll.handle() + METHOD;
+        let jump = patch::jmp_rel32(method, method + 0x1000);
+        // SAFETY: the method's entry in the loaded library, which no other test runs while LIBRARY is held.
+        unsafe { patch::write(method, &ENTRY, &jump) }.expect("the jump is written");
+        // SAFETY: the library is loaded.
+        let with_jump = unsafe { other_build(dll.handle()) };
+        // SAFETY: as above.
+        unsafe { patch::write(method, &jump, &[0xCC; 5]) }.expect("the entry is overwritten");
+        // SAFETY: as above.
+        let overwritten = unsafe { other_build(dll.handle()) };
+        // SAFETY: as above; the entry goes back before the other test may call the method.
+        unsafe { patch::write(method, &[0xCC; 5], &ENTRY) }.expect("the entry is restored");
+        assert_eq!(with_jump, None);
+        assert!(overwritten.is_some_and(|why| why.contains("entry")));
+    }
+
+    #[test]
+    #[ignore = "needs the game's 3dfpfpu.dll: EIX_GAME_DIR=<the game folder, as a Windows path>"]
     fn ours_gives_the_originals_colours_at_every_precision() {
+        let _only = LIBRARY
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let dir = std::env::var("EIX_GAME_DIR").expect("EIX_GAME_DIR names the game folder");
         let path: Vec<u16> = format!("{dir}\\3dfpfpu.dll").encode_utf16().collect();
         let dll = Dll::load(&path).expect("3dfpfpu.dll loads");
