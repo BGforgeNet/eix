@@ -125,18 +125,18 @@ pub fn float_to_str_decimals(second: Option<f32>) -> i32 {
     second.map_or(3, |d| trunc_to_i32(f64::from(d))).clamp(0, 8)
 }
 
-/// `FloatToStr`'s cut of the formatted number: trailing zeros go, scanning down to index 1 (index 0 is never
-/// looked at, so `100` with no decimals becomes `1`), then a trailing `.`.
+/// `FloatToStr`'s cut of the formatted number: the fraction's trailing zeros go, then a trailing `.`. A number with
+/// no point keeps its zeros (the original cuts those too, so `100` with no decimals became `1`).
 pub fn trim_float_text(text: &mut Vec<u8>) {
-    let mut i = text.len();
-    loop {
-        i = i.saturating_sub(1);
-        if i == 0 || text.get(i) != Some(&b'0') {
-            break;
-        }
+    if !text.contains(&b'.') {
+        return;
     }
-    let end = if text.get(i) == Some(&b'.') { i } else { i + 1 };
-    text.truncate(end);
+    while text.last() == Some(&b'0') {
+        text.pop();
+    }
+    if text.last() == Some(&b'.') {
+        text.pop();
+    }
 }
 
 /// `StrMid(text, start, count)` over a text of `len` bytes: the byte range of the result, or `None` when a negative
@@ -281,13 +281,10 @@ pub fn distance(x0: f32, y0: f32, x1: f32, y1: f32) -> f32 {
     f64::from(sum).sqrt() as f32
 }
 
-/// `Round`: `floor(x + 0.5)` from 0 up and for NaN, `ceil(x - 0.5)` below 0; the sum is rounded to float first.
+/// `Round`: half away from zero, exactly (the original rounds `x + 0.5` to float first, so 8388609 became 8388610 and
+/// 0.49999997 became 1).
 pub fn round(x: f32) -> f32 {
-    if x < 0.0 {
-        ((f64::from(x) - 0.5) as f32).ceil()
-    } else {
-        ((f64::from(x) + 0.5) as f32).floor()
-    }
+    x.round()
 }
 
 /// `Max`: an argument replaces the maximum unless it is (ordered) less, so equal and NaN arguments do.
@@ -405,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn float_text_loses_trailing_zeros_but_never_looks_at_index_0() {
+    fn float_text_loses_the_fractions_trailing_zeros() {
         let cut = |s: &str| {
             let mut v = s.as_bytes().to_vec();
             trim_float_text(&mut v);
@@ -413,8 +410,12 @@ mod tests {
         };
         assert_eq!(cut("1.500"), "1.5");
         assert_eq!(cut("2.000"), "2");
-        assert_eq!(cut("100"), "1");
+        assert_eq!(cut("100"), "100");
+        assert_eq!(cut("20"), "20");
+        assert_eq!(cut("100.000"), "100");
+        assert_eq!(cut("0"), "0");
         assert_eq!(cut("0.000"), "0");
+        assert_eq!(cut("1.#INF00"), "1.#INF");
         assert_eq!(cut("-0.250"), "-0.25");
         assert_eq!(float_to_str_decimals(None), 3);
         assert_eq!(float_to_str_decimals(Some(12.0)), 8);
@@ -457,6 +458,9 @@ mod tests {
     fn arithmetic_follows_the_addon() {
         assert_eq!(round(2.5), 3.0);
         assert_eq!(round(-2.5), -3.0);
+        assert_eq!(round(8_388_609.0), 8_388_609.0);
+        assert_eq!(round(-8_388_609.0), -8_388_609.0);
+        assert_eq!(round(0.499_999_97), 0.0);
         assert!(round(f32::NAN).is_nan());
         assert!(max(&[1.0, f32::NAN]).is_nan());
         assert_eq!(max(&[f32::NAN, 1.0]), 1.0);

@@ -22,3 +22,8 @@ First release.
 - Differences from the originals: [addon and loader](docs/addon.md), [SpellAddon options](docs/spelladdon.md).
 - Quirk fixes: fractional and whole-number INI values, common key aliases, skill and stealing caps, Lua alive flags
   and intelligence change marks; warnings for duplicate keys, ignored aliases and truncated switches.
+- More fixes of the originals: SpellAddon features that change the same code both apply, or the one with no effect
+  left is skipped with a warning; `FloatToStr` keeps a whole number's zeros and `Round` is exact; negative integers
+  and signs in ai.reg and spelladdon.ini values keep their sign; the console pastes and repeats lines without a
+  stray selection; the chat log escapes messages and shows colours; equal music pause limits no longer crash; every
+  renewed spell effect goes; an item with no maximum condition has a repair price.

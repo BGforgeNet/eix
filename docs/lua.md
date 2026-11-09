@@ -4,7 +4,7 @@ With `[Addon] EnableLuaScripts` set in the mod's ai.reg, `addon.dll` runs the mo
 patch groups. The other ai.reg settings are under [addon and loader](addon.md#gameplay-aireg).
 
 The last column of each table gives eix's difference from addon.dll 0.12.4.2, with what the original does in
-parentheses. :white_check_mark: means the original's behavior, quirks included;
+parentheses. :white_check_mark: means the original's behavior;
 :white_check_mark::white_check_mark: marks a difference that only fixes a defect of the original.
 
 ## Host
@@ -35,7 +35,7 @@ Void callbacks update the supplied structures. Other callbacks return the result
 | `LuaCalcRunningManaCost` | `CalcRunningManaCost(stats, unit, vitals)` | Void; subtract mana in the callback | :white_check_mark: |
 | `LuaCalcAttackParams` | `CalcAttackParamsOnServer(stats, unit, params, effectMaxima)`, `CalcAttackParamsOnClient(unitParams, unit, params, effectMaxima)` | Void; effectMaxima points to 40 floats | :white_check_mark: |
 | `LuaGetExpModifiers` | `GetManaBonusOnServer(stats)`, `GetManaBonusOnClient(params)` | Mana factor | :white_check_mark: |
-| `LuaGetExpModifiers` | `GetExpMultiplierOnServer(stats)`, `GetExpMultiplierOnClient(params)` | Experience multiplier | :white_check_mark: |
+| `LuaGetExpModifiers` | `GetExpMultiplierOnServer(stats)`, `GetExpMultiplierOnClient(params)` | Experience multiplier | :white_check_mark::white_check_mark: experience for a unit the client does not have shows unchanged, without a call (the original passes the script a pointer into nothing) |
 | `LuaRecalcShopsPriceMultipliers` | `RecalcShopsPriceMultipliers(multipliers, isLmp)` | Void; nine floats per shop | :white_check_mark: |
 | `LuaLmpExpDistribution` | `DistributeLmpExp(exp, players)` | Each player's experience share | :white_check_mark::white_check_mark: no value left on the FPU stack per call (the original's leftovers corrupt later results) |
 

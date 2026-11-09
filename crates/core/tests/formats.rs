@@ -133,10 +133,10 @@ fn the_other_type_converts_as_the_originals_readers_do() {
     assert_eq!(Value::Float(-2.9).as_int(), Some(-2));
     assert_eq!(Value::Float(3.0e9).as_int(), Some(-1_294_967_296));
     assert_eq!(Value::Float(f32::NAN).as_int(), Some(0));
-    // An integer read as a float: unsigned, so a negative one gains 2^32.
+    // An integer read as a float keeps its sign.
     assert_eq!(Value::Int(3).as_float(), Some(3.0));
-    assert_eq!(Value::Int(-1).as_float(), Some(4_294_967_296.0));
-    assert_eq!(Value::Int(i32::MIN).as_float(), Some(2_147_483_648.0));
+    assert_eq!(Value::Int(-1).as_float(), Some(-1.0));
+    assert_eq!(Value::Int(i32::MIN).as_float(), Some(-2_147_483_648.0));
     // A float array key takes a float array or a float scalar, not an integer scalar.
     assert_eq!(Value::Float(2.5).as_float_array(), Some(vec![2.5]));
     assert_eq!(

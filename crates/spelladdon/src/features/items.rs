@@ -17,7 +17,7 @@ use eix_engine::hook::{self, Context, Mode};
 use eix_engine::x87::Ext;
 
 use super::common::{self, Obj, read};
-use super::{Build, BuildError, Ctx};
+use super::{Build, BuildError, Ctx, rebalance};
 
 /// `UnitStats`' size (its whole-object copy in `CopyStats`).
 const UNIT_STATS: u32 = 0x704;
@@ -761,7 +761,7 @@ fn encumbrance_move_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bu
     Ok(writes)
 }
 
-/// `CUnit::AnimDurationFor` (0x5327E3, after the copied `fld [ecx + 0x4B0]`): the attack factor becomes
+/// `CUnit::AnimDurationFor` (0x5327E3, after the copied attack factor load): the attack factor becomes
 /// `(factor - r^3) * mul`, the load from the unit's stats (`[[ecx + 0x240] + 0x230]`, `+0x234`).
 extern "C" fn attack_factor(_: usize, ctx: &mut Context) {
     // SAFETY: ECX is the unit `AnimDurationFor` runs on.
@@ -777,7 +777,8 @@ extern "C" fn attack_factor(_: usize, ctx: &mut Context) {
     common::set_st0(v);
 }
 
-/// The stats refresh at 0x524BFE (after the copied `fadd [10.0]`): `(x + 10) * (speed - r^3 * mul)`.
+/// The stats refresh at 0x524BFE (after the copied `fadd`, of 10 or `actionsadd`): `(x + add) * (speed - r^3 *
+/// mul)`.
 extern "C" fn attack_rate(_: usize, ctx: &mut Context) {
     // SAFETY: EBX is the `UnitStats` the refresh computes, as in `move_speed_hook`.
     let s = unsafe { Obj::new(ctx.ebx, UNIT_STATS) };
@@ -794,38 +795,36 @@ extern "C" fn attack_rate(_: usize, ctx: &mut Context) {
 }
 
 /// `encumbranceattackspeed`: 1 slows attack animations by the load and has `AdvanceTime` apply its speed factor in
-/// motion mode 1 instead of 2; 2 slows the stats' attack rate instead.
+/// motion mode 1 instead of 2; 2 slows the stats' attack rate instead. Each hook copies the instruction as
+/// `rewriteactionsspeed` (1) or `actionspatch` (2) left it, so the slowing applies to that feature's value (the
+/// original's hook copies the game's instruction, dropping that feature's value there).
 fn encumbrance_attack_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let mul = ctx
         .values
         .float("gameplay", "encumbranceattackmul")?
         .to_le_bytes();
     match value {
-        1 => Ok(vec![
-            bytes(
-                eix_sites::C_UNIT_CLIENT_SPECIFIC_ADVANCE_TIME__143,
-                &[0x02, 0x75],
-                &[0x01, 0x74],
-            )?,
-            hook::context_call(
-                eix_sites::C_UNIT_ACTION_SPEED__13,
-                &[0xD9, 0x81, 0xB0, 0x04, 0x00, 0x00],
-                Mode::Before,
-                attack_factor,
-                0,
-            )?,
-            bytes(ATTACK_MUL as usize, &[0; 4], &mul)?,
-        ]),
-        2 => Ok(vec![
-            bytes(ATTACK_MUL as usize, &[0; 4], &mul)?,
-            hook::context_call(
-                eix_sites::UNIT_STATS_RECOMPUTE__69E,
-                &[0xD8, 0x05, 0xAC, 0xBA, 0x73, 0x00],
-                Mode::Before,
-                attack_rate,
-                0,
-            )?,
-        ]),
+        1 => {
+            let speeds = ctx.values.flag("animationsspeed", "rewriteactionsspeed")?;
+            let (site, load) = rebalance::animation_load(speeds, 0);
+            Ok(vec![
+                bytes(
+                    eix_sites::C_UNIT_CLIENT_SPECIFIC_ADVANCE_TIME__143,
+                    &[0x02, 0x75],
+                    &[0x01, 0x74],
+                )?,
+                hook::context_call(site, &load, Mode::Before, attack_factor, 0)?,
+                bytes(ATTACK_MUL as usize, &[0; 4], &mul)?,
+            ])
+        }
+        2 => {
+            let actions = ctx.values.flag("gameplay", "actionspatch")?;
+            let (site, add) = rebalance::actions_add(actions);
+            Ok(vec![
+                bytes(ATTACK_MUL as usize, &[0; 4], &mul)?,
+                hook::context_call(site, &add, Mode::Before, attack_rate, 0)?,
+            ])
+        }
         _ => Ok(Vec::new()),
     }
 }

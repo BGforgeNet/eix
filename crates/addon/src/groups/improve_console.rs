@@ -49,6 +49,8 @@ extern "C" fn skip_repeat(_: usize, ctx: &mut Context) {
     // SAFETY: as above.
     let same = newest == unsafe { w.input.as_bytes() };
     if same {
+        // The skipped code zeroes EBX, which then empties the selection (the original leaves the caller's EBX there).
+        ctx.ebx = 0;
         ctx.resume = AFTER_INSERT;
     }
 }
@@ -104,8 +106,7 @@ extern "C" fn clipboard(_: usize, ctx: &mut Context) {
         b'v' => {
             let clip = to_ansi(&clipboard_text());
             let line = console_edit::first_line(&clip);
-            let (text, position) =
-                console_edit::paste(&input, low, high, line, w.anchor != w.caret);
+            let (text, position) = console_edit::paste(&input, low, high, line);
             // SAFETY: as above.
             unsafe { set_input(window, &text, position) };
         }

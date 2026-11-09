@@ -169,19 +169,21 @@ const HIT_MARK_LOADS: [(usize, [u8; 6], usize); 2] = [
         eix_sites::C_UNIT_SERVER_RESOLVE_HIT__11B,
     ),
     (
-        eix_sites::C_UNIT_SERVER_RESOLVE_HIT__11D,
-        [0xD9, 0x05, 0xA8, 0xC1, 0x73, 0x00],
+        RESOLVE_HIT_MARK,
+        RESOLVE_HIT_MARK_WAS,
         eix_sites::C_UNIT_SERVER_RESOLVE_HIT__123,
     ),
 ];
 
-/// `increasinghitchance` = 1: misses in a row raise the hit chance.
+/// `increasinghitchance` = 1: misses in a row raise the hit chance. Its stub at the second mark runs what
+/// `newattackdefence` left there, so both apply (the original's stub runs the game's load, undoing that feature's).
 fn increasing_hit_chance(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
     let padding = f32::from_le_bytes([0x90; 4]);
     let check = ctx.values.byte("gameplay", "tohitcheck")?;
+    let attack_defence = ctx.values.flag("gameplay", "newattackdefence")?;
     let stub = common::jump_stub(
         HIT_ROLL,
         &[],
@@ -206,6 +208,11 @@ fn increasing_hit_chance(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
         .into_iter()
         .zip([clear_miss_counter, raise_miss_counter])
     {
+        let was = if site == RESOLVE_HIT_MARK {
+            resolve_hit_mark(attack_defence)
+        } else {
+            was
+        };
         let stub = common::jump_stub(site, &was, handler, 0, go_on)?;
         writes.push(common::branch(
             site,
@@ -509,6 +516,16 @@ const RESOLVE_ROLL_GO_ON: usize = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__6D;
 /// `ResolveHit`'s load of the "hit" constant 0x73C1A8: NOPs (1, 2), or the "miss" constant 0x73F13C (4).
 const RESOLVE_HIT_MARK: usize = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__11D;
 const RESOLVE_HIT_MARK_WAS: [u8; 6] = [0xD9, 0x05, 0xA8, 0xC1, 0x73, 0x00];
+
+/// What `newattackdefence` = `value` leaves at [`RESOLVE_HIT_MARK`].
+fn resolve_hit_mark(value: i8) -> [u8; 6] {
+    match value {
+        1 | 2 => [0x90; 6],
+        4 => [0xD9, 0x05, 0x3C, 0xF1, 0x73, 0x00],
+        _ => RESOLVE_HIT_MARK_WAS,
+    }
+}
+
 /// `pop edi; pop esi; fnstsw ax; test ah, 0x41` at the end of `ResolveHit`: `nop; nop; jmp` to a copy.
 const RESOLVE_END: usize = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__12C;
 const RESOLVE_END_WAS: [u8; 7] = [0x5F, 0x5E, 0xDF, 0xE0, 0xF6, 0xC4, 0x41];
@@ -553,7 +570,11 @@ fn new_attack_defence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
             0,
             stub,
         )?);
-        writes.push(SiteWrite::nop(RESOLVE_HIT_MARK, &RESOLVE_HIT_MARK_WAS));
+        writes.push(SiteWrite::bytes(
+            RESOLVE_HIT_MARK,
+            &RESOLVE_HIT_MARK_WAS,
+            &resolve_hit_mark(value),
+        )?);
         let copy = hook::trampoline(RESOLVE_END, &RESOLVE_END_WAS)?;
         writes.push(common::branch(
             RESOLVE_END,
@@ -586,10 +607,11 @@ fn new_attack_defence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
             stub,
         )?);
         if value == 4 {
+            // The constant's address alone, as the original writes it.
             writes.push(SiteWrite::bytes(
                 RESOLVE_HIT_MARK + 2,
-                &[0xA8, 0xC1],
-                &[0x3C, 0xF1],
+                &RESOLVE_HIT_MARK_WAS[2..4],
+                &resolve_hit_mark(value)[2..4],
             )?);
         }
     }
@@ -766,12 +788,15 @@ const BOOST_SKIPS: &[Bytes] = &[
         &[0xD9, 0x5B, 0x24],
         &[0x90; 3],
     ),
-    (
-        eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__1E8,
-        &[0x8B, 0x47],
-        &[0xEB, 0x2A],
-    ),
+    BOOST_CLIENT_SKIP,
 ];
+const BOOST_CLIENT_SKIP: Bytes = (
+    eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__1E8,
+    &[0x8B, 0x47],
+    &[0xEB, 0x2A],
+);
+/// Where [`BOOST_CLIENT_SKIP`] jumps to.
+const BOOST_CLIENT_GO_ON: usize = eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__214;
 /// Values 4 and 5: `fstp [ebx + 0x24]; test eax, eax; mov [ebx + 0x2C], ecx` becomes `mov [ebx + 0x2C], ecx; jmp
 /// 0x54F842; fstp [ebx + 0x24]`, and the padding's last five bytes jump to the hook.
 const SCALED_HIT_DETOUR: Bytes = (
@@ -1288,11 +1313,13 @@ impl RangedTest {
 }
 
 /// `newrangedweapontypes` = 1: weapon types 11 and 15 count as ranged beside bows and crossbows, and every caller
-/// that tested for a bow or crossbow asks `HasRangedWeapon` instead.
-fn new_ranged_weapon_types(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+/// that tested for a bow or crossbow asks `HasRangedWeapon` instead. With `rangedweaponbackstabs`, `ExecuteOrder`'s
+/// test stays as that feature left it, which always takes the melee way (the original rewrites it, dropping that).
+fn new_ranged_weapon_types(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
+    let backstabs = ctx.values.flag("gameplay", "rangedweaponbackstabs")? == 1;
     let stub = common::call_stub(ranged_type, 0, HAS_RANGED + 8)?;
     let mut writes = vec![common::branch(
         HAS_RANGED,
@@ -1302,6 +1329,9 @@ fn new_ranged_weapon_types(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
         stub,
     )?];
     for t in &RANGED_TESTS {
+        if backstabs && t.site == eix_sites::C_UNIT_SERVER_EXECUTE_ORDER__37D {
+            continue;
+        }
         writes.push(t.write()?);
     }
     writes.extend(common::fixed(&[ATTACKS_FROM_RANGE_JUMP])?);
@@ -1406,6 +1436,15 @@ extern "C" fn night_server(arg: usize, ctx: &mut Context) {
 /// unit panel's `DrawUnitInfo` (its return address 0x6472DB, EBP that function's frame, whose `[ebp - 0x1C]` is the
 /// shown unit's +0x330), the shown attack and defence times [`night_factor`] of the unit's byte +0x353.
 extern "C" fn night_client(arg: usize, ctx: &mut Context) {
+    night_client_scale(arg, ctx);
+    // SAFETY: EDI is the client controller (+0x1C its unit), ESI the parameters.
+    ctx.eax = unsafe { read::<u32>(ctx.edi + 0x1C) };
+    // SAFETY: as above.
+    ctx.ecx = unsafe { read::<u32>(ctx.esi + 0x10) };
+}
+
+/// [`night_client`]'s scaling alone.
+extern "C" fn night_client_scale(arg: usize, ctx: &mut Context) {
     // SAFETY: the build keeps the parameters for the process.
     let night = unsafe { common::kept::<NightPower>(arg) };
     if ctx.stack_word(4) == Some(eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__29B as u32) {
@@ -1416,15 +1455,12 @@ extern "C" fn night_client(arg: usize, ctx: &mut Context) {
         // SAFETY: ESI is the parameters being filled.
         unsafe { night_scale(ctx.esi, night_factor(Ext::new(vision.into()), night)) };
     }
-    // SAFETY: EDI is the client controller (+0x1C its unit), ESI the parameters.
-    ctx.eax = unsafe { read::<u32>(ctx.edi + 0x1C) };
-    // SAFETY: as above.
-    ctx.ecx = unsafe { read::<u32>(ctx.esi + 0x10) };
 }
 
 /// `nightpower` 2: at night attack and defence scale by [`night_factor`], on the server for every attack and on the
 /// client for the unit panel. Value 1, whose server routine loads one value too few and so stores the integer
-/// indefinite as attack and defence, is skipped by the registry.
+/// indefinite as attack and defence, is skipped by the registry. With `damageboost` 3, the client's hook goes on where
+/// that feature's jump goes, so the panel keeps both (the original's hook drops the jump).
 fn night_power(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 2 {
         return Ok(Vec::new());
@@ -1449,13 +1485,22 @@ fn night_power(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
         night_server,
         arg,
     )?);
-    writes.extend(common::jump_at(
-        eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__1E8,
-        &[0x8B, 0x47, 0x1C, 0x8B, 0x4E, 0x10],
-        1,
-        night_client,
-        arg,
-    )?);
+    let (client, boost_was, boost_now) = BOOST_CLIENT_SKIP;
+    let client_was = [0x8B, 0x47, 0x1C, 0x8B, 0x4E, 0x10];
+    if ctx.values.flag("gameplay", "damageboost")? == 3 {
+        let mut was = client_was;
+        was[..boost_was.len()].copy_from_slice(boost_now);
+        let stub = common::jump_stub(client, &[], night_client_scale, arg, BOOST_CLIENT_GO_ON)?;
+        writes.push(common::branch(
+            client,
+            &was[..5],
+            &[0xE9, 0, 0, 0, 0],
+            0,
+            stub,
+        )?);
+    } else {
+        writes.extend(common::jump_at(client, &client_was, 1, night_client, arg)?);
+    }
     Ok(writes)
 }
 

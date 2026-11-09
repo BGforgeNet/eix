@@ -83,10 +83,17 @@ pub fn atoi(s: &[u8]) -> i32 {
 /// The module's digit-string parser over the window `buf[0..=20]`, read right to left: every digit adds
 /// `digit * 10^k` (k counting the digits met so far), every digit met before the first `.` or `,` multiplies the
 /// divisor by 10, and anything else is skipped, the string's NUL and the stack filler after it included. The result
-/// is the sum divided by the divisor.
+/// is the sum divided by the divisor, negated when the text starts with `-` after spaces (the original skips the sign
+/// too, so `-2.5` was 2.5).
 ///
-/// Without a point the divisor is 1: `150` and `150.0` are 150, `-2.5` is 2.5 and `0,5` is 0.5.
+/// Without a point the divisor is 1: `150` and `150.0` are 150, `-2.5` is -2.5 and `0,5` is 0.5.
 pub fn digits(buf: &[u8]) -> f64 {
+    let negative = buf.iter().find(|&&c| c != b' ') == Some(&b'-');
+    let value = unsigned_digits(buf);
+    if negative { -value } else { value }
+}
+
+fn unsigned_digits(buf: &[u8]) -> f64 {
     const WINDOW: usize = 21;
     let mut sum = 0.0f64;
     let mut scale: i64 = 1;
@@ -165,7 +172,9 @@ mod tests {
         assert_eq!(digits(&buffer(b"150")), 150.0);
         assert_eq!(digits(&buffer(b"150.0")), 150.0);
         assert_eq!(digits(&buffer(b"0,5")), 0.5);
-        assert_eq!(digits(&buffer(b"-2.5")), 2.5);
+        assert_eq!(digits(&buffer(b"-2.5")), -2.5);
+        assert_eq!(digits(&buffer(b" -0,5")), -0.5);
+        assert_eq!(digits(&buffer(b"2-5")), 25.0);
         assert_eq!(digits(&buffer(b"0.00666666")), 0.00666666);
         assert_eq!(digits(&buffer(b"0,006666666666")), 0.006666666666);
         assert_eq!(digits(&buffer(b"1.0245")), 1.0245);

@@ -30,13 +30,12 @@ pub fn first_line(clip: &[u8]) -> &[u8] {
     &clip[..end]
 }
 
-/// Pastes `clip` over the selection `low..high`: the new input and the caret (= anchor) position, which is the
-/// paste's length past `high`, less one when there was a selection (the original's arithmetic).
-pub fn paste(input: &[u8], low: i32, high: i32, clip: &[u8], selected: bool) -> (Vec<u8>, i32) {
+/// Pastes `clip` over the selection `low..high`: the new input and the caret (= anchor) position, right after the
+/// pasted text (the original puts it the paste's length past `high`, less one, so only a one-byte selection was right).
+pub fn paste(input: &[u8], low: i32, high: i32, clip: &[u8]) -> (Vec<u8>, i32) {
     let text = [left(input, low), clip, mid(input, high)].concat();
     let len = i32::try_from(clip.len()).unwrap_or(i32::MAX);
-    let position = len.wrapping_sub(i32::from(selected)).wrapping_add(high);
-    (text, position)
+    (text, low.wrapping_add(len))
 }
 
 #[cfg(test)]
@@ -59,9 +58,8 @@ mod tests {
         assert_eq!(cut(b"abcdef", 1, 4), b"aef");
         assert_eq!(first_line(b"one\r\ntwo"), b"one");
         assert_eq!(first_line(b"one"), b"one");
-        // A selection: the caret lands one byte short of the paste's end.
-        assert_eq!(paste(b"abcdef", 1, 4, b"XY", true), (b"aXYef".to_vec(), 5));
-        // No selection: right after the pasted text.
-        assert_eq!(paste(b"abc", 1, 1, b"XY", false), (b"aXYbc".to_vec(), 3));
+        // The caret lands right after the pasted text, with a selection or without.
+        assert_eq!(paste(b"abcdef", 1, 4, b"XY"), (b"aXYef".to_vec(), 3));
+        assert_eq!(paste(b"abc", 1, 1, b"XY"), (b"aXYbc".to_vec(), 3));
     }
 }

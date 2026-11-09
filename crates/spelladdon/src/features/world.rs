@@ -576,14 +576,15 @@ fn no_trash(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `musictimings` = 1: `CMusicSystem::UpdateMusic`'s pause between tracks is `minmusictime` plus a random number
-/// modulo `maxmusictime - minmusictime`, at its three draws.
+/// modulo `maxmusictime - minmusictime`, at its three draws. With `maxmusictime` not above `minmusictime` the modulus
+/// is 1, so the pause is `minmusictime` (the original's modulus is then 0, and the game's division faults, or wraps).
 fn music_timings(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
     let min = ctx.values.int("gameplay", "minmusictime")?;
     let max = ctx.values.int("gameplay", "maxmusictime")?;
-    let range = max.wrapping_sub(min).to_le_bytes();
+    let range = if max > min { max.wrapping_sub(min) } else { 1 }.to_le_bytes();
     let mut writes = Vec::with_capacity(6);
     for (modulus, minimum) in [
         (
@@ -1344,6 +1345,25 @@ mod tests {
             b
         };
         assert_eq!(info_lines(eix_sites::TEXT_72E2E9 as u32), want);
+    }
+
+    #[test]
+    fn music_pauses_never_divide_by_zero() {
+        let modulus = |min: &str, max: &str| {
+            let v = values(&[
+                ("gameplay", "minmusictime", min),
+                ("gameplay", "maxmusictime", max),
+            ]);
+            let w = plain(&music_timings(&Ctx::new(&v, no_log), 1).unwrap());
+            (w[0].0, w[0].2.clone())
+        };
+        let site = eix_sites::C_MUSIC_SYSTEM_UPDATE_MUSIC__B1;
+        assert_eq!(
+            modulus("1000", "3000"),
+            (site, 2000i32.to_le_bytes().to_vec())
+        );
+        assert_eq!(modulus("1000", "1000"), (site, 1i32.to_le_bytes().to_vec()));
+        assert_eq!(modulus("3000", "1000"), (site, 1i32.to_le_bytes().to_vec()));
     }
 
     #[test]

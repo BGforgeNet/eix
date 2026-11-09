@@ -509,6 +509,18 @@ const ADVANCE_TIME_MODE: Bytes = (
     &[0x83, 0xF8, 0x01, 0x74, 0x12],
 );
 
+/// The site of `ANIMATION_LOADS[i]` and the load there with `rewriteactionsspeed` = `value`: the table's entry for 1,
+/// else the game's own.
+pub(super) fn animation_load(value: i8, i: usize) -> (usize, [u8; 6]) {
+    let (site, was) = ANIMATION_LOADS[i];
+    if value != 1 {
+        return (site, was);
+    }
+    let mut now = [0xD9, 0x05, 0, 0, 0, 0];
+    now[2..].copy_from_slice(&((ANIMATION_TABLE + 4 * i) as u32).to_le_bytes());
+    (site, now)
+}
+
 /// `rewriteactionsspeed` = 1: every unit's animation factors come from the INI.
 fn actions_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
@@ -516,9 +528,7 @@ fn actions_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
     }
     let mut writes = common::fixed(&[ADVANCE_TIME_MODE])?;
     for (i, (site, was)) in ANIMATION_LOADS.iter().enumerate() {
-        let mut now = [0xD9, 0x05, 0, 0, 0, 0];
-        now[2..].copy_from_slice(&((ANIMATION_TABLE + 4 * i) as u32).to_le_bytes());
-        writes.push(SiteWrite::bytes(*site, was, &now)?);
+        writes.push(SiteWrite::bytes(*site, was, &animation_load(value, i).1)?);
     }
     for (i, key) in ANIMATION_KEYS.iter().enumerate() {
         writes.push(common::float_at(
@@ -742,6 +752,14 @@ const ACTIONS_FORMULA: Bytes = (
         0xD8, 0x0D, 0xD0, 0x02, 0x40, 0x00, 0xD8, 0x05, 0xD4, 0x02, 0x40, 0x00,
     ],
 );
+
+/// The site of [`ACTIONS_FORMULA`]'s `fadd` and its bytes with `actionspatch` = `value`.
+pub(super) fn actions_add(value: i8) -> (usize, [u8; 6]) {
+    let (site, was, now) = ACTIONS_FORMULA;
+    let mut add = [0; 6];
+    add.copy_from_slice(&if value == 1 { now } else { was }[6..]);
+    (site + 6, add)
+}
 
 /// `actionspatch` = 1: actions are `dexterity * actionsmul + actionsadd`.
 fn actions_patch(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {

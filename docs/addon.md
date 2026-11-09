@@ -6,7 +6,7 @@ For installation and supported game builds, see the [README](../README.md). Spel
 are under [engine fixes](engine-fixes.md).
 
 The last column of each table gives eix's difference from addon.dll 0.12.4.2 and Addon Loader 1.1.0.0, with what
-the original does in parentheses. :white_check_mark: means the original's behavior, quirks included;
+the original does in parentheses. :white_check_mark: means the original's behavior;
 :white_check_mark::white_check_mark: marks a difference that only fixes a defect of the original. A name in
 parentheses after a key is its patch group's name in `addon.log`.
 
@@ -22,10 +22,11 @@ Settings come from:
 
 The `.reg` files use the game's registry format, not Windows Registry Editor syntax. A missing key takes its
 default, and so does a string where a number is expected or a single value where an array is expected. An integer
-is accepted where a float is expected, and a float where an integer is expected (truncated); write a negative float
-as a float, since an integer -1 reads as 4294967296. Gameplay groups require a selected mod and a nonempty
-`[CONFIG] ai.reg` path. Configure multiplayer participants consistently for gameplay changes. Groups apply in a
-fixed order, and later groups can replace earlier changes. A failed byte check skips the whole group and logs why.
+is accepted where a float is expected, and a float where an integer is expected (truncated). A negative integer
+keeps its sign where a float is expected (the original reads -1 as 4294967296). Gameplay groups require a selected
+mod and a nonempty `[CONFIG] ai.reg` path. Configure multiplayer participants consistently for gameplay changes.
+Groups apply in a fixed order, and later groups can replace earlier changes. A failed byte check skips the whole
+group and logs why.
 
 ### Launcher settings
 
@@ -71,7 +72,7 @@ Paths under `[CONFIG]` and plugin paths are relative to the mod folder. An empty
 | `[CONFIG] music.reg`, `streamsn.reg` (ConfigMusicReg, ConfigStreamSNReg) | Empty | Replace music and streamed-sound configuration | :white_check_mark::white_check_mark: a path of 260 bytes or more fails the group (the original ends the process) |
 | `[CONFIG] lights<X>.ini` (ConfigLightsIni) | None | Replace a matching lights file; use lowercase key names. The key's presence enables it: an empty value names the mod folder itself | :white_check_mark: |
 | `[DEV] GameDebugFile` (GameExeDebug) | Empty | Write game debug messages to this file, relative to the game working folder | :white_check_mark: |
-| `[DEV] ChatHtmlFile` (ChatLog) | Empty | Append server chat to this HTML file, relative to the game working folder | :white_check_mark: |
+| `[DEV] ChatHtmlFile` (ChatLog) | Empty | Append server chat to this HTML file, relative to the game working folder | :white_check_mark::white_check_mark: names and messages are escaped, and the speakers' colours show (the original writes them raw, and its colour classes are not valid CSS) |
 | `[DEV] Plugin` | Empty | Load a plugin DLL, a filename pattern, or a folder's `*.plg` files; empty or missing loads the mod folder's `*.plg` files | plugins are called in load order (the original: by module handle, which the system chooses) |
 | `[MPZone] Gipath`, `Ingos`, `Suslanger` (MpZone) | Missing | Replace multiplayer zone lists; provide all three as strings or string arrays; duplicate names are rejected ignoring case | :white_check_mark: |
 | `[RES] <archive>` (ResOverride) | None | String or string array of replacement archive paths, in file order; a path starting with `-` suppresses the game's archive | :white_check_mark::white_check_mark: archive paths of 260 bytes and more work (the original ends the process); an archive that fails to open is left out and logged |
@@ -149,16 +150,16 @@ These need no individual switch. Mod-file overrides and the settings above suppl
 | `AllowScriptArgsInLoops` | Make enclosing script locals available inside `For` and `ForIf` | :white_check_mark: |
 | `AllowScriptsInMainMenu` | Run the main-menu zone's script | :white_check_mark: |
 | `FixLeversActivate` | Correct signed lock/key level comparison and locks that require no skill | :white_check_mark: |
-| `FixSpellEffectsOverflow` | Limit accumulated effects, replace renewed effects, and expire effects on sleeping objects | :white_check_mark::white_check_mark: a missing object in the sleep count-down is skipped (the original crashes) |
+| `FixSpellEffectsOverflow` | Limit accumulated effects, replace renewed effects, and expire effects on sleeping objects | :white_check_mark::white_check_mark: a missing object in the sleep count-down is skipped (the original crashes); every renewed effect goes (the original keeps the second of two in a row) |
 | `FixProgressNames` | Use the separate loading movies for the allods `gipat2` and `jigran` | :white_check_mark: |
-| `AddNewConsoleCommands`, `ImproveConsole` | Add commands below, clipboard shortcuts, and suppress consecutive duplicate history lines | :white_check_mark::white_check_mark: `execs` without a file name does nothing (the original reads a stale argument) |
+| `AddNewConsoleCommands`, `ImproveConsole` | Add commands below, clipboard shortcuts, and suppress consecutive duplicate history lines | :white_check_mark::white_check_mark: `execs` without a file name does nothing (the original reads a stale argument); a paste over a selection puts the caret after the pasted text (the original puts it past the selection's end, less one); a repeated line leaves no selection (the original may leave one) |
 | `NewStringEvents` | Add `gameover [title [text]]`; defaults are text keys `game_over` and `game_over_msg` | :white_check_mark::white_check_mark: a failed allocation pushes no window (the original pushes null) |
 | `FixSpellSelfCasting` | Correct offensive-spell classification and clicked-unit targeting | :white_check_mark: |
 | `FixProcessLogin` | Initialize the joining player's age field | :white_check_mark: |
 | `FixMoveObject` | Reject negative or invalid map coordinates instead of indexing an invalid sector | the refusal message goes to addon.log; coordinates round half to even, NaN prints `NaN` |
 | `FixAddMapObject` | Report a missing unit prototype and use the fallback record | :white_check_mark: |
 | `FixPlaingBattleMusicFromAntimagic` | Stop Antimagic alone from triggering combat music | :white_check_mark: |
-| `FixRepairPrice` | Bound wear to 0..1 and include repair cost correctly when taking an item apart | :white_check_mark: |
+| `FixRepairPrice` | Bound wear to 0..1 and include repair cost correctly when taking an item apart | :white_check_mark::white_check_mark: an item with no maximum condition has no wear (the original's price is then not a number) |
 | `FixRemoveMapObject` | Report an unknown object instead of crashing on removal | :white_check_mark: |
 | `ExtendedServerName` | Enlarge the multiplayer server-name field and wrap or shorten display text | :white_check_mark::white_check_mark: a name of 90 bytes or more is cut to 89 (the original ends the process) |
 | `NivalRegistry` | Use the starter's game-settings registry branch | :white_check_mark: |
@@ -208,7 +209,7 @@ Arguments are numbers, strings, objects or groups as named. Functions return a n
 | `GetUnitExp(unit [, what])` | Experience: `max` (default), `spent`, `penalty`, or `real` (experience plus penalty) | :white_check_mark: |
 | `GetArmor(unit, kind, part)` | Protection: kind 0..5 selects a body slot's layers, part 0..6 a damage type; negative kind uses computed protection | :white_check_mark: |
 | `GetObjectStringID(object)` | Object ID as a decimal string | :white_check_mark: |
-| `FloatToStr(value [, precision])`, `StrToFloat(text)` | Convert number/text; precision defaults to 3, clamped to 0..8; trailing zeros are removed, those of the integer part too at precision 0 (`FloatToStr(100, 0)` is `1`) | :white_check_mark: |
+| `FloatToStr(value [, precision])`, `StrToFloat(text)` | Convert number/text; precision defaults to 3, clamped to 0..8; the fraction's trailing zeros are removed | :white_check_mark::white_check_mark: `FloatToStr(100, 0)` is `100` (the original removes the integer part's zeros too, giving `1`) |
 | `StrCat(text, text, ...)`, `StrLen(text)` | Concatenate strings; length in bytes | :white_check_mark: |
 | `Sin(value)`, `Cos(value)`, `Pow(base, exponent)` | Trigonometry in radians; exponentiation | :white_check_mark: |
 | `DistancePointPoint(x, y)` | Distance from the point to the origin; the two implicit coordinates are zero | :white_check_mark::white_check_mark: the last two values are 0 (the original reads past its arguments) |
@@ -222,7 +223,7 @@ Arguments are numbers, strings, objects or groups as named. Functions return a n
 | `Add(a, b, ...)`, `Mul(a, b, ...)` | Sum/product | :white_check_mark: |
 | `And(a, b, ...)`, `Or(a, b, ...)` | Logical conjunction/disjunction | :white_check_mark: |
 | `Max(a, b, ...)`, `Min(a, b, ...)`, `Abs(value)` | Maximum, minimum, absolute value | :white_check_mark: |
-| `Round(value)`, `Ceil(value)`, `Floor(value)` | Round half away from zero, up or down | :white_check_mark: |
+| `Round(value)`, `Ceil(value)`, `Floor(value)` | Round half away from zero, up or down | :white_check_mark::white_check_mark: `Round` is exact (the original gives 8388610 for 8388609 and 1 for 0.49999997) |
 | `Random(max)`, `Random(min, max)` | Game random function, or a random value in the given range; returns min if max <= min | :white_check_mark: |
 | `RandStr(text, text, ...)`, `RandObj(group)` | Random string or group member | :white_check_mark::white_check_mark: `RandStr` stops on a missing object (the original crashes) |
 | `StrHas(text, fragment)` | 1 if the fragment occurs, otherwise 0 | :white_check_mark: |

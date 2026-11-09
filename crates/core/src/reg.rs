@@ -171,12 +171,12 @@ impl Value {
         }
     }
 
-    /// The float, also from an integer, as the addon's float reader accepts both. The original converts the integer
-    /// as unsigned (it adds 2^32 to a negative one), so -1 reads as 4294967296.0.
+    /// The float, also from an integer, as the addon's float reader accepts both. A negative integer keeps its sign
+    /// (the original converts it as unsigned, so -1 read as 4294967296.0).
     pub fn as_float(&self) -> Option<f32> {
         match self {
             Value::Float(v) => Some(*v),
-            Value::Int(v) => Some(*v as u32 as f32),
+            Value::Int(v) => Some(*v as f32),
             Value::Str(_) | Value::IntArray(_) | Value::FloatArray(_) | Value::StrArray(_) => None,
         }
     }

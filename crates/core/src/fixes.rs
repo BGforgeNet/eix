@@ -22,11 +22,15 @@ pub fn loading_movie(allod: &[u8]) -> Option<&'static CStr> {
     }
 }
 
-/// FixRepairPrice: an item's wear, 1 - condition / maximum, with a condition or maximum that is not above 0 taken
-/// as 0 and the result held to 0..=1; NaN (0 / 0) passes through, as in the original.
+/// FixRepairPrice: an item's wear, 1 - condition / maximum, with a condition that is not above 0 taken as 0 and the
+/// result held to 0..=1; a maximum that is not above 0 gives 0, as any condition over a zero maximum does (the
+/// original's 0 / 0 gave NaN).
 pub fn repair_wear(condition: f32, max_condition: f32) -> f32 {
-    let positive = |v: f32| if 0.0 < v { v } else { 0.0 };
-    (1.0 - positive(condition) / positive(max_condition)).clamp(0.0, 1.0)
+    if max_condition.is_nan() || max_condition <= 0.0 {
+        return 0.0;
+    }
+    let condition = if 0.0 < condition { condition } else { 0.0 };
+    (1.0 - condition / max_condition).clamp(0.0, 1.0)
 }
 
 /// FixSpellSelfCasting: whether a spell of `spell_type` is offensive. Types up to 0x26 keep the game's answer;
@@ -75,8 +79,8 @@ pub fn renews(old: &EffectKey, added: &EffectKey) -> bool {
 /// FixSpellEffectsOverflow: after `added` (lasting more than one tick) was appended to `effects`, removes every
 /// earlier effect it renews. Returns the new count; the elements past it are left as they are.
 ///
-/// As in the original, the effect moved into a removed one's place is not compared, and the last one (the effect
-/// just added) never is.
+/// The effect moved into a removed one's place is compared too (the original steps over it, so a second renewed
+/// effect in a row stayed); the last one, the effect just added, never is.
 pub fn remove_renewed<T: Copy>(
     effects: &mut [T],
     added: &EffectKey,
@@ -88,8 +92,9 @@ pub fn remove_renewed<T: Copy>(
         if renews(&key(&effects[i]), added) {
             effects.copy_within(i + 1..count, i);
             count -= 1;
+        } else {
+            i += 1;
         }
-        i += 1;
     }
     count
 }
@@ -125,10 +130,11 @@ mod tests {
         assert_eq!(repair_wear(150.0, 100.0), 0.0);
         assert_eq!(repair_wear(-5.0, 100.0), 1.0);
         assert_eq!(repair_wear(f32::NAN, 100.0), 1.0);
-        // A maximum of 0 gives an infinite ratio, so no wear; both 0 is 0 / 0.
+        // A maximum that is not above 0 means no wear, whatever the condition.
         assert_eq!(repair_wear(5.0, 0.0), 0.0);
-        assert!(repair_wear(0.0, 0.0).is_nan());
-        assert!(repair_wear(0.0, -1.0).is_nan());
+        assert_eq!(repair_wear(0.0, 0.0), 0.0);
+        assert_eq!(repair_wear(0.0, -1.0), 0.0);
+        assert_eq!(repair_wear(0.0, f32::NAN), 0.0);
     }
 
     #[test]
@@ -182,9 +188,9 @@ mod tests {
     }
 
     #[test]
-    fn renewed_effects_go_but_the_one_moved_into_place_is_skipped() {
+    fn every_renewed_effect_goes() {
         let added = effect(1, 10, 1.0, 1.0);
-        // Two renewed ones in a row: the second moves into the first's place and is stepped over.
+        // Two renewed ones in a row: the second moves into the first's place and goes too.
         let mut effects = [
             effect(1, 5, 1.0, 1.0),
             effect(1, 5, 1.0, 1.0),
@@ -193,11 +199,8 @@ mod tests {
             added,
         ];
         let count = remove_renewed(&mut effects, &added, |e| *e);
-        assert_eq!(count, 3);
-        assert_eq!(
-            effects[..count],
-            [effect(1, 5, 1.0, 1.0), effect(2, 5, 1.0, 1.0), added]
-        );
+        assert_eq!(count, 2);
+        assert_eq!(effects[..count], [effect(2, 5, 1.0, 1.0), added]);
         // The added one itself, last, stays; a single effect has nothing to compare.
         let mut one = [added];
         assert_eq!(remove_renewed(&mut one, &added, |e| *e), 1);

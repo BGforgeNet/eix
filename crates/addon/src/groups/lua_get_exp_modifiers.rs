@@ -53,9 +53,12 @@ extern "thiscall" fn add_scaled_experience(stats: *mut UnitStats, amount: f32) {
     (s.experience, s.pending_experience) = (e.experience, e.pending);
 }
 
-/// The client's multiplier for the unit at `unit` times `amount`, as the experience number shows it.
+/// The client's multiplier for the unit at `unit` times `amount`, as the experience number shows it; without the unit,
+/// `amount` as it is (the original passes `unit + 0x330` to the script without checking the unit).
 fn client_number(unit: u32, amount: f32) -> i32 {
-    // The original passes `unit + 0x330` without checking the unit.
+    if unit == 0 {
+        return ftol(f64::from(amount));
+    }
     let params =
         unit.wrapping_add(core::mem::offset_of!(eix_engine::game::unit::Unit, params) as u32);
     let multiplier = with_host(0.0, |h| h.get_exp_multiplier_on_client(params));

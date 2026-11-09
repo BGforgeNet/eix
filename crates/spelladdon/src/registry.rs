@@ -60,11 +60,24 @@ impl Feature {
     }
 }
 
-/// Why a feature that is switched on is skipped: its original patch faults or corrupts the game's state, so it is
-/// logged and left out while every other feature applies.
+/// Why a feature that is switched on is skipped: its original patch faults or corrupts the game's state, or a later
+/// feature replaces every change it makes, so it is logged and left out while every other feature applies.
 pub(crate) fn skipped(f: &Feature, value: i8, values: &Values) -> Option<&'static str> {
     let flag = |section: &str, key: &str| values.flag(section, key).unwrap_or(0);
     match (f.section, f.key, value) {
+        ("gameplay", "rewritenpcvisionarc", 1..)
+            if matches!(flag("gameplay", "removenpcsblock"), 1 | 2) =>
+        {
+            Some("removenpcsblock removes the value it sets")
+        }
+        ("gameplay", "autorunmobfile", 1..) if matches!(flag("gameplay", "newspells"), 1 | 2) => {
+            Some("newspells loads the same mob")
+        }
+        ("gameplay", "genocideincvars", 1 | 3)
+            if matches!(flag("gameplay", "genocidedipvars"), 1 | 3..=5) =>
+        {
+            Some("genocidedipvars replaces its hook")
+        }
         ("gameplay", "fhrunetrans", 1) => Some("the original crashes"),
         ("gameplay", "allvisible", 1) => Some("the original corrupts the options load"),
         ("rebalanceengine", "meleesum_1", 1) => Some("the original crashes at the first attack"),
@@ -105,7 +118,8 @@ pub(crate) fn skipped(f: &Feature, value: i8, values: &Values) -> Option<&'stati
 }
 
 /// The features, in the original's order. The array order is the apply order: where two features write the same
-/// bytes the later one wins, so it must not be rearranged (`later_features_win_shared_bytes` pins pairs that overlap).
+/// bytes the later one wins, so it must not be rearranged (`features_sharing_an_address_both_apply` checks the pairs
+/// that share an address).
 pub(crate) static FEATURES: [Feature; 191] = [
     Feature::new("gameplay", "archersdefence", Area::Combat),
     Feature::new("gameplay", "rewritenpcvisionarc", Area::Ai),
@@ -309,49 +323,94 @@ mod tests {
     use super::*;
     use crate::features::Ctx;
     use crate::features::testing::{no_log, values};
-    use eix_core::spelladdon::{KEYS, Kind};
+    use std::collections::{BTreeMap, BTreeSet};
 
-    /// Features that write overlapping bytes differently, as `(earlier, value, later, value)`.
-    const OVERLAPS: [(&str, i8, &str, i8); 8] = [
-        ("rewritenpcvisionarc", 1, "removenpcsblock", 1),
-        ("autorunmobfile", 1, "newspells", 1),
-        ("genocideincvars", 1, "genocidedipvars", 1),
-        ("newattackdefence", 1, "increasinghitchance", 1),
-        ("rewriteactionsspeed", 1, "encumbranceattackspeed", 1),
-        ("rangedweaponbackstabs", 1, "newrangedweapontypes", 1),
-        ("damageboost", 3, "nightpower", 2),
-        ("actionspatch", 1, "encumbranceattackspeed", 2),
+    use eix_core::spelladdon::{KEYS, Kind};
+    use eix_engine::group::SiteWrite;
+
+    /// The features that write one address differently, as `(earlier, later)`.
+    const SHARED: [(&str, &str); 8] = [
+        ("rewritenpcvisionarc", "removenpcsblock"),
+        ("autorunmobfile", "newspells"),
+        ("damageboost", "nightpower"),
+        ("genocideincvars", "genocidedipvars"),
+        ("newattackdefence", "increasinghitchance"),
+        ("rewriteactionsspeed", "encumbranceattackspeed"),
+        ("rangedweaponbackstabs", "newrangedweapontypes"),
+        ("actionspatch", "encumbranceattackspeed"),
     ];
 
+    /// Each address a build writes, with the byte it expects there and the byte it writes.
+    fn bytes_of(writes: &[SiteWrite]) -> BTreeMap<usize, (u8, u8)> {
+        writes
+            .iter()
+            .flat_map(|w| {
+                let at = w.site();
+                w.expected()
+                    .iter()
+                    .zip(w.new_bytes())
+                    .enumerate()
+                    .map(move |(i, (&was, &now))| (at + i, (was, now)))
+            })
+            .collect()
+    }
+
+    /// Where two features write one address differently, both on keep both: the registry skips the earlier, whose
+    /// every change the later replaces, or each byte the later writes there expects the earlier's, so the later
+    /// builds on it. Every value from 1 to 20 is built (no feature tells apart values past 16).
     #[test]
-    fn later_features_win_shared_bytes() {
-        let v = values(&[]);
-        let ctx = Ctx::new(&v, no_log);
-        let position = |key: &str| FEATURES.iter().position(|f| f.key == key).unwrap();
-        let writes = |key: &str, value: i8| {
-            let build = FEATURES[position(key)].build().unwrap();
-            build(&ctx, value).unwrap()
-        };
-        for (first, first_value, second, second_value) in OVERLAPS {
-            assert!(
-                position(first) < position(second),
-                "{first} must come before {second}"
-            );
-            let (a, b) = (writes(first, first_value), writes(second, second_value));
-            let differs = a.iter().any(|x| {
-                b.iter().any(|y| {
-                    let (lo, hi) = (
-                        x.site().max(y.site()),
-                        (x.site() + x.expected().len()).min(y.site() + y.expected().len()),
-                    );
-                    (lo..hi).any(|at| x.new_bytes()[at - x.site()] != y.new_bytes()[at - y.site()])
-                })
-            });
-            assert!(
-                differs,
-                "{first} and {second} no longer write different bytes to one site"
-            );
+    fn features_sharing_an_address_both_apply() {
+        let defaults = values(&[]);
+        let ctx = Ctx::new(&defaults, no_log);
+        let mut built = Vec::new();
+        for (i, f) in FEATURES.iter().enumerate() {
+            let Some(build) = f.build() else { continue };
+            for value in 1..=20 {
+                if skipped(f, value, &defaults).is_some() {
+                    continue;
+                }
+                if let Ok(writes) = build(&ctx, value)
+                    && !writes.is_empty()
+                {
+                    built.push((i, f, value, bytes_of(&writes)));
+                }
+            }
         }
+        let mut found = BTreeSet::new();
+        for (i, a, av, ab) in &built {
+            for (j, b, bv, bb) in &built {
+                let shared = bb
+                    .iter()
+                    .any(|(at, &(_, now))| ab.get(at).is_some_and(|&(_, was)| was != now));
+                if j <= i || !shared {
+                    continue;
+                }
+                found.insert((a.key, b.key));
+                let (a_text, b_text) = (av.to_string(), bv.to_string());
+                let both = values(&[
+                    (a.section, a.key, a_text.as_str()),
+                    (b.section, b.key, b_text.as_str()),
+                ]);
+                if skipped(a, *av, &both).is_some() {
+                    continue;
+                }
+                let ctx = Ctx::new(&both, no_log);
+                let first = bytes_of(&a.build().unwrap()(&ctx, *av).unwrap());
+                let second = bytes_of(&b.build().unwrap()(&ctx, *bv).unwrap());
+                for (at, &(was, now)) in &second {
+                    if let Some(&(_, left)) = first.get(at)
+                        && left != now
+                    {
+                        assert_eq!(
+                            was, left,
+                            "{}={av} then {}={bv}: {at:#x} expects {was:02X}, not the earlier's {left:02X}",
+                            a.key, b.key
+                        );
+                    }
+                }
+            }
+        }
+        assert_eq!(found, SHARED.into_iter().collect());
     }
 
     #[test]

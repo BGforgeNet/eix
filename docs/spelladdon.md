@@ -7,7 +7,7 @@ precedence over separate `SpellAddon*.asi` files.
 Loader and INI compatibility details: [addon start-up behavior](addon.md#loader-and-start-up-behavior).
 
 The last column of each feature table gives eix's difference from SpellAddon 20.6 (SpellAddonXa.asi), with what the
-original does in parentheses. :white_check_mark: means the original's behavior, quirks included;
+original does in parentheses. :white_check_mark: means the original's behavior;
 :white_check_mark::white_check_mark: marks a difference that only fixes a defect of the original.
 
 ## Configuration
@@ -25,12 +25,14 @@ The tables give **active values**. Other values make no change unless marked ski
 and left out, and every other feature still applies. Switches retain a signed byte: use the listed values within
 -128..127; larger values wrap and warn. `1+` below means 1..127. Byte parameters retain the low byte (0..255); 32-bit
 parameters retain 32 bits. Floating-point parameters accept decimal text with a sign and an exponent; use a decimal
-point. `runconst`, `runconstex`, `pow` and `expforint` read only their first 21 characters, ignore a sign and any
-character that is not a digit, point or comma, and also accept a decimal comma. Other numeric text holds at most 31
+point. `runconst`, `runconstex`, `pow` and `expforint` read only their first 21 characters, take a leading `-`,
+ignore any other character that is not a digit, point or comma, and also accept a decimal comma (the original
+ignores the sign too). Other numeric text holds at most 31
 bytes; font text holds at most 47 bytes.
 Parameters have no general range validation. Limits stated below describe their use, not an extra validator.
 
-Features apply in a fixed order, independent of INI order. Later features win at shared changes; the tables call
+Features apply in a fixed order, independent of INI order. Where two features change the same code, the later one
+builds on the earlier, or the earlier is skipped with a warning when the later replaces all it does; the tables call
 out those interactions. A conflicting or unexpected game patch causes the affected feature to be skipped and
 logged. If writing the merged patches fails, no feature applies. See the [addon options](addon.md) for the other
 built-in settings.
@@ -42,7 +44,7 @@ built-in settings.
 | `archersdefence` | 1+: bows and crossbows retain defence. | :white_check_mark: |
 | `unbreakablebodyparts` | 1+: prevent limb breaking; also use `bodypartbreakmodifier` for the limb-damage floor. | :white_check_mark: |
 | `enablekillsinmulti` | 1: remove player damage immunity so players can hurt other players. | :white_check_mark: |
-| `rangedweaponbackstabs` | 1: allow ranged backstabs. `newrangedweapontypes` later replaces some of its weapon tests. | :white_check_mark: |
+| `rangedweaponbackstabs` | 1: allow ranged backstabs. | :white_check_mark::white_check_mark: with `newrangedweapontypes`, its change to how orders are carried out stays (the original's `newrangedweapontypes` replaces it) |
 | `backstabsforall` | 1: allow units without a player to backstab. | :white_check_mark: |
 | `newattackdefence` | 1, 2: physical damage after armour uses attack minus defence divided by `divmod`, plus `submod` and the speed term; 1 also includes the distance/weight term. 3, 4: use `max((attack - defence) * divmod + 1, submod)`; backstabs ignore defence. 4 also disables misses. | :white_check_mark: |
 | `damageboost` | 1: scale weapon damage by strength/dexterity above 25 and spell effects by intelligence above 25, dividing by `str`, `dex`, `int`. 2: multiply by those parameters instead. 3: bypass the normal effect scaling and its client display adjustment. 4: boost after weapon-effect scaling and at cast completion, using multiplication. 5: boost after scaling and mark casts so only their spell effects get the intelligence boost. | :white_check_mark: |
@@ -51,9 +53,9 @@ built-in settings.
 | `allowheroesarmors` | 1: retain heroes' natural armour. | :white_check_mark: |
 | `newrangedweapontypes` | 1: weapon types 11 and 15 count as ranged, alongside bows (5) and crossbows (6), throughout combat checks. | :white_check_mark: |
 | `randomlessaimedhits` | 1-4: choose a vulnerable body part using the last hit. 5-9: estimate damage from the weapon's damage range and target resistance. 2, 6, 7, 9 compare the target's reach minus the attacker's reach with `rangeddistance`; other modes use attack reach. Highest score wins; `bodypart` is the fallback. 10 is skipped. | 10 skipped (calls code the original never wrote); 5 and 8 keep the game's minimum of distance and reach |
-| `increasinghitchance` | 1: after more than `tohitcheck` misses, add `misses * tohitmul - tohitsub` to the hit threshold. The defender holds the counter; a hit resets it. Overrides part of `newattackdefence`. | :white_check_mark: |
+| `increasinghitchance` | 1: after more than `tohitcheck` misses, add `misses * tohitmul - tohitsub` to the hit threshold. The defender holds the counter; a hit resets it. | :white_check_mark::white_check_mark: with `newattackdefence` 1, 2 or 4, both apply (the original undoes part of `newattackdefence`) |
 | `runawaydistcontrol` | 1: attack reach becomes `weapon range * hitdistmul + hitdistadd`. | :white_check_mark::white_check_mark: keeps fractional `hitdistmul` and `hitdistadd` (the original truncates them to integers) |
-| `nightpower` | 2: multiply attack and defence by `nightmeleeadd - P * nightmeleemul + vision * P * nightmeleemul / 100`, where P is night level (0..1). Overrides part of `damageboost=3`. 1 is skipped. | 1 skipped (every attack and defence value becomes garbage) |
+| `nightpower` | 2: multiply attack and defence by `nightmeleeadd - P * nightmeleemul + vision * P * nightmeleemul / 100`, where P is night level (0..1). 1 is skipped. | 1 skipped (every attack and defence value becomes garbage); :white_check_mark::white_check_mark: with `damageboost=3`, the unit panel keeps that feature's change (the original drops it) |
 | `duels` | 1: suppress diplomacy reactions to damage when player 0's `und<victim id>` variable rounds to nonzero. | :white_check_mark: |
 | `acidattack` | 1, 2: unfinished acid-effect variants; neither changes the visible effect. | :white_check_mark: |
 | `armorspell` | 1 is skipped. | 1 skipped (corrupts the stats refresh) |
@@ -74,12 +76,12 @@ built-in settings.
 | `rebalanceengine` | `meleesum_low` | 1: non-hero server attack/defence add the first skill and dexterity minus 25. Skipped unless `meleesum_1` or `meleesum_2` is exactly 1; `meleesum_1=1` satisfies this although that feature is itself skipped. | 1 skipped without `meleesum_1` or `meleesum_2` (the original's game hangs at the first attack) |
 | `rebalanceengine` | `meleesum_1` | 1 is skipped. | 1 skipped (the original crashes at the first attack) |
 | `rebalanceengine` | `meleesum_2` | 1: client attack/defence add the first skill and dexterity minus 25, retaining the low byte: the client side of `meleesum_low`'s sum. | :white_check_mark: |
-| `animationsspeed` | `rewriteactionsspeed` | 1: set six animation factors from this section's parameters; also adjust client animation timing. `encumbranceattackspeed` later overrides the shared attack/timing changes. | :white_check_mark: |
+| `animationsspeed` | `rewriteactionsspeed` | 1: set six animation factors from this section's parameters; also adjust client animation timing. | :white_check_mark: |
 | `gameplay` | `changeexpforint` | 1: use `expforint` as the experience multiplier per intelligence point. | :white_check_mark::white_check_mark: `expforint` without a decimal point reads as a whole number (the original divides by ten for each digit) |
 | `gameplay` | `heroalwayscanrun` | 1: remove the load-based restriction on running. | :white_check_mark: |
 | `gameplay` | `automaticruncontrol` | 1: stop running at zero stamina. | :white_check_mark: |
 | `gameplay` | `speedboost` | 1: multiply movement speed by `((action counter + speedadd) / 15) ^ speedbase`. | :white_check_mark: |
-| `gameplay` | `actionspatch` | 1: actions become `dexterity * actionsmul + actionsadd`. `encumbranceattackspeed=2` later replaces the shared calculation. | :white_check_mark: |
+| `gameplay` | `actionspatch` | 1: actions become `dexterity * actionsmul + actionsadd`. | :white_check_mark: |
 | `gameplay` | `actionsdexteritymovespeed` | 1+: actions and dexterity contribute to movement speed through `actmovemul` and `dexmovemul`. | :white_check_mark: |
 | `gameplay` | `cleveranimationsspeedup` | 1: set casting animation speed from cast duration and send animation speed in unit network state; also adjust client animation timing. Peers need compatible settings. | :white_check_mark: |
 | `gameplay` | `nhits` | 1: use a fixed count of five hits for the special multi-hit animations. | :white_check_mark: |
@@ -99,7 +101,7 @@ built-in settings.
 | `liftchanges` | 1: unfinished carry-weight check; no game-state change. | :white_check_mark: |
 | `liftdebuffs` | 1: packed stats are scaled by `1.01 - q / (q + liftkey)`, q = load / maximum load, while load is nonzero. | :white_check_mark: |
 | `encumbrancemovespeed` | 1: subtract `r^3 * encumbrancemovemul` from movement factor, r = load / (load + maximum load). With `speedslowremaster=2`, also apply its Speed/Slow contribution, `defaultspeedmul`, `minimumspeedmul`, and the overload factor. | :white_check_mark: |
-| `encumbranceattackspeed` | 1: load slows attack animations using `(animation factor - r^3) * encumbranceattackmul`. 2: load reduces the stats' attack rate using `speed factor - r^3 * encumbranceattackmul`. r is as above. | :white_check_mark: |
+| `encumbranceattackspeed` | 1: load slows attack animations using `(animation factor - r^3) * encumbranceattackmul`. 2: load reduces the stats' attack rate using `speed factor - r^3 * encumbranceattackmul`. r is as above. | :white_check_mark::white_check_mark: 1 slows `rewriteactionsspeed`'s attack factor and 2 `actionspatch`'s actions (the original uses the game's values there, dropping those features' changes) |
 | `improvedstealing` | 1: separate theft from corpse loot. A living hero retains equipped armour/weapons; a previously robbed hero's corpse yields those, without repeating gold or stolen items. An already robbed living unit yields nothing. | :white_check_mark: |
 | `dmgtypes` | 1: list `dmgtypescount` damage types in camp panels. | :white_check_mark: |
 | `avgarmors` | 1: show average rather than maximum armour, including Endurance's bonus. Requires `newperks>=1`; otherwise skipped. The divisor follows `dmgtypescount` when `dmgtypes` is active. | also accepts `[gameplay] avrgarmors` when absent (the original ignores it); 1 skipped without `newperks` (the original crashes entering the camp) |
@@ -153,7 +155,7 @@ entry strips items. Set `QuIs` to the active quest-item count when using `camp=4
 
 | Key | Active values and effect | eix |
 |---|---|---|
-| `rewritenpcvisionarc` | 1+: set NPC sight-arc value to `visionarc`. `removenpcsblock` later removes this NPC marker. | :white_check_mark: |
+| `rewritenpcvisionarc` | 1+: set NPC sight-arc value to `visionarc`. | skipped with a warning when `removenpcsblock` is 1 or 2, which removes the value it sets (the original writes it unused) |
 | `visionfix` | 1: bypass two lost-sight exits; with `aggrmod>5`, bypass only the first shared exit. | :white_check_mark: |
 | `aggrmod` | 1: record lost-sight state, without changing the loss calculation. 2: distance-dependent random loss using `losehardcore`. 4/5: distance-dependent loss based on clock ticks, `losefactor1/2`. 6/7: per-viewer aggression counter using `losehardcore`, `losefactor1/2/3`, `difffactor`, `maxadd`. `follow` affects all these modes; `loseallyfast` affects 6/7. 3 is skipped; 6/7 omit the faulty `improve` alarm hook and warn if requested. | 3 skipped (corrupts the AI's state); 6 and 7 with `improve` nonzero leave out the alarm hook (it acts on the wrong unit), with a warning; 2, 4-7 handle a zero divisor |
 | `spellsprioritys` | 1: replace seven AI target-rating constants with the priority parameters below. | :white_check_mark: |
@@ -220,7 +222,7 @@ between multiplayer peers. `bigmapspatch` and `cleveranimationsspeedup` change n
 | `drawvisiblepatch` | 1: zone entry no longer resets the draw-visible setting. | :white_check_mark: |
 | `playingnewloadingscreens` | 1: name loading movies after the zone. 2: also use `gz1g` in the special initial-zone movie selection. Requires matching movie assets. | :white_check_mark: |
 | `notrash` | 1: share the speech resource path instead of requiring separate `s` and `t` folders; also change the client animation-mode timing test. | :white_check_mark: |
-| `musictimings` | 1: wait `minmusictime + random % (maxmusictime - minmusictime)` between music tracks. Use `maxmusictime>minmusictime`. | :white_check_mark: |
+| `musictimings` | 1: wait `minmusictime + random % (maxmusictime - minmusictime)` between music tracks. | :white_check_mark::white_check_mark: with `maxmusictime` not above `minmusictime`, the pause is `minmusictime` (the original divides by zero at the first track change, or waits far too long) |
 | `newzonescpecificmusic` | 1: zone `gz12d2` uses music named `gz12d2`. 2: use the alternative music-name field in zones, briefings and camp and shorten music-mode setup. 3: as 2, but retain camp's original field. | :white_check_mark: |
 | `disabledragon` | 1: disable the quest-variable dragon response and the related flying-insect effect updates. | :white_check_mark: |
 | `noruinszoneanimation` | 1: omit zone1's built-in introduction script. | :white_check_mark: |
@@ -247,7 +249,7 @@ Numbers used as integer indices, styles or IDs are rounded with the game's float
 | `[speed] gsgetvar` | `GSGetVar(player, name)` returns difficulty for names beginning `Diff`, and update period when characters 4-7 (zero-based) are `peed`, such as `SetSpeed`. | :white_check_mark::white_check_mark: reads the variable's name before freeing it |
 | `[speed] gssetvar` | `GSSetVar(player, name, value)` also sets update period for names with `peed` at characters 4-7. The named variable is still stored normally. | :white_check_mark: |
 | `[saves] savecontrol` | 1, 2: player 0's `Save!=0` blocks escape-menu and keyboard saves. `GSSetVar(0, "Save", 0)` allows them. | :white_check_mark::white_check_mark: reads player 0's "Save" without corrupting the stack |
-| `autorunmobfile` | 1+: append loading of `Maps/AutoRunSpellAddon123.mob` to each zone's start script. `newspells=1/2` also enables this. | :white_check_mark: |
+| `autorunmobfile` | 1+: append loading of `Maps/AutoRunSpellAddon123.mob` to each zone's start script. `newspells=1/2` also enables this. | skipped with a warning when `newspells` is 1 or 2 (the original writes the same change twice) |
 | `infiniteaddmobspawn` | 1+: `AddMob` can load the same file repeatedly, except case-sensitive names beginning `Auto`, which still load once. | :white_check_mark: |
 | `standtrans` | `Stand(unit)` also revives it. A non-unit argument causes no revival. | :white_check_mark::white_check_mark: does nothing for an argument that is not a unit (the original crashes) |
 | `waslootedtrans` | 1: `WasLooted(unit)` returns the full flag word. 2: `WasLooted(unit, bit)` returns the selected bit. Known bits: 15 moving, 19 knocked out, 20 looted, 24 stunned, 28 feebleminded. | :white_check_mark: |
@@ -271,8 +273,8 @@ Numbers used as integer indices, styles or IDs are rounded with the game's float
 | `playmusictrans` | 1, 2: `PlayMusic(player, "0")` or `"1"` re-selects the local map's music theme and sets the music system's level to the digit. The first character selects this behavior. 1 uses the map's theme, 2 its alternative name field. Other text, or no map/music system, uses normal handling. | :white_check_mark::white_check_mark: without a map or a music system, does what the game does (the original crashes) |
 | `notifydeaths` | 1: a death sets player 0's variable named by the victim ID to 1. 2: set 2 for a hero killer, otherwise 1. | :white_check_mark: |
 | `notifylootings` | 1: increase the corpse-ID variable by 20 for a hero looter, 10 otherwise. 2: a hero looter's ID goes into the corpse-ID variable. 3: the corpse ID goes into the hero looter's ID variable. Variables belong to player 0. | :white_check_mark: |
-| `genocideincvars` | 1, 3: player 0's `Hits` counts hero hits on non-heroes. 2 is skipped; 1/3 are skipped with `genocidedipvars=2`. | 2 skipped, and 1 or 3 with `genocidedipvars=2` (reads garbage as objects) |
-| `genocidedipvars` | 1: `Hits` holds the last non-hero victim's side when hit by a hero. 2: `Kils` holds that side on a hero kill. 3: both. 4: `Hits` records any ownerless victim's side; `Kils` records ownerless victims killed by owned units. 5: both require an owned attacker and ownerless victim. Overrides `genocideincvars` where both write `Hits`. | :white_check_mark: |
+| `genocideincvars` | 1, 3: player 0's `Hits` counts hero hits on non-heroes. 2 is skipped; 1/3 are skipped with `genocidedipvars` set. | 2 skipped, and 1 or 3 with `genocidedipvars=2` (reads garbage as objects); 1 or 3 skipped with a warning when `genocidedipvars` is 1, 3, 4 or 5, which replaces its change (the original writes it unused) |
+| `genocidedipvars` | 1: `Hits` holds the last non-hero victim's side when hit by a hero. 2: `Kils` holds that side on a hero kill. 3: both. 4: `Hits` records any ownerless victim's side; `Kils` records ownerless victims killed by owned units. 5: both require an owned attacker and ownerless victim. Replaces `genocideincvars`. | :white_check_mark: |
 | `removefrozenvar` | Zone 6 ignores its frozen/unique-zone restriction on entry. | :white_check_mark: |
 | `freemultiplayervars` | Skip the built-in multiplayer variables in trader creation and journal refresh. | :white_check_mark: |
 | `setspellaggressiontrans` | No change for any value; the command itself remains inactive. | :white_check_mark: |
