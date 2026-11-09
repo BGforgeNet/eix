@@ -25,6 +25,9 @@ First release.
   `[AutoPause]`, off by default: in single player the game pauses when a party member's health drops below `Health`
   hit points or `HealthPercent` of its maximum, when an enemy comes into view (`EnemySighted`), turns on the party
   (`EnemyAggro`) or dies in view (`EnemyDead`).
+- [Encumbrance](docs/eix-ini.md#encumbrance), eix.ini's `[Encumbrance]`, off by default: the load a hero carries
+  slows running (20% per maximum load), and above the maximum load walking too, and running costs as much more
+  mana as it is slower; no load stops a hero from running, and wounded legs still slow every movement.
 - [FLAC music](docs/addon.md#flac-music): a track plays from `Stream\<name>.flac`, the mod's or the game's, when
   there is one; eix.ini's `[Music] Flac=0` turns it off.
 - `[MOD] ShowTutorialDefault` in config.reg: a mod sets whether tutorials show until the player chooses.

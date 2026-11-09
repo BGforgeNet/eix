@@ -47,6 +47,43 @@ EnemyAggro=0
 EnemyDead=1
 ```
 
+## Encumbrance
+
+The load a hero carries slows running, and makes running cost more mana; above the hero's maximum load it slows
+walking too. Off by default. Load and maximum load are the encumbrance figures of the hero panel; their ratio is the
+encumbrance below (1.0 at the maximum).
+
+| Key | Value |
+|---|---|
+| `Enabled` | 1: on; 0 (default): the game's movement |
+| `RunSlope` | Running speed lost per maximum load, in percent, 0 to 100 (default 20) |
+| `WalkSlope` | Walking speed lost per maximum load above the maximum, in percent, 0 to 100 (default 20) |
+| `MinSpeed` | The lowest speed either reaches, in percent, 10 to 100 (default 50) |
+| `RunDrain` | How much of the extra running drain applies, in percent, 0 to 200 (default 100) |
+
+- Running speed is 100% - `RunSlope` x encumbrance: with the defaults 80% at the maximum load, 60% at twice it.
+- Walking, sneaking and crawling keep the game's speed up to the maximum load, then lose `WalkSlope` per extra
+  maximum load: 80% at twice the maximum.
+- Running drains the mana the game's run system takes, divided by the load's running speed: at 80%, 1.25 times as
+  much. Wounded legs slow the hero without raising the drain. `RunDrain` scales the extra: 0 keeps the game's drain,
+  50 halves the extra.
+- No load stops a hero from running; wounded legs still slow every movement and stop running, as in the game.
+- The speeds follow the load when the game recomputes a hero's statistics (regeneration, damage, healing, effects),
+  not at the moment an item is equipped.
+- A value out of its range is logged and takes its default.
+- With SpellAddon's `encumbrancemovespeed` also on, both slow movement; addon.log warns. SpellAddon's
+  `heroalwayscanrun` changes the same byte as this section. Its run settings (`newrunsystem`, `runconst`) decide the
+  drain that `RunDrain` scales.
+
+```ini
+[Encumbrance]
+Enabled=1
+RunSlope=20
+WalkSlope=20
+MinSpeed=50
+RunDrain=100
+```
+
 ## Music
 
 | Key | Value |
