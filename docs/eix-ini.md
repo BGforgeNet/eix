@@ -64,6 +64,8 @@ encumbrance below (1.0 at the maximum).
 - Running speed is 100% - `RunSlope` x encumbrance: with the defaults 80% at the maximum load, 60% at twice it.
 - Walking, sneaking and crawling keep the game's speed up to the maximum load, then lose `WalkSlope` per extra
   maximum load: 80% at twice the maximum.
+- Turning while walking or standing slows with the running speed: the game turns a walking or standing unit at its
+  running pace.
 - Running drains the mana the game's run system takes, divided by the load's running speed: at 80%, 1.25 times as
   much. Wounded legs slow the hero without raising the drain. `RunDrain` scales the extra: 0 keeps the game's drain,
   50 halves the extra.

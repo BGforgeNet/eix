@@ -152,7 +152,6 @@ pub(crate) fn install(token: &BeforeWinMain, settings: Settings) {
         log::info("encumbrance", "off: [Encumbrance] Enabled is 0", "");
         return;
     }
-    let _ = SETTINGS.set(settings);
     log::info(
         "encumbrance",
         &format!(
@@ -169,6 +168,11 @@ pub(crate) fn install(token: &BeforeWinMain, settings: Settings) {
         writes(settings),
         &mut tally,
     );
+    // Only an applied group sets the rules: the Lua running-cost group reads them too, and without the hooks it must
+    // leave the drain alone. The hooks first run after WinMain, well after this.
+    if tally.applied == 1 {
+        let _ = SETTINGS.set(settings);
+    }
 }
 
 #[cfg(test)]

@@ -107,14 +107,20 @@ impl Settings {
     /// The packed base speed and run bytes at encumbrance `e`, from the stats' `speed` (base x legs) and the bytes
     /// `UnitStats::Pack` wrote. Up to the maximum load the base byte stays Pack's own (the game rounds an f32
     /// product, 0x522DF9..0x522E0B, which an f64 recompute does not always match) and only the run byte scales;
-    /// above it both change, the run byte making up for the base byte's rounding. Both stay within 1..=255.
+    /// above it both change, the run byte making up for the base byte's rounding. A byte the game packed as 0 (a
+    /// race without that speed) stays 0; the others stay within 1..=255.
     pub fn packed(self, e: f64, speed: f32, base: u8, run: u8) -> (u8, u8) {
-        if e == 0.0 {
+        if e == 0.0 || base == 0 {
             return (base, run);
         }
         let (f, walk) = (self.run_factor(e), self.walk_factor(e));
         if walk == 1.0 {
-            return (base, to_byte(f64::from(run) * f));
+            let run = if run == 0 {
+                0
+            } else {
+                to_byte(f64::from(run) * f)
+            };
+            return (base, run);
         }
         // The game's own f32 product, rounded as its `fistp` does.
         #[expect(
@@ -122,10 +128,12 @@ impl Settings {
             reason = "the factor is at most 1: an f32 product, as the game's"
         )]
         let new_base = to_byte(f64::from(speed * walk as f32 * BASE_BYTE_SCALE));
-        (
-            new_base,
-            to_byte(f64::from(run) * f64::from(base) * f / f64::from(new_base)),
-        )
+        let new_run = if run == 0 {
+            0
+        } else {
+            to_byte(f64::from(run) * f64::from(base) * f / f64::from(new_base))
+        };
+        (new_base, new_run)
     }
 }
 
@@ -277,6 +285,17 @@ mod tests {
             ..Settings::default()
         };
         assert_eq!(odd.packed(2.0, 1.0, 26, 250).1, 255);
+    }
+
+    #[test]
+    fn a_zero_byte_stays_zero() {
+        // A race without a run speed (run byte 0) keeps it at any load: Walk and Stop turn with the run byte.
+        let s = Settings::default();
+        assert_eq!(s.packed(0.5, 1.0, 26, 0), (26, 0));
+        assert_eq!(s.packed(1.5, 1.0, 26, 0).1, 0);
+        assert_eq!(s.packed(1e-6, 1.0, 26, 0), (26, 0));
+        // A base byte the game packed as 0 stays 0 too.
+        assert_eq!(s.packed(1.5, 0.0, 0, 60).0, 0);
     }
 
     #[test]
