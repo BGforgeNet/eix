@@ -5,6 +5,7 @@
     reason = "reading the running unit's controller and vitals"
 )]
 
+use eix_core::encumbrance::rescaled;
 use eix_engine::game::unit::{UnitServer, UnitVitals};
 use eix_engine::hook::{Context, Mode};
 
@@ -24,9 +25,23 @@ extern "C" fn handler(_: usize, ctx: &mut Context) {
         .wrapping_add(core::mem::offset_of!(UnitServer, stats) as u32);
     // SAFETY: at this site ESI is a live CUnitServer, on the game's thread.
     let unit = unsafe { (*server).unit };
-    with_host((), |h| h.calc_running_mana_cost(stats, addr(unit), ctx.edi));
+    let vitals = ptr::<UnitVitals>(ctx.edi);
     // SAFETY: EDI is the controller's vitals.
-    let mana = unsafe { (*ptr::<UnitVitals>(ctx.edi)).mana };
+    let before = unsafe { (*vitals).mana };
+    with_host((), |h| h.calc_running_mana_cost(stats, addr(unit), ctx.edi));
+    // `[Encumbrance]` scales the mana the script took, as it does the game's drain. The statistics are read after the
+    // script, which may change them.
+    // SAFETY: as above.
+    let s = unsafe { &(*server).stats };
+    let m = crate::encumbrance::drain_multiplier(s.load, s.capacity);
+    if m != 1.0 {
+        // SAFETY: as above.
+        let after = unsafe { (*vitals).mana };
+        // SAFETY: as above; the game's thread, which owns the vitals.
+        unsafe { (*vitals).mana = rescaled(before, after, m) };
+    }
+    // SAFETY: EDI is the controller's vitals.
+    let mana = unsafe { (*vitals).mana };
     // `0 > mana` stops; a NaN mana keeps running, as the original's compare.
     ctx.resume = if 0.0 > mana {
         STOP_RUNNING

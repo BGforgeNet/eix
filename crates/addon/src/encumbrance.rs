@@ -7,6 +7,8 @@
 //!   walking factor and the run byte for the running factor, from the load and maximum load of the stats it packs.
 //! - Gate: `UnitStats::MovementState` 0x5241C0 skips its load test (state 2), as SpellAddon's `heroalwayscanrun`
 //!   does; wounded legs (state 1) still stop running.
+//! - Drain: `UpdateMotion`'s running drain is rescaled right after its subtraction, whatever run system computed it;
+//!   the Lua running-cost group rescales the script's drain the same way ([`drain_multiplier`]).
 #![expect(
     unsafe_code,
     reason = "hooks the stat packing and reads the stats and packed bytes it writes"
@@ -15,9 +17,10 @@
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use eix_core::encumbrance::{Settings, encumbrance};
-use eix_engine::game::unit::UnitStats;
-use eix_engine::hook::{self, Context, Mode};
+use eix_core::encumbrance::{Settings, encumbrance, rescaled};
+use eix_engine::game::unit::{UnitServer, UnitStats, UnitVitals};
+use eix_engine::hook::{self, Context, FpuContext, Mode};
+use eix_engine::x87::Ext;
 
 use crate::game::BeforeWinMain;
 use crate::groups::{self, BuildError, Labelled, Tally, apply_built};
@@ -33,6 +36,12 @@ const PACK_BYTES: [u8; 6] = [0x8B, 0x43, 0x30, 0x89, 0x45, 0xF0];
 /// The packed params' run byte (`modeSpeeds[0]`, Pack 0x522D78) and base speed byte (0x522E1A).
 const RUN_BYTE: usize = 0x10;
 const BASE_BYTE: usize = 0x14;
+const DRAIN_LABEL: &str = "Encumbrance drain";
+/// In `UpdateMotion`, just after the running drain's subtraction (`fst [edi+0x14]; fcomp dword [0x73B858]`): ST0 is
+/// the new mana, [EDI+0x14] still the old, ESI the `UnitServer`, EDI its vitals. SpellAddon's `newrunsystem` patches
+/// end before it, so every run system's drain gets rescaled.
+const DRAIN_SITE: usize = eix_sites::UPDATE_MOTION__A93;
+const DRAIN_BYTES: [u8; 9] = [0xD9, 0x57, 0x14, 0xD8, 0x1D, 0x58, 0xB8, 0x73, 0x00];
 /// The first byte of `Recompute`'s `fld [ebx+0x24]`, the instruction SpellAddon's `encumbrancemovespeed` hooks.
 const RECOMPUTE_SPEED_FIRST: u8 = 0xD9;
 
@@ -84,6 +93,34 @@ extern "C" fn pack(_: usize, ctx: &mut Context) {
     unsafe { run_at.write(run) };
 }
 
+/// What a running unit's drain is multiplied by at `load` of `capacity`: 1 while `[Encumbrance]` is off.
+pub(crate) fn drain_multiplier(load: f32, capacity: f32) -> f64 {
+    SETTINGS
+        .get()
+        .map_or(1.0, |s| s.drain_multiplier(encumbrance(load, capacity)))
+}
+
+extern "C" fn drain(_: usize, ctx: &mut FpuContext) {
+    // SAFETY: at this site ESI is the running unit's live `UnitServer`, on the game's thread.
+    let server = unsafe { &*(ctx.regs.esi as usize as *const UnitServer) };
+    let m = drain_multiplier(server.stats.load, server.stats.capacity);
+    if m == 1.0 {
+        return;
+    }
+    // SAFETY: EDI is that server's vitals; the store after this hook writes the new mana there.
+    let old = unsafe { (*(ctx.regs.edi as usize as *const UnitVitals)).mana };
+    let Some(new) = ctx.fpu.st(0) else {
+        return;
+    };
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "the game stores the mana as an f32"
+    )]
+    let new = new.to_f64() as f32;
+    ctx.fpu
+        .set_st(0, Ext::new(f64::from(rescaled(old, new, m))));
+}
+
 fn writes(settings: Settings) -> Result<Vec<Labelled>, BuildError> {
     if !settings.enabled {
         return Ok(Vec::new());
@@ -93,6 +130,18 @@ fn writes(settings: Settings) -> Result<Vec<Labelled>, BuildError> {
         Labelled {
             label: "Encumbrance speed".to_owned(),
             write: hook::context_hook(PACK_SITE, &PACK_BYTES, Mode::Before, pack, 0)?,
+        },
+        Labelled {
+            label: DRAIN_LABEL.to_owned(),
+            // The handler runs before the store, which then writes the rescaled ST0.
+            write: hook::fpu_hook(
+                DRAIN_SITE,
+                &DRAIN_BYTES,
+                &DRAIN_BYTES,
+                Mode::After,
+                drain,
+                0,
+            )?,
         },
     ])
 }
@@ -152,7 +201,7 @@ mod tests {
     fn spelladdon_writes_nothing_at_the_hooks() {
         for ours in [
             eix_sites::UNIT_STATS_PACK__13D..eix_sites::UNIT_STATS_PACK__13D + PACK_BYTES.len(),
-            eix_sites::UPDATE_MOTION__A93..eix_sites::UPDATE_MOTION__A93 + 9,
+            DRAIN_SITE..DRAIN_SITE + DRAIN_BYTES.len(),
         ] {
             for (name, w) in spelladdon::writes() {
                 assert!(
@@ -167,6 +216,23 @@ mod tests {
     #[test]
     fn nothing_is_built_when_off() {
         assert!(writes(Settings::default()).unwrap().is_empty());
-        assert_eq!(writes(on()).unwrap().len(), 2);
+        assert_eq!(writes(on()).unwrap().len(), 3);
+    }
+
+    #[test]
+    fn the_drain_hook_covers_the_store_and_compare() {
+        let ours = writes(on()).unwrap();
+        let drain = &ours.iter().find(|l| l.label == DRAIN_LABEL).unwrap().write;
+        assert_eq!(drain.site(), eix_sites::UPDATE_MOTION__A93);
+        // fst dword [edi+0x14]; fcomp dword [0x73B858]
+        assert_eq!(
+            drain.expected(),
+            [0xD9, 0x57, 0x14, 0xD8, 0x1D, 0x58, 0xB8, 0x73, 0x00]
+        );
+    }
+
+    #[test]
+    fn no_multiplier_until_installed() {
+        assert_eq!(drain_multiplier(500.0, 312.0), 1.0);
     }
 }
