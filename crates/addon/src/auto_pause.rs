@@ -1,4 +1,4 @@
-//! AutoPause, from eix.ini's `[AutoPause]` in the game folder: in single player the game pauses when a party
+//! AutoPause, from eix.ini's `[AutoPause]` in the mod folder: in single player the game pauses when a party
 //! member's health drops below a limit (core's [`eix_core::auto_pause`]).
 //!
 //! The check runs after each server tick: `CWorldServer::Update` 0x58DFF0 calls `CWorldServer::Tick` 0x58DCD0 at
@@ -24,7 +24,6 @@ use eix_engine::hook;
 use crate::game::BeforeWinMain;
 use crate::groups::{Labelled, Tally, apply_built};
 use crate::log;
-use crate::setup::ansi as to_ansi;
 
 /// The call of `CWorldServer::Tick` in `CWorldServer::Update`.
 const TICK_CALL: usize = eix_sites::C_WORLD_SERVER_UPDATE__21B;
@@ -117,19 +116,14 @@ unsafe fn check() {
     unsafe { World::send_pause(CLIENT_WORLD.as_ptr(), 1) };
 }
 
-/// Reads `[AutoPause]` from the game folder's eix.ini and hooks the tick when a limit is on.
-pub(crate) fn install(token: &BeforeWinMain) {
-    let file = match std::env::current_dir() {
-        Ok(dir) => to_ansi(dir.join("eix.ini").as_os_str()),
-        Err(e) => {
-            log::warn(
-                "autopause",
-                &format!("cannot read the game folder: {e}; off"),
-                "",
-            );
-            return;
-        }
-    };
+/// Reads `[AutoPause]` from the mod folder's eix.ini (`mod_dir` ends in `\`, empty for no mod) and hooks the tick
+/// when a limit is on.
+pub(crate) fn install(token: &BeforeWinMain, mod_dir: &[u8]) {
+    if mod_dir.is_empty() {
+        log::info("autopause", "off: no mod selected", "");
+        return;
+    }
+    let file = [mod_dir, b"eix.ini"].concat();
     let shown = String::from_utf8_lossy(&file).into_owned();
     let (limits, warnings) = Limits::from_values(
         ansi::profile_int(SECTION.as_bytes(), HEALTH_KEY.as_bytes(), 0, &file),

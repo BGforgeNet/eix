@@ -21,7 +21,7 @@ First release.
 - `UnitPanelSpells`, on by default: the unit panel's values page lists the spells of a unit outside the party, each
   with its icon and effect, and gets a scroll bar (the mouse wheel over the page scrolls it) when it outgrows the
   panel.
-- [eix.ini](docs/eix-ini.md), eix's own settings in the game folder. `[AutoPause]`, off in the package's copy: in
+- [eix.ini](docs/eix-ini.md), eix's own settings in the mod's folder. `[AutoPause]`, off in the package's copy: in
   single player the game pauses when a party member's health drops below `Health` hit points or `HealthPercent` of
   its maximum.
 - `[MOD] ShowTutorialDefault` in config.reg: a mod sets whether tutorials show until the player chooses.

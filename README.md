@@ -21,8 +21,8 @@ Reference pages: [eix site](https://bgforgenet.github.io/eix/).
 3. Replace the starter's `dinput.dll` (beside `game.exe`) and `addon.dll` (in the starter's folder) with eix's. Keep
    the starter's two files to switch back.
 4. Put `spelladdon.ini` in the game folder. A mod's own `spelladdon.ini`, in its folder, takes precedence.
-5. Put `eix.ini` in the game folder: eix's [own settings](docs/eix-ini.md), such as pausing on a party member's low
-   health.
+5. Put `eix.ini` in the mod's folder (`Mods\<mod>`): eix's [own settings](docs/eix-ini.md), such as pausing on a
+   party member's low health.
 
 To uninstall, put the starter's `dinput.dll` and `addon.dll` back.
 <!-- ANCHOR_END: install -->

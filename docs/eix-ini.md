@@ -1,7 +1,7 @@
 # eix.ini
 
-eix's own settings, in `eix.ini` in the game folder, beside `game.exe`. The package's copy has everything off. Without
-the file, everything is off.
+eix's own settings, in `eix.ini` in the mod's folder (`Mods\<mod>`, beside its `config.reg`). The package's copy has
+everything off. Without the file, or with no mod selected, everything is off.
 
 addon.log lists the values read, and each value left out with the reason.
 
