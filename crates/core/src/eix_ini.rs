@@ -57,13 +57,31 @@ impl FixSettings {
     }
 }
 
+/// The section of [`Music`].
+pub const MUSIC_SECTION: &str = "Music";
+
+/// `[Music]`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Music {
+    /// `Flac`: a track plays from its `.flac` when there is one; 0 leaves the game's stream code untouched. Default 1.
+    pub flac: bool,
+}
+
 /// Everything eix.ini sets; a missing file or key takes the defaults.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EixIni {
     /// `[EngineFixes]`.
     pub fixes: FixSettings,
     /// `[AutoPause]`.
     pub auto_pause: Triggers,
+    /// `[Music]`.
+    pub music: Music,
+}
+
+impl Default for EixIni {
+    fn default() -> Self {
+        Self::read(|_, _, default| default).0
+    }
 }
 
 impl EixIni {
@@ -82,7 +100,17 @@ impl EixIni {
             enemy_aggro: pause(auto_pause::AGGRO_KEY) != 0,
             enemy_dead: pause(auto_pause::DEAD_KEY) != 0,
         };
-        (Self { fixes, auto_pause }, warnings)
+        let music = Music {
+            flac: int(MUSIC_SECTION, "Flac", 1) != 0,
+        };
+        (
+            Self {
+                fixes,
+                auto_pause,
+                music,
+            },
+            warnings,
+        )
     }
 }
 
@@ -197,5 +225,13 @@ mod tests {
             }
         });
         assert_eq!(warnings, ["Health -5 is negative: off"]);
+    }
+
+    #[test]
+    fn flac_music_is_on_unless_its_key_is_0() {
+        assert!(EixIni::default().music.flac);
+        assert!(!with("Music", "Flac", 0).music.flac);
+        assert!(with("Music", "Flac", 2).music.flac);
+        assert!(with(FIXES_SECTION, "Flac", 0).music.flac);
     }
 }

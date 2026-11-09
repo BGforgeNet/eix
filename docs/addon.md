@@ -101,6 +101,7 @@ the game's `.mp3`.
 - Mono or stereo, any sample rate, up to 32 bits a sample (played as 16 bits). Packs can mix FLAC and MP3 tracks.
 - addon.log names each FLAC file played. A file that does not decode plays silence, with a warning.
 - Briefing speech (`speech.res`) stays MP3.
+- On by default; [eix.ini](eix-ini.md#music)'s `[Music] Flac=0` turns it off.
 
 ### Gameplay: ai.reg
 

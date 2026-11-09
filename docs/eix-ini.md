@@ -46,3 +46,9 @@ EnemySighted=1
 EnemyAggro=0
 EnemyDead=1
 ```
+
+## Music
+
+| Key | Value |
+|---|---|
+| `Flac` | 1 (default): a track plays from its `.flac` when there is one ([FLAC music](addon.md#flac-music)); 0: only the game's own stream code runs |

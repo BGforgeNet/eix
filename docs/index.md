@@ -19,7 +19,7 @@ in [Lua](lua.md) ([Lua reference](lua-reference.md)).
 | [Addon and loader](addon.md) | Settings of `config.reg` and `ai.reg`, console commands, start-up behavior |
 | [SpellAddon options](spelladdon.md) | Every `spelladdon.ini` option |
 | [Engine fixes](engine-fixes.md) | Fixes and tweaks that eix adds |
-| [eix.ini](eix-ini.md) | eix's own settings: AutoPause |
+| [eix.ini](eix-ini.md) | eix's own settings: engine fixes, AutoPause, FLAC music |
 | [Development](development.md) | Building, testing, releasing and publishing this site |
 
 {{#include ../README.md:report}}

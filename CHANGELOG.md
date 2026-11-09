@@ -26,7 +26,7 @@ First release.
   hit points or `HealthPercent` of its maximum, when an enemy comes into view (`EnemySighted`), turns on the party
   (`EnemyAggro`) or dies in view (`EnemyDead`).
 - [FLAC music](docs/addon.md#flac-music): a track plays from `Stream\<name>.flac`, the mod's or the game's, when
-  there is one.
+  there is one; eix.ini's `[Music] Flac=0` turns it off.
 - `[MOD] ShowTutorialDefault` in config.reg: a mod sets whether tutorials show until the player chooses.
 - Bug reports: addon.log records the eix build and commit, the system, the game.exe build and the loaded modules; a
   crash adds a record naming the patch group, fix or feature behind each address, and its box points to the issue

@@ -1,5 +1,6 @@
 //! FLAC music: a track of the `Stream` folder plays from `<name>.flac` when there is one, in the mod's `Stream\`
-//! folder first, then in the folder the game picked (core's [`eix_core::flac`]).
+//! folder first, then in the folder the game picked (core's [`eix_core::flac`]). eix.ini's `[Music] Flac` = 0
+//! leaves both calls alone.
 //!
 //! The game streams music through the decoder Miles finds for `.mp3` (mp3dec.asi), calling the five functions of its
 //! table itself (`CSoundManager::ReadStreamVanilla` 0x6BB3A0): open, process, seek, close and attribute, all
@@ -20,6 +21,7 @@ use std::io::Read;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
+use eix_core::eix_ini::Music;
 use eix_core::flac::{self, Decoder, MAGIC};
 use eix_engine::hook;
 
@@ -326,8 +328,13 @@ extern "thiscall" fn open_stream(this: *mut c_void, driver: u32) -> i32 {
     opened
 }
 
-/// Redirects the two calls; `mod_dir` is the mod folder, ending in `\`, empty without a mod.
-pub(crate) fn install(token: &BeforeWinMain, mod_dir: &[u8]) {
+/// Redirects the two calls unless eix.ini's `[Music] Flac` is 0; `mod_dir` is the mod folder, ending in `\`, empty
+/// without a mod.
+pub(crate) fn install(token: &BeforeWinMain, music: Music, mod_dir: &[u8]) {
+    if !music.flac {
+        log::info("flac", "off: [Music] Flac is 0", "");
+        return;
+    }
     if let Ok(mut m) = MOD_STREAM.lock() {
         *m = if mod_dir.is_empty() {
             Vec::new()
