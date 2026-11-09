@@ -45,9 +45,9 @@ group and logs why.
 | `MP Speed-control` (MPSpeedControl) | 0 | Nonzero allows speed keys and clock buttons in multiplayer | :white_check_mark: |
 | `MP console` (MPConsole) | 0 | Nonzero allows console commands in multiplayer | :white_check_mark: |
 
-The eix settings `EngineFixes`, `KeepWindowOnFocusLoss`, `KeepRunningOnFocusLoss`, `SmoothCamera`,
-`PlayerListOnJoin` and `SkipDiscCheck` default to 1; `UnitShadowResolution` defaults to 64 and `ClipCursorToWindow` to
-0; see [engine fixes](engine-fixes.md).
+The eix settings `EngineFixes`, `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin` and `SkipDiscCheck`
+default to 1; `UnitShadowResolution` defaults to 64, `KeepRunningOnFocusLoss` and `ClipCursorToWindow` to 0; see
+[engine fixes](engine-fixes.md).
 
 `Settings\AddonPath` is a string naming the selected mod folder. The loader searches for addon.dll using the
 starter root's `AddonPath` (full DLL path), then `Settings\AddonPath\addon.dll`, then the starter root's

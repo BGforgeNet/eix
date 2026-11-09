@@ -703,7 +703,7 @@ fn the_visible_engine_fixes_are_on_unless_the_registry_says_zero() {
 }
 
 #[test]
-fn the_shadow_and_focus_settings_default_to_the_games_behaviour_or_on() {
+fn the_shadow_and_focus_settings_default_to_the_games_behaviour() {
     let with = |name: &str, v: u32| {
         let values = [(name.to_owned(), SettingValue::Dword(v))]
             .into_iter()
@@ -722,11 +722,11 @@ fn the_shadow_and_focus_settings_default_to_the_games_behaviour_or_on() {
             none.keep_running_on_focus_loss,
             none.clip_cursor_to_window
         ),
-        (64, 1, 0)
+        (64, 0, 0)
     );
-    assert_eq!(with("UnitShadowResolution", 256), (256, 1, 0));
-    assert_eq!(with("KeepRunningOnFocusLoss", 0), (64, 0, 0));
-    assert_eq!(with("ClipCursorToWindow", 1), (64, 1, 1));
+    assert_eq!(with("UnitShadowResolution", 256), (256, 0, 0));
+    assert_eq!(with("KeepRunningOnFocusLoss", 1), (64, 1, 0));
+    assert_eq!(with("ClipCursorToWindow", 1), (64, 0, 1));
 }
 
 #[test]

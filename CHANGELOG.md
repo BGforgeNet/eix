@@ -15,8 +15,9 @@ First release.
 - [Engine fixes](docs/engine-fixes.md): 34 fixes of game.exe crashes, hangs, leaks and slow paths, behind the
   `EngineFixes` setting; KeepWindowOnFocusLoss, SmoothCamera, PlayerListOnJoin and SkipDiscCheck (the starter's
   game.exe starts without the game disc) each have their own setting.
-- Window and shadow settings: `KeepRunningOnFocusLoss` (a windowed game keeps running when it loses the focus),
-  `ClipCursorToWindow` (off by default) and `UnitShadowResolution` (128 or 256 for sharper unit shadows).
+- Window and shadow settings, all off by default: `KeepRunningOnFocusLoss` (a windowed game keeps running when it
+  loses the focus), `ClipCursorToWindow` (the cursor stays in the window) and `UnitShadowResolution` (128 or 256 for
+  sharper unit shadows).
 - `[MOD] ShowTutorialDefault` in config.reg: a mod sets whether tutorials show until the player chooses.
 - Bug reports: addon.log records the eix build and commit, the system, the game.exe build and the loaded modules; a
   crash adds a record naming the patch group, fix or feature behind each address, and its box points to the issue

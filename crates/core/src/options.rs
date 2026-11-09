@@ -362,8 +362,8 @@ pub struct Settings {
     /// `UnitShadowResolution`, eix's own: the side in pixels of a unit's shadow texture; 64 is the game's, 128 and 256
     /// are sharper ([`crate::engine_fixes::unit_shadow_size`]). Default 64.
     pub unit_shadow_resolution: u32,
-    /// `KeepRunningOnFocusLoss`, eix's own: 0 lets a windowed game pause when it loses the focus, as the game does.
-    /// Default 1.
+    /// `KeepRunningOnFocusLoss`, eix's own: nonzero keeps a windowed game running when it loses the focus. Default 0:
+    /// the game pauses, as it does without eix (a single-player game would otherwise go on while the player is away).
     pub keep_running_on_focus_loss: u32,
     /// `ClipCursorToWindow`, eix's own: nonzero keeps the cursor inside a focused windowed game. Default 0.
     pub clip_cursor_to_window: u32,
@@ -411,7 +411,7 @@ impl Settings {
             player_list_on_join: dword("PlayerListOnJoin", 1),
             skip_disc_check: dword("SkipDiscCheck", 1),
             unit_shadow_resolution: dword("UnitShadowResolution", 64),
-            keep_running_on_focus_loss: dword("KeepRunningOnFocusLoss", 1),
+            keep_running_on_focus_loss: dword("KeepRunningOnFocusLoss", 0),
             clip_cursor_to_window: dword("ClipCursorToWindow", 0),
             video_resolution: match find("VideoResolution") {
                 Some(SettingValue::Text(v)) => Some(v.clone()),
