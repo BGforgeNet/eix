@@ -33,18 +33,19 @@ documentation on hover and checks the arguments of each call.
 
 1. Install the language server's plugin: in VS Code, the **Lua** extension (`sumneko.lua`); other editors run
    `lua-language-server`.
-2. Get `eix.lua`: the `docs` folder of the release package has it, and so does
-   [the site](https://bgforgenet.github.io/eix/eix.lua). Keep it outside the mod folder, so the mod does not ship it.
-3. In the mod folder (the editor's workspace), create `.luarc.json` naming the file:
+2. From the `docs` folder of the release package, put `eix.lua` in the game folder, beside `game.exe`, and
+   `.luarc.json` in the mod folder (`Mods\<mod>`). Open the mod folder in the editor. The site has
+   [eix.lua](https://bgforgenet.github.io/eix/eix.lua) too.
 
-   ```json
-   {
-     "runtime.version": "LuaJIT",
-     "workspace.library": ["C:/EvilIslands/eix/eix.lua"]
-   }
-   ```
+The `.luarc.json` names the definitions file relative to the mod folder:
 
-   The path is an example: use where you saved the file. A folder holding it works too.
-4. Reopen the folder.
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime.version": "LuaJIT",
+  "workspace.library": ["../../eix.lua"]
+}
+```
 
-After an eix update, replace `eix.lua` with the one from the new release.
+A mod folder outside the game's `Mods` folder names the file by its full path instead. A mod that has a `.luarc.json`
+already takes the two settings into it. After an eix update, replace `eix.lua` with the one from the new release.

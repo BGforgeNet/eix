@@ -24,8 +24,8 @@ First release.
   tracker with the files to attach. Fatal Lua errors go to addon.log too.
 - Differences from the originals: [addon and loader](docs/addon.md), [SpellAddon options](docs/spelladdon.md).
 - References: every game script function with its signature, eix's marked ([scripting](docs/scripting.md)), and the
-  Lua API ([Lua reference](docs/lua-reference.md)); `docs/eix.lua` gives Lua editors completion and hover through
-  the Lua language server.
+  Lua API ([Lua reference](docs/lua-reference.md)); `docs/eix.lua` and a ready `docs/.luarc.json` give Lua editors
+  completion and hover through the Lua language server ([editor setup](docs/lua.md#editor-setup)).
 - Quirk fixes: fractional and whole-number INI values, common key aliases, skill and stealing caps, Lua alive flags
   and intelligence change marks; warnings for duplicate keys, ignored aliases and truncated switches.
 - More fixes of the originals: SpellAddon features that change the same code both apply, or the one with no effect
