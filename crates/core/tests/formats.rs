@@ -676,8 +676,9 @@ fn every_dword_setting_is_in_the_list_the_addon_fetches() {
         s.unit_shadow_resolution,
         s.keep_running_on_focus_loss,
         s.clip_cursor_to_window,
+        s.unit_panel_spells,
     ];
-    assert_eq!(read, [7; 17]);
+    assert_eq!(read, [7; 18]);
 }
 
 #[test]
@@ -693,13 +694,15 @@ fn the_visible_engine_fixes_are_on_unless_the_registry_says_zero() {
             s.smooth_camera,
             s.player_list_on_join,
             s.skip_disc_check,
+            s.unit_panel_spells,
         )
     };
-    assert_eq!(with("KeepWindowOnFocusLoss", None), (1, 1, 1, 1));
-    assert_eq!(with("KeepWindowOnFocusLoss", Some(0)), (0, 1, 1, 1));
-    assert_eq!(with("SmoothCamera", Some(0)), (1, 0, 1, 1));
-    assert_eq!(with("PlayerListOnJoin", Some(0)), (1, 1, 0, 1));
-    assert_eq!(with("SkipDiscCheck", Some(0)), (1, 1, 1, 0));
+    assert_eq!(with("KeepWindowOnFocusLoss", None), (1, 1, 1, 1, 1));
+    assert_eq!(with("KeepWindowOnFocusLoss", Some(0)), (0, 1, 1, 1, 1));
+    assert_eq!(with("SmoothCamera", Some(0)), (1, 0, 1, 1, 1));
+    assert_eq!(with("PlayerListOnJoin", Some(0)), (1, 1, 0, 1, 1));
+    assert_eq!(with("SkipDiscCheck", Some(0)), (1, 1, 1, 0, 1));
+    assert_eq!(with("UnitPanelSpells", Some(0)), (1, 1, 1, 1, 0));
 }
 
 #[test]

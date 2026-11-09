@@ -6,6 +6,7 @@
 use core::ffi::CStr;
 use core::mem::offset_of;
 
+use super::mfc::GameString;
 use super::{Global, code};
 
 /// The head of `CTextManager`: the open text and the cursor in it; never held by value.
@@ -51,4 +52,22 @@ pub unsafe fn open(this: *mut TextManager, key: &CStr) -> bool {
     };
     // SAFETY: the caller guarantees the build, the thread and `this`; `key` is NUL-terminated.
     unsafe { f(this, key.as_ptr().cast()) != 0 }
+}
+
+/// Reads the text `string <key>` into `out`, trimmed at its right end: `CTextManager::GetString` 0x4E0020, thiscall
+/// `(key, out)`, `ret 8`, as `CHudUnitPanel::DrawUnitInfo` reads its labels (0x6471DA). It opens that text, so the
+/// manager's open text and cursor change.
+///
+/// # Safety
+/// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live text manager and `out` a
+/// constructed string.
+pub unsafe fn get_string(this: *mut TextManager, key: &CStr, out: *mut GameString) {
+    // SAFETY: 0x4E0020 takes `this` in ECX and the key and the string on the stack, which it cleans (`ret 8`).
+    let f = unsafe {
+        code::<unsafe extern "thiscall" fn(*mut TextManager, *const u8, *mut GameString)>(
+            eix_sites::C_TEXT_MANAGER_GET_STRING,
+        )
+    };
+    // SAFETY: the caller guarantees the build, the thread, `this` and `out`; `key` is NUL-terminated.
+    unsafe { f(this, key.as_ptr().cast(), out) }
 }

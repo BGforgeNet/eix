@@ -1,15 +1,43 @@
-//! GDI drawing off-screen: a 32-bit DIB section and a memory device context drawing into it.
+//! GDI drawing: a 32-bit DIB section and a memory device context drawing into it, and the few calls a hook makes on
+//! the game's own device contexts.
 #![expect(
     unsafe_code,
-    reason = "CreateDIBSection, the memory DC calls, BitBlt and DeleteObject"
+    reason = "CreateDIBSection, the memory DC calls, BitBlt, StretchDIBits, the DC state calls and DeleteObject"
 )]
 
 use core::ffi::c_void;
 
 use windows_sys::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, CreateCompatibleDC, CreateDIBSection,
-    DIB_RGB_COLORS, DeleteDC, DeleteObject, HBITMAP, HDC, HGDIOBJ, SRCCOPY, SelectObject,
+    DIB_RGB_COLORS, DeleteDC, DeleteObject, HALFTONE, HBITMAP, HDC, HGDIOBJ, IntersectClipRect,
+    RestoreDC, SRCCOPY, SaveDC, SelectObject, SetBrushOrgEx, SetStretchBltMode, StretchDIBits,
 };
+
+/// The header of a `width` x `height` 32-bit `BI_RGB` bitmap whose rows run top-down, as a surface's memory runs.
+fn top_down(width: i32, height: i32) -> BITMAPINFO {
+    BITMAPINFO {
+        bmiHeader: BITMAPINFOHEADER {
+            biSize: size_of::<BITMAPINFOHEADER>() as u32,
+            biWidth: width,
+            // Negative: rows top-down.
+            biHeight: -height,
+            biPlanes: 1,
+            biBitCount: 32,
+            biCompression: BI_RGB,
+            biSizeImage: 0,
+            biXPelsPerMeter: 0,
+            biYPelsPerMeter: 0,
+            biClrUsed: 0,
+            biClrImportant: 0,
+        },
+        bmiColors: [windows_sys::Win32::Graphics::Gdi::RGBQUAD {
+            rgbBlue: 0,
+            rgbGreen: 0,
+            rgbRed: 0,
+            rgbReserved: 0,
+        }],
+    }
+}
 
 /// A top-down 32-bit DIB section (`BI_RGB`: blue in the low byte, the top byte unused), as GDI draws into a
 /// 32-bit DirectDraw surface's device context.
@@ -33,28 +61,7 @@ impl Dib {
         if w == 0 || h == 0 {
             return None;
         }
-        let info = BITMAPINFO {
-            bmiHeader: BITMAPINFOHEADER {
-                biSize: size_of::<BITMAPINFOHEADER>() as u32,
-                biWidth: w,
-                // Negative: rows top-down, as a surface's memory runs.
-                biHeight: -h,
-                biPlanes: 1,
-                biBitCount: 32,
-                biCompression: BI_RGB,
-                biSizeImage: 0,
-                biXPelsPerMeter: 0,
-                biYPelsPerMeter: 0,
-                biClrUsed: 0,
-                biClrImportant: 0,
-            },
-            bmiColors: [windows_sys::Win32::Graphics::Gdi::RGBQUAD {
-                rgbBlue: 0,
-                rgbGreen: 0,
-                rgbRed: 0,
-                rgbReserved: 0,
-            }],
-        };
+        let info = top_down(w, h);
         let mut bits: *mut c_void = core::ptr::null_mut();
         // SAFETY: a valid BITMAPINFO; no section handle, so GDI allocates the (zeroed) bits.
         let bitmap = unsafe {
@@ -162,4 +169,82 @@ pub unsafe fn copy_to(dst: *mut c_void, src: &MemoryDc, width: u32, height: u32)
     };
     // SAFETY: the caller guarantees `dst`; `src` is live.
     unsafe { BitBlt(dst, 0, 0, w, h, src.dc, 0, 0, SRCCOPY) != 0 }
+}
+
+/// Saves the state of the device context `dc` (`SaveDC`) and returns its level for [`restore`]; 0 when GDI fails.
+///
+/// # Safety
+/// `dc` must be a live device context.
+pub unsafe fn save(dc: *mut c_void) -> i32 {
+    // SAFETY: the caller guarantees `dc`.
+    unsafe { SaveDC(dc) }
+}
+
+/// Restores the state of `dc` that [`save`] returned `level` for (`RestoreDC`).
+///
+/// # Safety
+/// `dc` must be a live device context that saved `level`.
+pub unsafe fn restore(dc: *mut c_void, level: i32) {
+    // SAFETY: the caller guarantees `dc` and the level.
+    unsafe { RestoreDC(dc, level) };
+}
+
+/// Narrows the clip region of `dc` to the rectangle `[left, top, right, bottom]` (`IntersectClipRect`).
+///
+/// # Safety
+/// `dc` must be a live device context.
+pub unsafe fn clip(dc: *mut c_void, rect: [i32; 4]) {
+    let [left, top, right, bottom] = rect;
+    // SAFETY: the caller guarantees `dc`.
+    unsafe { IntersectClipRect(dc, left, top, right, bottom) };
+}
+
+/// Draws the `width` x `height` pixels (top row first, blue in the low byte) into the rectangle
+/// `[left, top, right, bottom]` of `dc`, scaled with `HALFTONE` (`StretchDIBits`); false when GDI fails it or the
+/// pixels do not match the size.
+///
+/// # Safety
+/// `dc` must be a live device context.
+pub unsafe fn draw_scaled(
+    dc: *mut c_void,
+    rect: [i32; 4],
+    width: u32,
+    height: u32,
+    pixels: &[u32],
+) -> bool {
+    let (Ok(w), Ok(h)) = (i32::try_from(width), i32::try_from(height)) else {
+        return false;
+    };
+    if pixels.len() != width as usize * height as usize {
+        return false;
+    }
+    let info = top_down(w, h);
+    let [left, top, right, bottom] = rect;
+    // SAFETY: the caller guarantees `dc`.
+    let mode = unsafe { SetStretchBltMode(dc, HALFTONE) };
+    // SAFETY: as above; HALFTONE asks for the brush origin to be set after the mode.
+    unsafe { SetBrushOrgEx(dc, 0, 0, core::ptr::null_mut()) };
+    // SAFETY: as above; `info` describes `pixels`, which hold width x height words.
+    let lines = unsafe {
+        StretchDIBits(
+            dc,
+            left,
+            top,
+            right - left,
+            bottom - top,
+            0,
+            0,
+            w,
+            h,
+            pixels.as_ptr().cast(),
+            &info,
+            DIB_RGB_COLORS,
+            SRCCOPY,
+        )
+    };
+    if mode != 0 {
+        // SAFETY: as above: the mode the DC had.
+        unsafe { SetStretchBltMode(dc, mode as _) };
+    }
+    lines != 0
 }

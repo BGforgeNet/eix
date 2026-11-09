@@ -138,7 +138,11 @@ impl UiMesh {
 #[repr(C)]
 #[derive(Debug)]
 pub struct UiWindow {
-    _unknown0: [u8; 0xD8],
+    _unknown0: [u8; 0x98],
+    /// The interface the window is built with: `CBattleScreen::Create` 0x635250 constructs its windows with the
+    /// screen's (0x63571D), as `CObjectivesWindow::Build` its scroll bar (0x64BFDC).
+    pub interface: *mut Interface,
+    _unknown9c: [u8; 0xD8 - 0x9C],
     /// The window's rectangle in layout units: `CHudClock::Setup` 0x648520 sets it (0x64852B..0x648545).
     pub rect: Rect,
     _unknowne8: [u8; 0x108 - 0xE8],
@@ -149,6 +153,7 @@ pub struct UiWindow {
 }
 
 const _: () = {
+    assert!(offset_of!(UiWindow, interface) == 0x98);
     assert!(offset_of!(UiWindow, rect) == 0xD8);
     assert!(offset_of!(UiWindow, sprites) == 0x108);
     assert!(offset_of!(UiWindow, sprite_count) == 0x10C);
@@ -207,7 +212,22 @@ pub struct HudUnitPanel {
     pub slide: f32,
     /// The slide's direction, 1 or -1 by the start flag (0x645771).
     pub slide_direction: f32,
+    /// The page shown: `CHudUnitPanel::DrawVanilla` 0x6462A0 draws 1 the body and health, 2 the unit's values
+    /// (`DrawUnitInfo`), 3 its effects (`ShowEffects`) (0x6469F1..0x646AA7).
+    pub page: i32,
 }
+
+/// `CBattleScreen`, a [`UiContainer`], as far as its unit panel; never held by value.
+#[repr(C)]
+#[derive(Debug)]
+pub struct BattleScreen {
+    _unknown0: [u8; 0x1A8],
+    /// The unit panel: `CBattleScreen::Create` 0x635250 stores it (0x6356AD) and adds it as a child before it sets
+    /// it up (0x6356FC).
+    pub unit_panel: *mut HudUnitPanel,
+}
+
+const _: () = assert!(offset_of!(BattleScreen, unit_panel) == 0x1A8);
 
 const _: () = {
     assert!(offset_of!(HudUnitPanel, sliding) == 0x16C);
@@ -215,6 +235,7 @@ const _: () = {
     assert!(offset_of!(HudUnitPanel, travel) == 0x174);
     assert!(offset_of!(HudUnitPanel, slide) == 0x178);
     assert!(offset_of!(HudUnitPanel, slide_direction) == 0x17C);
+    assert!(offset_of!(HudUnitPanel, page) == 0x180);
 };
 
 /// `CHelpWindow`: a help topic's or a tutorial message's pages; never held by value.
@@ -290,7 +311,9 @@ pub const INTERFACE: Global<Interface> = Global::at(eix_sites::DATA_7C7D50);
 #[derive(Debug)]
 pub struct Surface {
     _vtable: *const usize,
-    _unknown4: [u8; 4],
+    /// The interface: `CUiSurface::Construct` 0x5FCC00 stores its first argument here (0x5FCC7B), and
+    /// `UiSurface::DrawTextIn` 0x5FDE20 scales its rectangle and picks its font through it (0x5FDE94, 0x5FDEC3).
+    pub interface: *mut Interface,
     /// The device context the draws use while one is out: `UiSurfaceGetDC` 0x5FDC00 has the surface's stored here
     /// (0x5FDC20) and `UiSurfaceReleaseDC` 0x5FDC60 clears it (0x5FDC9A); `CUiSurface::Clear` 0x5FE2F0 draws through
     /// it (0x5FE2FD).
@@ -303,6 +326,7 @@ pub struct Surface {
 }
 
 const _: () = {
+    assert!(offset_of!(Surface, interface) == 0x4);
     assert!(offset_of!(Surface, dc) == 0x8);
     assert!(offset_of!(Surface, holder) == 0x10);
 };
@@ -433,6 +457,152 @@ impl Interface {
         // SAFETY: as for `console_add_text`.
         unsafe { f(this, window, 1, 1) }
     }
+
+    /// Scales `rect` from layout units (800 x 600) to the screen's pixels: `CInterface3D::ScaleRectToScreen`
+    /// 0x5F7CA0 (thiscall, `ret 4`), as `UiSurface::DrawTextIn` scales its rectangle (0x5FDE9C).
+    ///
+    /// # Safety
+    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live interface.
+    pub unsafe fn scale_rect_to_screen(this: *mut Self, rect: &mut Rect) {
+        // SAFETY: 0x5F7CA0 takes `this` in ECX and the rectangle on the stack, which it cleans (`ret 4` at 0x5F7D0E).
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self, *mut Rect)>(
+                eix_sites::C_INTERFACE_3D_SCALE_RECT_TO_SCREEN,
+            )
+        };
+        // SAFETY: the caller guarantees the build, the thread and the interface.
+        unsafe { f(this, rect) }
+    }
+
+    /// Scales `point` from the screen's pixels to layout units: the entry at 0x5F7E00 (thiscall, `ret 4`), as
+    /// `CUiWindow::RegionAt` 0x5FFCC0 scales the cursor before it tests its regions (0x5FFCE2).
+    ///
+    /// # Safety
+    /// As for [`scale_rect_to_screen`](Self::scale_rect_to_screen).
+    pub unsafe fn scale_point_from_screen(this: *mut Self, point: &mut Point) {
+        // SAFETY: 0x5F7E00 takes `this` in ECX and the point on the stack, which it cleans (`ret 4` at 0x5F7E2C).
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self, *mut Point)>(
+                eix_sites::SCALE_POINT_FROM_SCREEN_ENTRY,
+            )
+        };
+        // SAFETY: the caller guarantees the build, the thread and the interface.
+        unsafe { f(this, point) }
+    }
+}
+
+/// The texture manager, a resource manager of pictures: `CUiWindow::CopyImage` 0x5FFFB0 reads it at 0x60000B.
+pub const TEXTURE_MANAGER: Global<*mut c_void> = Global::at(eix_sites::DATA_7AF744);
+
+/// A picture decoded to 32-bit pixels.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Picture {
+    /// Its width.
+    pub width: u32,
+    /// Its height.
+    pub height: u32,
+    /// Its pixels row after row, top first, each `0xAARRGGBB`.
+    pub pixels: alloc::vec::Vec<u32>,
+}
+
+/// The largest side [`decode_picture`] takes, past which the file is not trusted to be a picture.
+const PICTURE_MAX_SIDE: u32 = 1024;
+
+/// Decodes the `.mmp` picture `name` (without its extension) of the texture manager's archives, as
+/// `CUiWindow::CopyImage` 0x5FFFB0 decodes one before copying it into a window's texture: the file's data through
+/// `CTextureManager::GetFileData` 0x691CF0 (0x60001A), its header's width and height (+4, +8; CopyImage takes them
+/// from its caller), the interface device's pixel converter (`interface+8`, then `+0x4C`, vtable +0x14) over the
+/// data at +0x4C, with the flag CopyImage passes for a `PNT3` format (+0x10, 0x600091), and the manager's
+/// FreeAllFiles (vtable +0x58, 0x600240) at the end. None when there is no such file or its size is out of range.
+///
+/// # Safety
+/// The process must be game.exe RU 1.06, on the game's thread, with the interface set up; `interface` must be the
+/// live interface.
+pub unsafe fn decode_picture(interface: *mut Interface, name: &CStr) -> Option<Picture> {
+    type GetFileData = unsafe extern "thiscall" fn(*mut c_void, *const u8) -> *const u8;
+    type Convert = unsafe extern "thiscall" fn(*mut c_void, *mut u32, *const u8, u32, u32);
+    type FreeAllFiles = unsafe extern "thiscall" fn(*mut c_void);
+    const PNT3: u32 = u32::from_le_bytes(*b"PNT3");
+    let mut file = alloc::vec::Vec::from(name.to_bytes());
+    file.extend_from_slice(b".mmp\0");
+    // SAFETY: the caller guarantees the build; the manager is set up before any window draws.
+    let manager = unsafe { TEXTURE_MANAGER.read() };
+    if manager.is_null() {
+        return None;
+    }
+    // SAFETY: 0x691CF0 takes the manager in ECX and the file name on the stack (`ret 4`); it returns the file's
+    // bytes or null.
+    let get = unsafe { code::<GetFileData>(eix_sites::C_TEXTURE_MANAGER_GET_FILE_DATA) };
+    // SAFETY: the live manager and a NUL-terminated name.
+    let data = unsafe { get(manager, file.as_ptr()) };
+    let picture = if data.is_null() {
+        None
+    } else {
+        // SAFETY: a picture file's header: the words at +4, +8 and +0x10 lie in its 0x4C bytes.
+        let width = unsafe { word(data, 4) };
+        // SAFETY: as above.
+        let height = unsafe { word(data, 8) };
+        // SAFETY: as above.
+        let format = unsafe { word(data, 0x10) };
+        if width == 0 || height == 0 || width > PICTURE_MAX_SIDE || height > PICTURE_MAX_SIDE {
+            None
+        } else {
+            let count = width * height;
+            let mut pixels = alloc::vec![0u32; count as usize];
+            // SAFETY: the interface's device, as CopyImage reaches it (0x600097..0x60009D).
+            let device = unsafe { word(interface.cast(), 8) } as usize;
+            // SAFETY: the device's converter (0x6000A0).
+            let converter =
+                unsafe { word(core::ptr::with_exposed_provenance(device), 0x4C) } as usize;
+            let converter = core::ptr::with_exposed_provenance_mut::<c_void>(converter);
+            // SAFETY: the live converter's vtable has the slot CopyImage calls (0x6000B3).
+            let address = unsafe { slot(converter, 5) };
+            // SAFETY: slot 5 of the converter's vtable, which CopyImage calls with these four arguments.
+            let convert = unsafe { code::<Convert>(address) };
+            // SAFETY: `count` words to write, the data after the header, the count and the format's flag.
+            unsafe {
+                convert(
+                    converter,
+                    pixels.as_mut_ptr(),
+                    data.wrapping_add(0x4C),
+                    count,
+                    u32::from(format == PNT3),
+                )
+            };
+            Some(Picture {
+                width,
+                height,
+                pixels,
+            })
+        }
+    };
+    // SAFETY: the live manager's vtable has the slot CopyImage calls (0x600240).
+    let address = unsafe { slot(manager, 22) };
+    // SAFETY: slot 22 of the manager's vtable, which CopyImage calls once it is done with the file.
+    let free_all = unsafe { code::<FreeAllFiles>(address) };
+    // SAFETY: the live manager.
+    unsafe { free_all(manager) };
+    picture
+}
+
+/// The word at `offset` into `base`.
+///
+/// # Safety
+/// The four bytes there must be readable.
+unsafe fn word(base: *const u8, offset: usize) -> u32 {
+    // SAFETY: the caller guarantees the bytes.
+    unsafe { base.wrapping_add(offset).cast::<u32>().read_unaligned() }
+}
+
+/// The address in slot `index` of `object`'s vtable.
+///
+/// # Safety
+/// `object` must be a live object whose vtable has that slot.
+unsafe fn slot(object: *mut c_void, index: usize) -> usize {
+    // SAFETY: the caller guarantees the object, whose first word is its vtable.
+    let vtable = unsafe { word(object.cast(), 0) } as usize;
+    // SAFETY: the caller guarantees the slot.
+    unsafe { word(core::ptr::with_exposed_provenance(vtable), index * 4) as usize }
 }
 
 /// The size of a `CMessageBox`, as the addon allocates one for the game over window.
@@ -489,6 +659,142 @@ pub struct UiContainer {
 }
 
 const _: () = assert!(offset_of!(UiContainer, children) == 0x144);
+
+impl UiContainer {
+    /// Appends `child` to the children, which the container then draws, updates and hands input to in their order,
+    /// and deletes with itself: `CUiContainer::AddChild` 0x600D30 (thiscall, `ret 4`), as `CObjectivesWindow::Build`
+    /// adds its scroll bar (0x64C000).
+    ///
+    /// # Safety
+    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live container and `child` a
+    /// constructed window the container then owns.
+    pub unsafe fn add_child(this: *mut Self, child: *mut c_void) {
+        // SAFETY: 0x600D30 is `void __thiscall (CUiWindow*)`.
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self, *mut c_void)>(
+                eix_sites::C_UI_CONTAINER_ADD_CHILD,
+            )
+        };
+        // SAFETY: the caller guarantees the build, the thread, the container and the child.
+        unsafe { f(this, child) }
+    }
+}
+
+/// `CUiScrollbar`: a vertical scroll bar window (up and down arrows, a thumb, and the area it scrolls, whose wheel
+/// turns it); `CObjectivesWindow::Build` allocates 0x18C bytes for one (0x64BF95). Never held by value.
+#[repr(C)]
+#[derive(Debug)]
+pub struct UiScrollbar {
+    _unknown0: [u8; 0x148],
+    /// The largest position, 0 and up: `CUiScrollbar::SetMaximum` 0x65AFE0 stores it and shows the bar's four
+    /// sprites unless it is 0, which hides them (0x65B006).
+    pub maximum: i32,
+    _unknown14c: [u8; 0x150 - 0x14C],
+    /// The position, 0..=`maximum`: `CUiScrollbar::SetPosition` 0x65B0C0 clamps and stores it (0x65B0F4).
+    pub position: i32,
+}
+
+const _: () = {
+    assert!(offset_of!(UiScrollbar, maximum) == 0x148);
+    assert!(offset_of!(UiScrollbar, position) == 0x150);
+};
+
+/// The size of a [`UiScrollbar`].
+pub const SCROLLBAR_SIZE: usize = 0x18C;
+
+impl UiScrollbar {
+    /// Constructs a scroll bar in `block` (of [`SCROLLBAR_SIZE`] bytes from the game's heap) over `rect` in layout
+    /// units: the bar takes its right 10 units, the rest is the area its wheel scrolls. `depth` places its sprites,
+    /// `maximum` is the largest position and `speed` the arrows' steps per second while held:
+    /// `CUiScrollbar::Construct` 0x65AEA0 (thiscall, `ret 0x20`; the rectangle by value), as
+    /// `CObjectivesWindow::Build` calls it with depth 3, maximum 0 and speed 1 (0x64BFAF..0x64BFE9).
+    ///
+    /// # Safety
+    /// The process must be game.exe RU 1.06, on the game's thread; `block` must be such a block holding no object
+    /// and `interface` the live interface.
+    pub unsafe fn construct(
+        block: *mut c_void,
+        interface: *mut Interface,
+        rect: Rect,
+        depth: f32,
+        maximum: i32,
+        speed: f32,
+    ) -> *mut Self {
+        type Construct = unsafe extern "thiscall" fn(
+            *mut c_void,
+            *mut Interface,
+            i32,
+            i32,
+            i32,
+            i32,
+            f32,
+            i32,
+            f32,
+        ) -> *mut UiScrollbar;
+        // SAFETY: 0x65AEA0 takes the block in ECX and eight stack words, which it cleans (`ret 0x20` at 0x65AF91).
+        let f = unsafe { code::<Construct>(eix_sites::C_UI_SCROLLBAR_CONSTRUCT) };
+        let Rect {
+            left,
+            top,
+            right,
+            bottom,
+        } = rect;
+        // SAFETY: the caller guarantees the build, the thread, the block and the interface.
+        unsafe {
+            f(
+                block, interface, left, top, right, bottom, depth, maximum, speed,
+            )
+        }
+    }
+
+    /// Sets the largest position (a negative one counts as 0); 0 hides the bar: `CUiScrollbar::SetMaximum` 0x65AFE0
+    /// (thiscall, `ret 4`).
+    ///
+    /// # Safety
+    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live scroll bar.
+    pub unsafe fn set_maximum(this: *mut Self, maximum: i32) {
+        // SAFETY: 0x65AFE0 is `void __thiscall (int)`.
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self, i32)>(
+                eix_sites::C_UI_SCROLLBAR_SET_MAXIMUM,
+            )
+        };
+        // SAFETY: the caller guarantees the build, the thread and the bar.
+        unsafe { f(this, maximum) }
+    }
+
+    /// Moves the thumb to `position`, clamped to 0..=maximum: `CUiScrollbar::SetPosition` 0x65B0C0 (thiscall,
+    /// `ret 4`), the vertical bar's vtable +0x64.
+    ///
+    /// # Safety
+    /// As for [`set_maximum`](Self::set_maximum).
+    pub unsafe fn set_position(this: *mut Self, position: i32) {
+        // SAFETY: 0x65B0C0 is `void __thiscall (int)`.
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self, i32)>(
+                eix_sites::C_UI_SCROLLBAR_SET_POSITION,
+            )
+        };
+        // SAFETY: the caller guarantees the build, the thread and the bar.
+        unsafe { f(this, position) }
+    }
+
+    /// Places the bar over `rect` in layout units, its sprites and regions with it: `CUiScrollbar::SetRect`
+    /// 0x65B490 (thiscall, `ret 4`).
+    ///
+    /// # Safety
+    /// As for [`set_maximum`](Self::set_maximum).
+    pub unsafe fn set_rect(this: *mut Self, rect: &Rect) {
+        // SAFETY: 0x65B490 is `void __thiscall (const RECT*)`.
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self, *const Rect)>(
+                eix_sites::C_UI_SCROLLBAR_SET_RECT,
+            )
+        };
+        // SAFETY: the caller guarantees the build, the thread and the bar.
+        unsafe { f(this, rect) }
+    }
+}
 
 /// Shows (`true`) or hides a window: `CUiWindow::SetEnabled` 0x6002A0 (thiscall, the flag and 0 on the stack,
 /// `ret 8`).

@@ -80,7 +80,11 @@ pub struct SpellRecord {
     _unknown30: [u8; 0x3C - 0x30],
     /// Cast time in ticks: `CSpellContainer::Build` 0x68BFAD copies it into the built spell.
     pub cast_time: u32,
-    _unknown40: [u8; 0x7B - 0x40],
+    _unknown40: [u8; 0x60 - 0x40],
+    /// The icon's number: `CHudUnitPanel::ShowEffects` 0x646B90 shows an effect's icon as the picture `spell%04d` of
+    /// it (0x646CEF, 0x646F2F).
+    pub icon: u32,
+    _unknown64: [u8; 0x7B - 0x64],
     /// Non-zero when the damage is a number: the info windows show the damage line for it (0x5EF8DD, 0x63CFCC),
     /// else a text.
     pub shows_damage: u8,
@@ -92,6 +96,7 @@ const _: () = {
     assert!(offset_of!(SpellRecord, slots) == 0x1C);
     assert!(offset_of!(SpellRecord, damage) == 0x2C);
     assert!(offset_of!(SpellRecord, cast_time) == 0x3C);
+    assert!(offset_of!(SpellRecord, icon) == 0x60);
     assert!(offset_of!(SpellRecord, shows_damage) == 0x7B);
     assert!(size_of::<SpellRecord>() == 0x84);
 };

@@ -39,6 +39,7 @@ mod stream_fade_lock;
 mod stream_wait;
 mod timer_resolution;
 mod truncated_script;
+mod unit_panel_spells;
 mod unit_panel_text;
 mod unit_shadow;
 mod unknown_screen;
@@ -147,6 +148,11 @@ const FIXES: &[(&str, Option<Switch>, Build)] = &[
         unit_shadow::build,
     ),
     ("WindowFocus", Some(window_focus::off), window_focus::build),
+    (
+        "UnitPanelSpells",
+        Some(|s| setting(s.options.settings.unit_panel_spells, "UnitPanelSpells")),
+        unit_panel_spells::build,
+    ),
 ];
 
 /// A mod's own settings that share the fixes' machinery: the mod chose them, so `EngineFixes` leaves them on.

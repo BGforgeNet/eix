@@ -303,7 +303,7 @@ pub enum SettingValue {
 pub type SettingValues = BTreeMap<String, SettingValue>;
 
 /// The DWORD values [`Settings::from_values`] reads, which the caller fetches from the registry.
-pub const SETTING_DWORDS: [&str; 17] = [
+pub const SETTING_DWORDS: [&str; 18] = [
     "WideScreen",
     "ObjectsDrawRadius",
     "LandscapeDrawRadius",
@@ -321,6 +321,7 @@ pub const SETTING_DWORDS: [&str; 17] = [
     "UnitShadowResolution",
     "KeepRunningOnFocusLoss",
     "ClipCursorToWindow",
+    "UnitPanelSpells",
 ];
 
 /// The registry options with their defaults.
@@ -367,6 +368,9 @@ pub struct Settings {
     pub keep_running_on_focus_loss: u32,
     /// `ClipCursorToWindow`, eix's own: nonzero keeps the cursor inside a focused windowed game. Default 0.
     pub clip_cursor_to_window: u32,
+    /// `UnitPanelSpells`, eix's own: 0 leaves a unit outside the player's party without its spells on the unit
+    /// panel's values page, as the game shows it. Default 1.
+    pub unit_panel_spells: u32,
     /// `VideoResolution`, `WxH`.
     pub video_resolution: Option<String>,
 }
@@ -413,6 +417,7 @@ impl Settings {
             unit_shadow_resolution: dword("UnitShadowResolution", 64),
             keep_running_on_focus_loss: dword("KeepRunningOnFocusLoss", 0),
             clip_cursor_to_window: dword("ClipCursorToWindow", 0),
+            unit_panel_spells: dword("UnitPanelSpells", 1),
             video_resolution: match find("VideoResolution") {
                 Some(SettingValue::Text(v)) => Some(v.clone()),
                 _ => None,

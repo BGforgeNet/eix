@@ -18,6 +18,9 @@ First release.
 - Window and shadow settings, all off by default: `KeepRunningOnFocusLoss` (a windowed game keeps running when it
   loses the focus), `ClipCursorToWindow` (the cursor stays in the window) and `UnitShadowResolution` (128 or 256 for
   sharper unit shadows).
+- `UnitPanelSpells`, on by default: the unit panel's values page lists the spells of a unit outside the party, each
+  with its icon and effect, and gets a scroll bar (the mouse wheel over the page scrolls it) when it outgrows the
+  panel.
 - `[MOD] ShowTutorialDefault` in config.reg: a mod sets whether tutorials show until the player chooses.
 - Bug reports: addon.log records the eix build and commit, the system, the game.exe build and the loaded modules; a
   crash adds a record naming the patch group, fix or feature behind each address, and its box points to the issue
