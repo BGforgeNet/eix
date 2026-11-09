@@ -29,6 +29,18 @@ pub unsafe fn is_multiplayer_client() -> bool {
     unsafe { f() != 0 }
 }
 
+/// The live server session of a hosted network game, or `None`: [`GAME_SERVER`] when it is set and bit 31 of its +4
+/// word is clear (a set bit marks a detached session).
+///
+/// # Safety
+/// The process must be game.exe RU 1.06.
+pub unsafe fn live_server() -> Option<*mut c_void> {
+    // SAFETY: the caller guarantees the build; the global holds the server session or null.
+    let server = unsafe { GAME_SERVER.read() };
+    // SAFETY: a non-null `g_gameServer` is a session object.
+    (!server.is_null() && unsafe { session_word(server) } >> 31 == 0).then_some(server)
+}
+
 /// The +4 word of the session at `session`; [`is_multiplayer_client`] ignores a client whose bit 31 is set.
 ///
 /// # Safety

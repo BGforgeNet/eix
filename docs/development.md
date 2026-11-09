@@ -14,8 +14,8 @@ cargo xtask container
 - It also checks the generated reference pages (see [Documentation site](#documentation-site)) and builds the site.
 - Output: `target/container/i686-pc-windows-gnu/release/{dinput,addon}.dll`.
 - Release package: `cargo xtask container dist` writes `target/container/dist/eix-<version>.zip` (the DLLs,
-  `dist/spelladdon.ini`, the README, the licence, the changelog, the third-party notices and `docs/`) and the release
-  notes.
+  `dist/spelladdon.ini`, `dist/eix.ini`, the README, the licence, the changelog, the third-party notices and
+  `docs/`) and the release notes.
 - Without podman: the toolchain from `rust-toolchain.toml`, `i686-w64-mingw32-gcc` on `PATH`, Wine, and the tools
   `build/Containerfile` installs, then `cargo xtask check`.
 - Tests that need the game's files are ignored by the gate. Run them with `EIX_GAME_DIR` set to the game folder as a

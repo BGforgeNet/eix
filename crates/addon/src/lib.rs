@@ -12,6 +12,7 @@ use std::ffi::c_void;
 
 use eix_engine::win::{error_box, exit_process};
 
+mod auto_pause;
 mod auto_recover;
 mod cli;
 mod crash;
@@ -79,6 +80,7 @@ fn addon_main(token: &game::BeforeWinMain) {
         "",
     );
     fixes::run(token, &setup);
+    auto_pause::install(token);
     // SpellAddonXa.asi loads with the game's sound start-up, which a command with work after the patch groups ends
     // the process before.
     if !command.late {

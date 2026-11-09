@@ -193,12 +193,10 @@ fn to_chat(message: &[u8]) {
     if !unsafe { net::is_multiplayer_client() } {
         return;
     }
-    // SAFETY: as above; the global holds the server or null.
-    let server = unsafe { net::GAME_SERVER.read() };
-    // SAFETY: a set server global points at the live session.
-    if server.is_null() || unsafe { net::session_word(server) } & 0x8000_0000 != 0 {
+    // SAFETY: as above.
+    let Some(server) = (unsafe { net::live_server() }) else {
         return;
-    }
+    };
     let Ok(text) = CString::new([b"[ERR] ", message].concat()) else {
         return;
     };

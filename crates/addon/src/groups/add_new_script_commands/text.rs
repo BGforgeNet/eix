@@ -124,12 +124,10 @@ pub(super) fn say(call: &Call) -> bool {
     if !unsafe { net::is_multiplayer_client() } {
         return true;
     }
-    // SAFETY: as above; the global holds the server or null.
-    let server = unsafe { net::GAME_SERVER.read() };
-    // SAFETY: a set server global points at the live session.
-    if server.is_null() || unsafe { net::session_word(server) } & 0x8000_0000 != 0 {
+    // SAFETY: as above.
+    let Some(server) = (unsafe { net::live_server() }) else {
         return true;
-    }
+    };
     if let Ok(text) = CString::new(joined(call)) {
         // SAFETY: the live game server, on the game's thread.
         unsafe { net::announce(server, &text) };

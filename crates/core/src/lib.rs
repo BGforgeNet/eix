@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 //! Platform-free logic: parsers, the config model, formulas. Builds and tests on any host.
 
+pub mod auto_pause;
 pub mod auto_recover;
 pub mod cli;
 pub mod console_edit;

@@ -1,7 +1,7 @@
 //! `cargo xtask dist`: the release package. Builds the DLLs, then writes to `<target>/dist/`:
-//! `eix-<version>.zip` (a folder `eix-<version>` with the two DLLs, spelladdon.ini, README.md, LICENSE, CHANGELOG.md,
-//! THIRD-PARTY-NOTICES.txt and the `docs` folder, less the site's own files) and `notes.md` (CHANGELOG.md's section
-//! for the version, for the release page).
+//! `eix-<version>.zip` (a folder `eix-<version>` with the two DLLs, spelladdon.ini, eix.ini, README.md, LICENSE,
+//! CHANGELOG.md, THIRD-PARTY-NOTICES.txt and the `docs` folder, less the site's own files) and `notes.md`
+//! (CHANGELOG.md's section for the version, for the release page).
 //!
 //! Runs where the gate runs (the build image has cargo-about and zip). With `EIX_TAG` set, the tag must be
 //! `v<version>`, so a release never ships a version its tag does not name.
@@ -22,6 +22,9 @@ const DOCS: [&str; 3] = ["README.md", "LICENSE", "CHANGELOG.md"];
 
 /// The files of `docs/` that only the site uses.
 const SITE_ONLY: [&str; 3] = ["SUMMARY.md", "index.md", "eix-badge.css"];
+
+/// The settings files, from `dist/`.
+const INIS: [&str; 2] = ["spelladdon.ini", "eix.ini"];
 
 /// The DLLs, from the release build.
 const DLLS: [&str; 2] = ["dinput.dll", "addon.dll"];
@@ -66,10 +69,9 @@ pub(crate) fn dist() -> Result<(), String> {
             copy(&path, &docs.join(name))?;
         }
     }
-    copy(
-        &root().join("dist").join("spelladdon.ini"),
-        &stage.join("spelladdon.ini"),
-    )?;
+    for ini in INIS {
+        copy(&root().join("dist").join(ini), &stage.join(ini))?;
+    }
     let notices = stage.join("THIRD-PARTY-NOTICES.txt").display().to_string();
     tool(
         "licence notices (cargo-about)",

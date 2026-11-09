@@ -14,7 +14,7 @@ use std::ffi::{CStr, CString};
 use std::sync::OnceLock;
 
 use eix_core::auto_recover as names;
-use eix_engine::game::net::{GAME_SERVER, session_word};
+use eix_engine::game::net::live_server;
 use eix_engine::game::player::{HERO_FILE, Player};
 use eix_engine::game::stream::{self, FILE_STREAM_BYTES, MEMORY_STREAM_BYTES, StreamMemory};
 use eix_engine::game::world::{SAVE_VERSION, SERVER_WORLD, World};
@@ -46,13 +46,8 @@ fn make_dir(dir: &[u8]) -> bool {
 /// # Safety
 /// The process must be game.exe RU 1.06.
 unsafe fn player_zero() -> Option<*mut Player> {
-    // SAFETY: the caller guarantees the build; the global holds the server session or null.
-    let server = unsafe { GAME_SERVER.read() };
-    // A session whose bit 31 of the +4 word is set is detached.
-    // SAFETY: a non-null `g_gameServer` is a session object.
-    if server.is_null() || unsafe { session_word(server) } >> 31 != 0 {
-        return None;
-    }
+    // SAFETY: the caller guarantees the build.
+    unsafe { live_server() }?;
     // SAFETY: the server world is constructed at start-up.
     let player = unsafe { World::get_player(SERVER_WORLD.as_ptr(), 0) };
     (!player.is_null()).then_some(player)

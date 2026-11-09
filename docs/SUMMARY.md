@@ -8,4 +8,5 @@
 - [Addon and loader](addon.md)
 - [SpellAddon options](spelladdon.md)
 - [Engine fixes](engine-fixes.md)
+- [eix.ini](eix-ini.md)
 - [Development](development.md)
