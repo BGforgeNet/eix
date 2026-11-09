@@ -3,6 +3,8 @@ name: Pages
 on:
   push:
     branches: [main]
+  # A deploy by hand, for when a push's deploy failed (Pages turned off, an outage).
+  workflow_dispatch:
 
 permissions:
   contents: read
