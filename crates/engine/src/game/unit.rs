@@ -337,7 +337,11 @@ pub struct UnitStats {
     pub intelligence_base: f32,
     /// Intelligence: `UnitStats::AddScaledExperience` 0x523960 scales experience by `1.04^(intelligence - 25)`.
     pub intelligence: f32,
-    _unknown24: [u8; 0x2C - 0x24],
+    /// The movement speed before the legs (ei-rebuild's `speedBase`).
+    pub speed_base: f32,
+    /// The movement speed: base x the legs factor, stored by `UnitStats::Recompute` (0x524BE3) and
+    /// `UnitStats::ResetToBase` (0x524F29); `UnitStats::Pack` packs it x 25.5 into the base speed byte.
+    pub speed: f32,
     /// The combat rate before modifiers (ei-rebuild's `rateBase`; the addon's `GetActionsBase` reads it).
     pub rate_base: f32,
     /// The combat rate: `CUnitServer::ScaledAttackValue` 0x54B9C0 scales by `15 / rate` (`CUnitServer`+0x210).
@@ -390,6 +394,8 @@ const _: () = {
     assert!(offset_of!(UnitStats, dexterity) == 0x18);
     assert!(offset_of!(UnitStats, intelligence_base) == 0x1C);
     assert!(offset_of!(UnitStats, intelligence) == 0x20);
+    assert!(offset_of!(UnitStats, speed_base) == 0x24);
+    assert!(offset_of!(UnitStats, speed) == 0x28);
     assert!(offset_of!(UnitStats, rate_base) == 0x2C);
     assert!(offset_of!(UnitStats, rate) == 0x30);
     assert!(offset_of!(UnitStats, load) == 0x50);
