@@ -15,7 +15,9 @@ DWORD values under `HKCU\Software\Gipat.Ru\EI_Starter\Settings`:
 | Value | Effect |
 |---|---|
 | `EngineFixes` | 0: all fixes off; else on |
-| `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck` | 0: the game's behaviour for that fix; else on |
+| `KeepWindowOnFocusLoss`, `KeepRunningOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck` | 0: the game's behaviour for that fix; else on |
+| `UnitShadowResolution` | 64 (default): the game's; 128 or 256: sharper unit shadows; another value is logged and stays 64 |
+| `ClipCursorToWindow` | 0 (default): off; else on |
 
 A mod's `config.reg` can set `[MOD] ShowTutorialDefault`: the "Show tutorial" option's value while the game has
 none stored, as on a first start. The game stores the option at exit, so the player's later choice wins. Without the
@@ -58,11 +60,19 @@ key the game's default (on) stands. `EngineFixes` 0 does not turn it off.
 
 ## Visible fixes
 
-On by default; each has its setting above.
+Each has its setting above; `UnitShadowResolution` and `ClipCursorToWindow` are off by default, the others on. The
+focus fixes change the window only, never full screen. `EngineFixes` 0 turns all of them off.
 
 | Fix | Before | After |
 |---|---|---|
 | KeepWindowOnFocusLoss | in a window, the game minimises on focus loss | stays on screen, paused |
+| KeepRunningOnFocusLoss | in a window, the game pauses (tick, sound, input) and minimises on focus loss; a multiplayer client falls out of step | keeps running and playing, not minimised |
+| ClipCursorToWindow | in a window, the cursor leaves it | confined to the client area while the window has the focus; let go on focus loss, minimising and closing |
+| UnitShadowResolution | unit shadows are 64 by 64 pixels | 128 or 256: a sharper edge, more video memory and work per shadowed unit; rendering only |
+
+`KeepRunningOnFocusLoss` covers `KeepWindowOnFocusLoss` in a window: with both on, the game never sees the focus loss,
+so nothing pauses and nothing minimises. With `KeepRunningOnFocusLoss` 0 the second still keeps the window on the
+screen, paused. Minimising the window yourself stays the game's: it pauses, and resumes when the window is restored.
 | SmoothCamera | panning stutters: a tick's camera step lands in one frame | spread over frames, same speed |
 | PlayerListOnJoin | a client may see an empty player list until players change | refreshed when its player arrives |
 | SkipDiscCheck | the starter's game.exe asks for the game disc | starts without it, as GOG's exe |

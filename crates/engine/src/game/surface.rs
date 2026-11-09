@@ -48,6 +48,19 @@ pub const DEVICE_FULL_SCREEN: u32 = 1;
 /// loss; null before the renderer exists.
 pub const DEVICE: Global<*mut TextureDevice> = Global::at(eix_sites::DATA_7AF080);
 
+/// Whether the game runs in a window: its device exists and does not own the display. False before the renderer
+/// exists, as nothing tells the modes apart then.
+///
+/// # Safety
+///
+/// Reads the game's global: the caller runs on the game's thread, or none writes it meanwhile.
+pub unsafe fn is_windowed() -> bool {
+    // SAFETY: the caller's guarantee covers the global; it holds the device or null.
+    let device = unsafe { DEVICE.read() };
+    // SAFETY: a non-null device pointer is the game's live CTextureDevice.
+    !device.is_null() && unsafe { (*device).flags } & DEVICE_FULL_SCREEN == 0
+}
+
 /// `CDXSurface`, a reference-counted holder of one DirectDraw surface (0x20 bytes: `push 0x20; call operator new` at
 /// 0x5FCC90); never held by value.
 #[repr(C)]

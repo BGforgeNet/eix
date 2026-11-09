@@ -673,8 +673,11 @@ fn every_dword_setting_is_in_the_list_the_addon_fetches() {
         s.smooth_camera,
         s.player_list_on_join,
         s.skip_disc_check,
+        s.unit_shadow_resolution,
+        s.keep_running_on_focus_loss,
+        s.clip_cursor_to_window,
     ];
-    assert_eq!(read, [7; 14]);
+    assert_eq!(read, [7; 17]);
 }
 
 #[test]
@@ -697,6 +700,33 @@ fn the_visible_engine_fixes_are_on_unless_the_registry_says_zero() {
     assert_eq!(with("SmoothCamera", Some(0)), (1, 0, 1, 1));
     assert_eq!(with("PlayerListOnJoin", Some(0)), (1, 1, 0, 1));
     assert_eq!(with("SkipDiscCheck", Some(0)), (1, 1, 1, 0));
+}
+
+#[test]
+fn the_shadow_and_focus_settings_default_to_the_games_behaviour_or_on() {
+    let with = |name: &str, v: u32| {
+        let values = [(name.to_owned(), SettingValue::Dword(v))]
+            .into_iter()
+            .collect();
+        let s = Settings::from_values(&values);
+        (
+            s.unit_shadow_resolution,
+            s.keep_running_on_focus_loss,
+            s.clip_cursor_to_window,
+        )
+    };
+    let none = Settings::default();
+    assert_eq!(
+        (
+            none.unit_shadow_resolution,
+            none.keep_running_on_focus_loss,
+            none.clip_cursor_to_window
+        ),
+        (64, 1, 0)
+    );
+    assert_eq!(with("UnitShadowResolution", 256), (256, 1, 0));
+    assert_eq!(with("KeepRunningOnFocusLoss", 0), (64, 0, 0));
+    assert_eq!(with("ClipCursorToWindow", 1), (64, 1, 1));
 }
 
 #[test]

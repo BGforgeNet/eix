@@ -40,10 +40,12 @@ mod stream_wait;
 mod timer_resolution;
 mod truncated_script;
 mod unit_panel_text;
+mod unit_shadow;
 mod unknown_screen;
 mod unregistered_light;
 mod vertex_lighting;
 mod view_depth_init;
+mod window_focus;
 mod zone_mode_text;
 
 /// A fix's warnings, of which the first [`Warnings::MAX`] go to addon.log: a defect that recurs (each frame, each
@@ -139,6 +141,12 @@ const FIXES: &[(&str, Option<Switch>, Build)] = &[
         }),
         disc_check::build,
     ),
+    (
+        "UnitShadowResolution",
+        Some(unit_shadow::off),
+        unit_shadow::build,
+    ),
+    ("WindowFocus", Some(window_focus::off), window_focus::build),
 ];
 
 /// A mod's own settings that share the fixes' machinery: the mod chose them, so `EngineFixes` leaves them on.
@@ -204,6 +212,8 @@ mod tests {
         let mut setup = Setup::default();
         // The one entry that builds only when its mod key is set.
         setup.options.config.mod_.show_tutorial_default = Some(0);
+        // The one that builds only for a side the game does not have.
+        setup.options.settings.unit_shadow_resolution = 128;
         let mut built = 0;
         let writes = selected(1)
             .flat_map(|&(name, _, build)| {

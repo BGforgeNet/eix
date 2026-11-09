@@ -4,10 +4,10 @@
 //! the display back (0x457E62). The pause and the rest stay in both.
 #![expect(
     unsafe_code,
-    reason = "reads the game's device at its window procedure's focus loss"
+    reason = "asks whether the game is windowed at its window procedure's focus loss"
 )]
 
-use eix_engine::game::surface::{DEVICE, DEVICE_FULL_SCREEN};
+use eix_engine::game::surface::is_windowed;
 use eix_engine::hook::{self, Context, Mode};
 
 use crate::groups::{BuildError, Labelled};
@@ -20,15 +20,9 @@ const LOAD_WINDOW_BYTES: [u8; 6] = [0x8B, 0x0D, 0x28, 0xBC, 0x79, 0x00];
 const AFTER_MINIMISE: usize = eix_sites::WINDOW_PROC__152;
 
 extern "C" fn handler(_: usize, ctx: &mut Context) {
-    // SAFETY: WindowProc runs on the game's thread; the global holds the device or null.
-    let device = unsafe { DEVICE.read() };
-    if device.is_null() {
-        // No renderer yet: nothing tells windowed from full screen, so the game's own minimise stands.
-        return;
-    }
-    // SAFETY: a non-null device pointer is the game's live CTextureDevice.
-    let flags = unsafe { (*device).flags };
-    if flags & DEVICE_FULL_SCREEN == 0 {
+    // SAFETY: WindowProc runs on the game's thread. Before the renderer exists nothing tells windowed from full
+    // screen, so the game's own minimise stands.
+    if unsafe { is_windowed() } {
         ctx.resume = AFTER_MINIMISE;
     }
 }

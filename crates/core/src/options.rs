@@ -303,7 +303,7 @@ pub enum SettingValue {
 pub type SettingValues = BTreeMap<String, SettingValue>;
 
 /// The DWORD values [`Settings::from_values`] reads, which the caller fetches from the registry.
-pub const SETTING_DWORDS: [&str; 14] = [
+pub const SETTING_DWORDS: [&str; 17] = [
     "WideScreen",
     "ObjectsDrawRadius",
     "LandscapeDrawRadius",
@@ -318,6 +318,9 @@ pub const SETTING_DWORDS: [&str; 14] = [
     "SmoothCamera",
     "PlayerListOnJoin",
     "SkipDiscCheck",
+    "UnitShadowResolution",
+    "KeepRunningOnFocusLoss",
+    "ClipCursorToWindow",
 ];
 
 /// The registry options with their defaults.
@@ -356,6 +359,14 @@ pub struct Settings {
     pub player_list_on_join: u32,
     /// `SkipDiscCheck`, eix's own: 0 lets the starter's game.exe ask for the game disc, as it does. Default 1.
     pub skip_disc_check: u32,
+    /// `UnitShadowResolution`, eix's own: the side in pixels of a unit's shadow texture; 64 is the game's, 128 and 256
+    /// are sharper ([`crate::engine_fixes::unit_shadow_size`]). Default 64.
+    pub unit_shadow_resolution: u32,
+    /// `KeepRunningOnFocusLoss`, eix's own: 0 lets a windowed game pause when it loses the focus, as the game does.
+    /// Default 1.
+    pub keep_running_on_focus_loss: u32,
+    /// `ClipCursorToWindow`, eix's own: nonzero keeps the cursor inside a focused windowed game. Default 0.
+    pub clip_cursor_to_window: u32,
     /// `VideoResolution`, `WxH`.
     pub video_resolution: Option<String>,
 }
@@ -399,6 +410,9 @@ impl Settings {
             smooth_camera: dword("SmoothCamera", 1),
             player_list_on_join: dword("PlayerListOnJoin", 1),
             skip_disc_check: dword("SkipDiscCheck", 1),
+            unit_shadow_resolution: dword("UnitShadowResolution", 64),
+            keep_running_on_focus_loss: dword("KeepRunningOnFocusLoss", 1),
+            clip_cursor_to_window: dword("ClipCursorToWindow", 0),
             video_resolution: match find("VideoResolution") {
                 Some(SettingValue::Text(v)) => Some(v.clone()),
                 _ => None,

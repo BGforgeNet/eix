@@ -93,6 +93,57 @@ pub fn camera_release(pending: f32, step: f32) -> (f32, f32) {
     (release, left)
 }
 
+/// UnitShadowResolution: the side of a unit's shadow texture for the setting's `value`, `None` for a value the game's
+/// renderer cannot take. 64 is the game's own.
+pub fn unit_shadow_size(value: u32) -> Option<u32> {
+    matches!(value, 64 | 128 | 256).then_some(value)
+}
+
+/// The window messages of the focus fixes.
+const WM_DESTROY: u32 = 0x0002;
+const WM_MOVE: u32 = 0x0003;
+const WM_SIZE: u32 = 0x0005;
+const WM_ACTIVATE: u32 = 0x0006;
+const WM_SETFOCUS: u32 = 0x0007;
+/// `WM_SIZE`'s `wParam` for a minimised window.
+const SIZE_MINIMIZED: u32 = 1;
+
+/// Whether `message` is `WM_ACTIVATE` for a window that loses the activation to another one (`WA_INACTIVE`, and not
+/// the minimising that the game handles itself): the game's window procedure then pauses.
+pub fn is_focus_loss(message: u32, wparam: u32) -> bool {
+    message == WM_ACTIVATE && wparam == 0
+}
+
+/// What ClipCursorToWindow does for a window message.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CursorClip {
+    /// Confine the cursor to the client area.
+    Set,
+    /// Confine it if the window is the foreground window, else release it: the area moved or changed size.
+    Refresh,
+    /// Let the cursor go.
+    Release,
+    /// Nothing changes.
+    Keep,
+}
+
+/// What ClipCursorToWindow does for `message` with `wparam`, `windowed` telling whether the game runs in a window
+/// (full screen is the game's own).
+pub fn cursor_clip(message: u32, wparam: u32, windowed: bool) -> CursorClip {
+    if !windowed {
+        return CursorClip::Release;
+    }
+    match message {
+        // `WA_ACTIVE` or `WA_CLICKACTIVE`; the high word is set for a minimised window.
+        WM_ACTIVATE if matches!(wparam, 1 | 2) => CursorClip::Set,
+        WM_ACTIVATE | WM_DESTROY => CursorClip::Release,
+        WM_SETFOCUS => CursorClip::Set,
+        WM_SIZE if wparam == SIZE_MINIMIZED => CursorClip::Release,
+        WM_SIZE | WM_MOVE => CursorClip::Refresh,
+        _ => CursorClip::Keep,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -269,5 +320,45 @@ mod tests {
             }
         });
         assert_eq!(calls.load(Ordering::SeqCst), 256);
+    }
+
+    #[test]
+    fn only_the_three_shadow_sizes_are_taken() {
+        for size in [64, 128, 256] {
+            assert_eq!(unit_shadow_size(size), Some(size));
+        }
+        for other in [0, 1, 32, 63, 65, 100, 192, 255, 257, 512, u32::MAX] {
+            assert_eq!(unit_shadow_size(other), None, "{other}");
+        }
+    }
+
+    #[test]
+    fn only_a_plain_deactivation_is_a_focus_loss() {
+        assert!(is_focus_loss(WM_ACTIVATE, 0));
+        // WA_ACTIVE, WA_CLICKACTIVE, and the deactivation of a minimised window (high word set).
+        for wparam in [1, 2, 1 << 16, (1 << 16) | 1] {
+            assert!(!is_focus_loss(WM_ACTIVATE, wparam), "{wparam:#x}");
+        }
+        assert!(!is_focus_loss(WM_SETFOCUS, 0));
+    }
+
+    #[test]
+    fn the_cursor_is_clipped_while_active_and_let_go_otherwise() {
+        use CursorClip::*;
+        assert_eq!(cursor_clip(WM_ACTIVATE, 1, true), Set);
+        assert_eq!(cursor_clip(WM_ACTIVATE, 2, true), Set);
+        assert_eq!(cursor_clip(WM_ACTIVATE, 0, true), Release);
+        assert_eq!(cursor_clip(WM_ACTIVATE, 1 << 16, true), Release);
+        assert_eq!(cursor_clip(WM_ACTIVATE, (1 << 16) | 1, true), Release);
+        assert_eq!(cursor_clip(WM_SETFOCUS, 0, true), Set);
+        assert_eq!(cursor_clip(WM_SIZE, 0, true), Refresh);
+        assert_eq!(cursor_clip(WM_SIZE, SIZE_MINIMIZED, true), Release);
+        assert_eq!(cursor_clip(WM_MOVE, 0, true), Refresh);
+        assert_eq!(cursor_clip(WM_DESTROY, 0, true), Release);
+        assert_eq!(cursor_clip(0x0200, 0, true), Keep);
+        // Full screen is the game's: no message sets a clip.
+        for message in [WM_ACTIVATE, WM_SETFOCUS, WM_SIZE, WM_MOVE, 0x0200] {
+            assert_eq!(cursor_clip(message, 1, false), Release, "{message:#x}");
+        }
     }
 }

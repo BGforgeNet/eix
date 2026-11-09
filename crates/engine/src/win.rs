@@ -2,7 +2,7 @@
 //! sections, ending the process.
 #![expect(
     unsafe_code,
-    reason = "GetLastError, the code page conversions, GetLocalTime, the file calls, MessageBoxW, the critical sections, the process calls and timeBeginPeriod"
+    reason = "GetLastError, the code page conversions, GetLocalTime, the file calls, MessageBoxW, the critical sections, the process calls, timeBeginPeriod and the cursor clip"
 )]
 
 use alloc::format;
@@ -11,8 +11,11 @@ use alloc::vec::Vec;
 use core::ffi::c_void;
 use core::fmt;
 
-use windows_sys::Win32::Foundation::{GetLastError, GlobalFree, INVALID_HANDLE_VALUE, SYSTEMTIME};
+use windows_sys::Win32::Foundation::{
+    GetLastError, GlobalFree, HWND, INVALID_HANDLE_VALUE, POINT, RECT, SYSTEMTIME,
+};
 use windows_sys::Win32::Globalization::{CP_ACP, MultiByteToWideChar, WideCharToMultiByte};
+use windows_sys::Win32::Graphics::Gdi::ClientToScreen;
 use windows_sys::Win32::Media::{TIMERR_NOERROR, timeBeginPeriod};
 use windows_sys::Win32::Storage::FileSystem::{
     FILE_ATTRIBUTE_DIRECTORY, FindClose, FindFirstFileW, FindNextFileW, GetFileAttributesW,
@@ -32,7 +35,8 @@ use windows_sys::Win32::System::Threading::{
     TerminateProcess,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CharLowerA, CharUpperA, MB_ICONERROR, MB_OK, MessageBoxW, wvsprintfA,
+    CharLowerA, CharUpperA, ClipCursor, GetClientRect, GetForegroundWindow, MB_ICONERROR, MB_OK,
+    MessageBoxW, wvsprintfA,
 };
 
 /// Asks for a system timer resolution of `ms` milliseconds for this process (`timeBeginPeriod`), kept until it ends;
@@ -340,6 +344,62 @@ pub fn clipboard_text() -> Vec<u16> {
     // SAFETY: opened above.
     unsafe { CloseClipboard() };
     out
+}
+
+/// The window `hwnd` (a handle's value) as the API's handle type.
+fn window(hwnd: usize) -> HWND {
+    core::ptr::with_exposed_provenance_mut(hwnd)
+}
+
+/// Confines the cursor to the client area of the window `hwnd`; false when the window has no area or the call fails.
+pub fn clip_cursor_to_client(hwnd: usize) -> bool {
+    let mut area = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    // SAFETY: `area` is a live RECT; a stale handle only makes the call fail.
+    if unsafe { GetClientRect(window(hwnd), &mut area) } == 0 || area.right <= 0 || area.bottom <= 0
+    {
+        return false;
+    }
+    let mut corners = [
+        POINT {
+            x: area.left,
+            y: area.top,
+        },
+        POINT {
+            x: area.right,
+            y: area.bottom,
+        },
+    ];
+    for corner in &mut corners {
+        // SAFETY: `corner` is a live POINT.
+        if unsafe { ClientToScreen(window(hwnd), corner) } == 0 {
+            return false;
+        }
+    }
+    let screen = RECT {
+        left: corners[0].x,
+        top: corners[0].y,
+        right: corners[1].x,
+        bottom: corners[1].y,
+    };
+    // SAFETY: `screen` is a live RECT.
+    unsafe { ClipCursor(&screen) != 0 }
+}
+
+/// Lets the cursor go (`ClipCursor(NULL)`).
+pub fn release_cursor_clip() {
+    // SAFETY: a null rectangle removes the clip.
+    unsafe { ClipCursor(core::ptr::null()) };
+}
+
+/// Whether `hwnd` (a handle's value) is the foreground window.
+pub fn is_foreground(hwnd: usize) -> bool {
+    // SAFETY: no preconditions.
+    unsafe { GetForegroundWindow() == window(hwnd) }
 }
 
 /// Writes `bytes` as they are to the process's standard output handle, as the C runtime's `printf` reaches it; false
