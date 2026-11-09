@@ -28,8 +28,7 @@ To uninstall, put the starter's `dinput.dll` and `addon.dll` back.
 <!-- ANCHOR: report -->
 ## Reporting a problem
 
-Open an [issue](https://github.com/BGforgeNet/eix/issues) with `addon.log` from the starter's folder. After a crash,
-also attach the newest file from `Dumps` beside it.
+Open a [bug report](https://github.com/BGforgeNet/eix/issues/new?template=bug_report.yml).
 <!-- ANCHOR_END: report -->
 
 ## Development
