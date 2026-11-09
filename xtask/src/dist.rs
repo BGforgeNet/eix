@@ -1,6 +1,7 @@
 //! `cargo xtask dist`: the release package. Builds the DLLs, then writes to `<target>/dist/`:
 //! `eix-<version>.zip` (a folder `eix-<version>` with the two DLLs, spelladdon.ini, README.md, LICENSE, CHANGELOG.md,
-//! THIRD-PARTY-NOTICES.txt and the `docs` folder) and `notes.md` (CHANGELOG.md's section for the version, for the release page).
+//! THIRD-PARTY-NOTICES.txt and the `docs` folder, less the site's own files) and `notes.md` (CHANGELOG.md's section
+//! for the version, for the release page).
 //!
 //! Runs where the gate runs (the build image has cargo-about and zip). With `EIX_TAG` set, the tag must be
 //! `v<version>`, so a release never ships a version its tag does not name.
@@ -18,6 +19,9 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// The files of the package that come from the repository as they are.
 const DOCS: [&str; 3] = ["README.md", "LICENSE", "CHANGELOG.md"];
+
+/// The files of `docs/` that only the site uses.
+const SITE_ONLY: [&str; 3] = ["SUMMARY.md", "index.md", "eix-badge.css"];
 
 /// The DLLs, from the release build.
 const DLLS: [&str; 2] = ["dinput.dll", "addon.dll"];
@@ -49,13 +53,16 @@ pub(crate) fn dist() -> Result<(), String> {
     for doc in DOCS {
         copy(&root().join(doc), &stage.join(doc))?;
     }
-    // The README links into `docs/`, so the folder ships whole.
+    // The README links into `docs/`, so the folder ships, less the site's own files: its contents, its front page
+    // (which includes README sections, unreadable outside the site) and its stylesheet.
     let docs = stage.join("docs");
     std::fs::create_dir_all(&docs).map_err(|e| format!("{}: {e}", docs.display()))?;
     let entries = std::fs::read_dir(root().join("docs")).map_err(|e| format!("docs: {e}"))?;
     for entry in entries {
         let path = entry.map_err(|e| format!("docs: {e}"))?.path();
-        if let Some(name) = path.file_name() {
+        if let Some(name) = path.file_name()
+            && !SITE_ONLY.iter().any(|s| name == *s)
+        {
             copy(&path, &docs.join(name))?;
         }
     }

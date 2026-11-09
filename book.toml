@@ -1,7 +1,8 @@
 [book]
 title = "eix"
 language = "en"
-# The reference pages and guides are the repository's docs folder; the release package ships it as it is.
+# The reference pages and guides are the repository's docs folder; the release package ships it, less the site's own
+# files (xtask/src/dist.rs).
 src = "docs"
 
 [build]
