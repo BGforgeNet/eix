@@ -6,5 +6,9 @@ publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+# FLAC music: a pure-Rust decoder that streams from `io::Read`, as the game's stream callback supplies the file.
+claxon = "=0.4.3"
+
 [lints]
 workspace = true

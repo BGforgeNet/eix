@@ -11,6 +11,7 @@ pub mod ei_plugin;
 pub mod eix_ini;
 pub mod engine_fixes;
 pub mod fixes;
+pub mod flac;
 pub mod groups;
 pub mod heap_padding;
 pub mod mod_files;
