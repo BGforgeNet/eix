@@ -1,7 +1,7 @@
 # Addon and loader
 
 `dinput.dll` loads `addon.dll`, which loads the selected mod, applies fixes and extensions, and writes `addon.log`.
-For installation and supported game builds, see the [README](../README.md). SpellAddon has its own
+For installation and supported game builds, see the [overview](index.md). SpellAddon has its own
 [option reference](spelladdon.md), and mod scripts in Lua have the [Lua reference](lua.md); additional eix fixes
 are under [engine fixes](engine-fixes.md).
 
@@ -200,59 +200,9 @@ Script-check exit codes: 0 success, 2 unreadable file, 3 nothing checked, 4 scri
 
 ## Game script interface
 
-Names ignore ASCII case. Brackets below mark optional arguments; `...` repeats the preceding argument type.
-Arguments are numbers, strings, objects or groups as named. Functions return a number unless stated otherwise.
-
-| Call | Effect or result | eix |
-|---|---|---|
-| `GetPlayerOfUnit(unit)` | Player number, or -1 | :white_check_mark: |
-| `GetUnitExp(unit [, what])` | Experience: `max` (default), `spent`, `penalty`, or `real` (experience plus penalty) | :white_check_mark: |
-| `GetArmor(unit, kind, part)` | Protection: kind 0..5 selects a body slot's layers, part 0..6 a damage type; negative kind uses computed protection | :white_check_mark: |
-| `GetObjectStringID(object)` | Object ID as a decimal string | :white_check_mark: |
-| `FloatToStr(value [, precision])`, `StrToFloat(text)` | Convert number/text; precision defaults to 3, clamped to 0..8; the fraction's trailing zeros are removed | :white_check_mark::white_check_mark: `FloatToStr(100, 0)` is `100` (the original removes the integer part's zeros too, giving `1`) |
-| `StrCat(text, text, ...)`, `StrLen(text)` | Concatenate strings; length in bytes | :white_check_mark: |
-| `Sin(value)`, `Cos(value)`, `Pow(base, exponent)` | Trigonometry in radians; exponentiation | :white_check_mark: |
-| `DistancePointPoint(x, y)` | Distance from the point to the origin; the two implicit coordinates are zero | :white_check_mark::white_check_mark: the last two values are 0 (the original reads past its arguments) |
-| `NearestUnit(x, y, radius, filter)` | Nearest matching object, or no object | :white_check_mark: |
-| `UnitsNearPoint(x, y, radius, filter)` | Group of matching objects; filter bits: 1 units, 2 other objects, 4 living named objects | :white_check_mark: |
-| `GSSetPlayerVar(player, name, value)`, `GSGetPlayerVar(player, name)` | Set/read a player's numeric variable | :white_check_mark::white_check_mark: `GSSetPlayerVar` stops on a missing object (the original crashes) |
-| `GSListPlayerVars(player)` | Print that player's variables | :white_check_mark::white_check_mark: stops on a missing object (the original crashes) |
-| `GiveExp(player, value)`, `GiveUnitExp(unit, value)` | Award experience to a player's party or one unit | :white_check_mark::white_check_mark: `GiveUnitExp` stops on a missing object (the original crashes) |
-| `StartCameraSave(file)`, `StopCameraSave()` | Start/stop recording a camera path | :white_check_mark: |
-| `Say(text, ...)`, `ConsoleString(text, ...)` | Join strings into multiplayer server chat or a console line | :white_check_mark: |
-| `Add(a, b, ...)`, `Mul(a, b, ...)` | Sum/product | :white_check_mark: |
-| `And(a, b, ...)`, `Or(a, b, ...)` | Logical conjunction/disjunction | :white_check_mark: |
-| `Max(a, b, ...)`, `Min(a, b, ...)`, `Abs(value)` | Maximum, minimum, absolute value | :white_check_mark: |
-| `Round(value)`, `Ceil(value)`, `Floor(value)` | Round half away from zero, up or down | :white_check_mark::white_check_mark: `Round` is exact (the original gives 8388610 for 8388609 and 1 for 0.49999997) |
-| `Random(max)`, `Random(min, max)` | Game random function, or a random value in the given range; returns min if max <= min | :white_check_mark: |
-| `RandStr(text, text, ...)`, `RandObj(group)` | Random string or group member | :white_check_mark::white_check_mark: `RandStr` stops on a missing object (the original crashes) |
-| `StrHas(text, fragment)` | 1 if the fragment occurs, otherwise 0 | :white_check_mark: |
-| `StrMid(text, start, count)`, `StrLower(text)`, `StrUpper(text)` | Substring or case conversion using the active code page | :white_check_mark: |
-| `ResetTarget(unit)` | Reset perception and reapply the unit's alarm state | :white_check_mark::white_check_mark: refuses a negative slot or a unit without a controller |
-| `SendCurrentParty(player)`, `PlayerExists(player)` | Resend party state; test player existence | :white_check_mark::white_check_mark: `SendCurrentParty` stops on a missing object (the original crashes) |
-| `Loot(player, unit)` | Loot the dead unit and remove it | :white_check_mark: |
-| `GameOver()`, `GameOverMSG(title, text)` | End player 0's game with default or specified text keys | :white_check_mark: |
-| `GetDexterity(unit)`, `GetIntelligence(unit)`, `GetStrength(unit)` | Attribute value | :white_check_mark: |
-| `GetSkill(unit, name)`, `GetPerk(unit, name)` | Named skill/attribute value or perk level | :white_check_mark: |
-| `GetActions(unit)`, `GetActionsBase(unit)` | Current/base action count | :white_check_mark: |
-| `GetEncumbrance(unit)`, `GetMaxEncumbrance(unit)` | Current load/capacity | :white_check_mark: |
-| `GetPrototype(unit)`, `GetRace(unit)` | Prototype name/model name as a string | :white_check_mark::white_check_mark: stop on a missing object (the original crashes) |
-| `IsFileExists(path)` | Test a file under the mod folder; parent traversal is refused | :white_check_mark: |
-| `GetObjectTypeID(object)` | Class ID, or -1 | :white_check_mark: |
-| `GetObjectsOnMap(class, ...)` | Group of objects of the listed classes; -1 selects all | :white_check_mark: |
-| `IsPlayer(unit)` | Test whether a named unit belongs to a player | :white_check_mark: |
-| `GiveUnitWeapon(unit, name, override)`, `GiveUnitArmor(unit, name, override)` | Create and equip an item; override 1 also updates a non-named unit's natural attack/protection | :white_check_mark::white_check_mark: stop on a missing object (the original crashes) |
-| `IsDead(unit)`, `IsAlive(unit)` | Test the dead flag; both return 0 for missing/non-unit objects | :white_check_mark: |
-| `ShowAllUnits(value)` | 0 draws all units; other values restore normal visibility | :white_check_mark: |
-| `PauseGame(value)` | Outside multiplayer, 0 requests pause; other values unpause | :white_check_mark: |
-| `SetWeather(name)` | `rain` or `snow`, exact and lowercase; any other text clears the weather | :white_check_mark: |
-| `AddMobEx(file [, skipScripts])` | Add a mob's objects without a loading movie; optionally skip its scripts | :white_check_mark: |
-
-`GetSkill` accepts `science`, `melee`, `archery`, `elemental`, `sense`, `astral`.
-`GetPerk` accepts `sword`, `axe`, `dagger`, `spear`, `hammer`, `bow`, `crossbow`, `fire`, `lightning`, `acid`,
-`illusion`, `divination`, `enchantments`, `healing`, `domination`, `infra`, `health`, `mana`, `vitality`, `spirit`,
-`quickness`, `lift`, `backstab`, `strength`, `dexterity`, `intelligence`.
-`StrMid` counts bytes from 1; negative starts count from the end, and count 0 takes the rest of the string.
+addon.dll adds functions and commands to the game's script language, and replaces some of the game's own. The
+[script reference](scripting.md) lists them with the rest of the language, tagged `eix`, with the differences from
+addon.dll 0.12.4.2.
 
 ## Loader and start-up behavior
 

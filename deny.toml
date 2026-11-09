@@ -5,7 +5,9 @@ targets = ["i686-pc-windows-gnu", "x86_64-unknown-linux-gnu"]
 yanked = "deny"
 
 [licenses]
-allow = ["MIT", "Apache-2.0"]
+# BSD-3-Clause: encoding_rs, which serde-saphyr's reader (the documentation tool's YAML input) depends on.
+# Unicode-3.0: unicode-ident, which serde's derive macro depends on.
+allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "Unicode-3.0"]
 # The allow list is for dependencies; our own crates (GPL-3.0-or-later, `publish = false`) are left out of it.
 private = { ignore = true }
 

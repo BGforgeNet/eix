@@ -27,6 +27,10 @@ RUN curl -sfL -o /tmp/actionlint.tgz \
     && echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/actionlint.tgz" | sha256sum -c - \
     && tar -xzf /tmp/actionlint.tgz -C /usr/local/bin actionlint \
     && rm /tmp/actionlint.tgz
+# The documentation site's builder, from its release, checked against the release's published checksum. The Pages
+# workflow runs the same script, so the version is pinned there once.
+COPY build/install-mdbook.sh /tmp/install-mdbook.sh
+RUN /tmp/install-mdbook.sh && rm /tmp/install-mdbook.sh
 # The session's runtime folder, which Wine's Wayland driver looks up whenever a window-system DLL loads; unset, the
 # lookup prints an error into the test output. No compositor runs, so the driver finds none there and goes on.
 ENV XDG_RUNTIME_DIR=/root/.xdg-runtime

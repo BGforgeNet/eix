@@ -6,5 +6,8 @@ publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dependencies]
+eix-docs = { path = "../crates/docs" }
+
 [lints]
 workspace = true

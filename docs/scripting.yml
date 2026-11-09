@@ -1,0 +1,3225 @@
+# The script functions and commands of the game, one entry each. `cargo xtask docs` turns this file into
+# docs/scripting.md; do not repeat an entry anywhere else.
+#
+# Entry fields:
+#   name         the name as scripts write it; names ignore ASCII case
+#   kind         function (returns a value) or command (returns nothing)
+#   returns      number, string, object, group, or void for a command
+#   params       name and type (number, string, object, group) of each argument in order; `optional: true`
+#                for an argument a call may leave out, `repeat: true` for one that may be given again and again,
+#                `variable: true` for the loop variable that a group function sets (an object)
+#   category     one of the ids below
+#   source       game (the original), addon (added by addon.dll) or spelladdon (a change made by a SpellAddon
+#                option, named in `option`); addon and spelladdon entries are tagged `eix` on the page
+#   description  what the entry does
+#   note         how eix differs from the original, where it does
+
+categories:
+  - id: flow
+    title: Script flow
+    summary: >-
+      Waiting, stopping and looping over groups.
+  - id: math
+    title: Numbers and logic
+    summary: >-
+      Arithmetic, comparisons and rounding. A condition is a number: 0 is false, any other value true.
+  - id: text
+    title: Text and console
+    summary: >-
+      Strings, and output to the console and the chat.
+  - id: groups
+    title: Groups
+    summary: >-
+      Sets of objects: diplomatic groups, game groups and the results of group functions.
+  - id: objects
+    title: Objects and positions
+    summary: >-
+      Finding objects, reading their positions and placing them on the map.
+  - id: units
+    title: Units and statistics
+    summary: >-
+      Health, mana, attributes, skills and experience.
+  - id: orders
+    title: Orders and behaviour
+    summary: >-
+      Orders to units, their stances, and the behaviours of the AI.
+  - id: spells
+    title: Spells
+    summary: >-
+      Casting spells and giving them to units.
+  - id: players
+    title: Players, parties and diplomacy
+    summary: >-
+      Players, their parties, and the relations between diplomatic groups.
+  - id: items
+    title: Items and money
+    summary: >-
+      Items, quest items, wagons and money.
+  - id: quests
+    title: Quests
+    summary: >-
+      Dynamic quests of multiplayer zones.
+  - id: vars
+    title: Player variables
+    summary: >-
+      Named numeric variables that belong to a player.
+  - id: world
+    title: World, effects and sound
+    summary: >-
+      Levers, areas, time, weather, lights, particles, sound, music, movies and the camera.
+  - id: game
+    title: Game and system
+    summary: >-
+      Zone changes, game modes, game end and files.
+
+entries:
+  - name: Any
+    kind: function
+    returns: number
+    params:
+      - {name: variable, type: object, variable: true}
+      - {name: group, type: group}
+      - {name: condition, type: number}
+    category: flow
+    source: game
+    description: >-
+      Returns 1 if the condition is nonzero for at least one object of the group, with the variable set to each object
+      in turn; otherwise 0.
+  - name: Every
+    kind: function
+    returns: number
+    params:
+      - {name: variable, type: object, variable: true}
+      - {name: group, type: group}
+      - {name: condition, type: number}
+    category: flow
+    source: game
+    description: >-
+      Returns 1 if the condition is nonzero for every object of the group, with the variable set to each object in
+      turn; otherwise 0.
+  - name: For
+    kind: command
+    returns: void
+    params:
+      - {name: variable, type: object, variable: true}
+      - {name: group, type: group}
+    category: flow
+    source: game
+    description: >-
+      Runs the loop body once for every object of the group, with the global variable set to that object. The group
+      can be a diplomatic group, a game group, or the result of `GroupAdd` or `GroupCross`.
+  - name: ForIf
+    kind: command
+    returns: void
+    params:
+      - {name: variable, type: object, variable: true}
+      - {name: group, type: group}
+      - {name: condition, type: number}
+    category: flow
+    source: game
+    description: >-
+      Like `For`, but runs the body only for the objects for which the condition is nonzero.
+  - name: KillScript
+    kind: command
+    returns: void
+    category: flow
+    source: game
+    description: >-
+      Stops the running script. Map script modules only; the first command of a script body, as a rule.
+  - name: Sleep
+    kind: command
+    returns: void
+    params:
+      - {name: ticks, type: number}
+    category: flow
+    source: game
+    description: >-
+      Pauses the script for the given time, in 1/15 s units. Works in map script modules only.
+  - name: SleepUntil
+    kind: command
+    returns: void
+    params:
+      - {name: condition, type: number}
+    category: flow
+    source: game
+    description: >-
+      Pauses the script until the condition becomes nonzero.
+  - name: SleepUntilIdle
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: flow
+    source: game
+    description: >-
+      Pauses the script until the unit has no order left.
+  - name: Sum
+    kind: function
+    returns: number
+    params:
+      - {name: variable, type: object, variable: true}
+      - {name: group, type: group}
+      - {name: expression, type: number}
+    category: flow
+    source: game
+    description: >-
+      Evaluates the expression once for every object of the group, with the variable set to that object, and returns
+      the sum of the results.
+  - name: WaitSegment
+    kind: command
+    returns: void
+    params:
+      - {name: segments, type: number}
+    category: flow
+    source: game
+    description: >-
+      Pauses the called procedure for the given number of segments, 15 to the second. Map script modules only.
+  - name: Abs
+    kind: function
+    returns: number
+    params:
+      - {name: value, type: number}
+    category: math
+    source: addon
+    description: >-
+      Returns the absolute value.
+  - name: Add
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number, repeat: true}
+    category: math
+    source: addon
+    description: >-
+      Returns the sum of two or more numbers. Replaces the game's function of two numbers.
+  - name: And
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number, repeat: true}
+    category: math
+    source: addon
+    description: >-
+      Returns the logical conjunction of two or more values.
+  - name: Ceil
+    kind: function
+    returns: number
+    params:
+      - {name: value, type: number}
+    category: math
+    source: addon
+    description: >-
+      Rounds up.
+  - name: Cos
+    kind: function
+    returns: number
+    params:
+      - {name: value, type: number}
+    category: math
+    source: addon
+    description: >-
+      Returns the cosine of a value in radians.
+  - name: DistancePointPoint
+    kind: function
+    returns: number
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: math
+    source: addon
+    description: >-
+      Returns the distance from the point (x, y) to the origin: the two implicit coordinates are zero.
+    note: >-
+      the last two values are 0 (the original reads past its arguments)
+  - name: Div
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number}
+    category: math
+    source: game
+    description: >-
+      Returns a divided by b.
+  - name: Floor
+    kind: function
+    returns: number
+    params:
+      - {name: value, type: number}
+    category: math
+    source: addon
+    description: >-
+      Rounds down.
+  - name: IsEqual
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number}
+    category: math
+    source: game
+    description: >-
+      Returns 1 if the two numbers are equal, otherwise 0.
+  - name: IsEqualString
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: string}
+      - {name: b, type: string}
+    category: math
+    source: game
+    description: >-
+      Returns 1 if the two strings are equal, case included, otherwise 0.
+  - name: IsGreater
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number}
+    category: math
+    source: game
+    description: >-
+      Returns 1 if a is greater than b, otherwise 0.
+  - name: IsLess
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number}
+    category: math
+    source: game
+    description: >-
+      Returns 1 if a is less than b, otherwise 0.
+  - name: Max
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number, repeat: true}
+    category: math
+    source: addon
+    description: >-
+      Returns the largest of two or more numbers.
+  - name: Min
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number, repeat: true}
+    category: math
+    source: addon
+    description: >-
+      Returns the smallest of two or more numbers.
+  - name: Mul
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number, repeat: true}
+    category: math
+    source: addon
+    description: >-
+      Returns the product of two or more numbers. Replaces the game's function of two numbers.
+  - name: Not
+    kind: function
+    returns: number
+    params:
+      - {name: value, type: number}
+    category: math
+    source: game
+    description: >-
+      Returns 1 if the value is 0, otherwise 0.
+  - name: Or
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number, repeat: true}
+    category: math
+    source: addon
+    description: >-
+      Returns the logical disjunction of two or more values.
+  - name: Pow
+    kind: function
+    returns: number
+    params:
+      - {name: base, type: number}
+      - {name: exponent, type: number}
+    category: math
+    source: addon
+    description: >-
+      Returns the base raised to the exponent.
+  - name: Random
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number, optional: true}
+    category: math
+    source: addon
+    description: >-
+      `Random(max)` is the game's random function. `Random(min, max)` returns a random value in the range, or `min` if
+      `max` is not above `min`. Replaces the game's function of one number.
+  - name: Round
+    kind: function
+    returns: number
+    params:
+      - {name: value, type: number}
+    category: math
+    source: addon
+    description: >-
+      Rounds half away from zero.
+    note: >-
+      `Round` is exact (the original gives 8388610 for 8388609 and 1 for 0.49999997)
+  - name: Sin
+    kind: function
+    returns: number
+    params:
+      - {name: value, type: number}
+    category: math
+    source: addon
+    description: >-
+      Returns the sine of a value in radians.
+  - name: Sub
+    kind: function
+    returns: number
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number}
+    category: math
+    source: game
+    description: >-
+      Returns a minus b.
+  - name: ConsoleFloat
+    kind: command
+    returns: void
+    params:
+      - {name: value, type: number}
+    category: text
+    source: game
+    description: >-
+      Prints a number to the console. Synonym: `#`.
+  - name: ConsoleString
+    kind: command
+    returns: void
+    params:
+      - {name: text, type: string, repeat: true}
+    category: text
+    source: addon
+    description: >-
+      Joins the strings and prints them as one console line. Replaces the game's command of one string.
+  - name: FloatToStr
+    kind: function
+    returns: string
+    params:
+      - {name: value, type: number}
+      - {name: precision, type: number, optional: true}
+    category: text
+    source: addon
+    description: >-
+      Converts a number to text. `precision` defaults to 3 and is clamped to 0 to 8; the fraction's trailing zeros are
+      removed.
+    note: >-
+      `FloatToStr(100, 0)` is `100` (the original removes the integer part's zeros too, giving `1`)
+  - name: RandStr
+    kind: function
+    returns: string
+    params:
+      - {name: text, type: string}
+      - {name: more, type: string, repeat: true}
+    category: text
+    source: addon
+    description: >-
+      Returns one of two or more strings at random.
+    note: >-
+      `RandStr` stops on a missing object (the original crashes)
+  - name: Say
+    kind: command
+    returns: void
+    params:
+      - {name: text, type: string, repeat: true}
+    category: text
+    source: addon
+    description: >-
+      Joins the strings and sends them to the multiplayer server chat.
+  - name: SendEvent
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: event, type: number}
+    category: text
+    source: game
+    description: >-
+      Debug command: broadcasts a number to the engine's players.
+  - name: SendStringEvent
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: event, type: string}
+    category: text
+    source: game
+    description: >-
+      Sends a text command to the engine. `say sNN Name` starts an NPC line (the text `say sNN` of texts.res, with the
+      sound from the unit's `Acks` field); `say_block` does the same and blocks the speaker. Other commands: `tutorial
+      zt1`, `briefing`, `autosave`, `endofgame`.
+  - name: StrCat
+    kind: function
+    returns: string
+    params:
+      - {name: text, type: string}
+      - {name: more, type: string, repeat: true}
+    category: text
+    source: addon
+    description: >-
+      Joins two or more strings.
+  - name: StrHas
+    kind: function
+    returns: number
+    params:
+      - {name: text, type: string}
+      - {name: fragment, type: string}
+    category: text
+    source: addon
+    description: >-
+      Returns 1 if the fragment occurs in the text, otherwise 0.
+  - name: StrLen
+    kind: function
+    returns: number
+    params:
+      - {name: text, type: string}
+    category: text
+    source: addon
+    description: >-
+      Returns the length of a string in bytes.
+  - name: StrLower
+    kind: function
+    returns: string
+    params:
+      - {name: text, type: string}
+    category: text
+    source: addon
+    description: >-
+      Converts a string to lowercase by the active code page.
+  - name: StrMid
+    kind: function
+    returns: string
+    params:
+      - {name: text, type: string}
+      - {name: start, type: number}
+      - {name: count, type: number}
+    category: text
+    source: addon
+    description: >-
+      Returns part of a string, by the active code page. `start` counts bytes from 1, and from the end when negative;
+      a `count` of 0 takes the rest of the string.
+  - name: StrToFloat
+    kind: function
+    returns: number
+    params:
+      - {name: text, type: string}
+    category: text
+    source: addon
+    description: >-
+      Converts text to a number.
+  - name: StrUpper
+    kind: function
+    returns: string
+    params:
+      - {name: text, type: string}
+    category: text
+    source: addon
+    description: >-
+      Converts a string to uppercase by the active code page.
+  - name: AddObject
+    kind: command
+    returns: void
+    params:
+      - {name: group, type: group}
+      - {name: unit, type: object}
+    category: groups
+    source: game
+    description: >-
+      Adds a unit to a game group, a global variable of the script.
+  - name: GetObjectsOnMap
+    kind: function
+    returns: group
+    params:
+      - {name: class, type: number, repeat: true}
+    category: groups
+    source: addon
+    description: >-
+      Returns the group of the objects of the listed classes. -1 selects all.
+  - name: GetPlayerUnits
+    kind: function
+    returns: group
+    params:
+      - {name: diplomacyGroup, type: number}
+    category: groups
+    source: game
+    description: >-
+      Returns the group of the units of a diplomatic group.
+  - name: GroupAdd
+    kind: function
+    returns: group
+    params:
+      - {name: a, type: group}
+      - {name: b, type: group}
+    category: groups
+    source: game
+    description: >-
+      Returns the group of the objects that are in either group.
+  - name: GroupCross
+    kind: function
+    returns: group
+    params:
+      - {name: a, type: group}
+      - {name: b, type: group}
+    category: groups
+    source: game
+    description: >-
+      Returns the group of the objects that are in both groups.
+  - name: GroupHas
+    kind: function
+    returns: number
+    params:
+      - {name: group, type: group}
+      - {name: unit, type: object}
+    category: groups
+    source: game
+    description: >-
+      Returns 1 if the group contains the unit, otherwise 0.
+  - name: GroupSee
+    kind: function
+    returns: group
+    params:
+      - {name: group, type: group}
+    category: groups
+    source: game
+    description: >-
+      Returns the group of the objects that the members of the group see at this moment. The members see each other.
+  - name: GroupSee
+    kind: function
+    returns: group
+    params:
+      - {name: group, type: group}
+      - {name: mode, type: number}
+    category: groups
+    source: spelladdon
+    option: "[gameplay] groupseetrans"
+    description: >-
+      Accepts an extra numeric mode argument. The group traversal itself stays the game's.
+  - name: GroupSize
+    kind: function
+    returns: number
+    params:
+      - {name: group, type: group}
+    category: groups
+    source: game
+    description: >-
+      Returns the number of units in the group.
+  - name: GroupSub
+    kind: function
+    returns: group
+    params:
+      - {name: a, type: group}
+      - {name: b, type: group}
+    category: groups
+    source: game
+    description: >-
+      Returns the group of the objects of the first group that are not in the second.
+  - name: PlayerSee
+    kind: function
+    returns: group
+    params:
+      - {name: player, type: number}
+    category: groups
+    source: game
+    description: >-
+      Returns the group of the units that the units of the player's party see.
+  - name: RandObj
+    kind: function
+    returns: object
+    params:
+      - {name: group, type: group}
+    category: groups
+    source: addon
+    description: >-
+      Returns a random member of the group.
+  - name: RemoveObject
+    kind: command
+    returns: void
+    params:
+      - {name: group, type: group}
+      - {name: unit, type: object}
+    category: groups
+    source: game
+    description: >-
+      Removes a unit from a game group. Not usable from the console.
+  - name: UnitSee
+    kind: function
+    returns: group
+    params:
+      - {name: unit, type: object}
+    category: groups
+    source: game
+    description: >-
+      Returns the group of the units the unit sees. A unit does not see itself.
+  - name: UnitSee
+    kind: function
+    returns: group
+    params:
+      - {name: unit, type: object}
+      - {name: mode, type: number}
+    category: groups
+    source: spelladdon
+    option: "[gameplay] unitseetrans"
+    description: >-
+      Selects the visibility list: positive zero is the visible living units, a negative sign bit (negative zero
+      included) the second list, any other value the nearby-units list.
+  - name: UnitsNearPoint
+    kind: function
+    returns: group
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: radius, type: number}
+      - {name: filter, type: number}
+    category: groups
+    source: addon
+    description: >-
+      Returns the group of the objects within the radius that pass the filter. Filter bits: 1 units, 2 other objects,
+      4 living named objects.
+  - name: AddMob
+    kind: command
+    returns: void
+    params:
+      - {name: file, type: string}
+    category: objects
+    source: game
+    description: >-
+      Loads a `.mob` file from the `MAPS` folder; the name includes the extension.
+  - name: AddMob
+    kind: command
+    returns: void
+    params:
+      - {name: file, type: string}
+    category: objects
+    source: spelladdon
+    option: "[gameplay] infiniteaddmobspawn"
+    description: >-
+      Can load the same file repeatedly, except case-sensitive names that begin with `Auto`, which still load once.
+      Active for values 1 and up.
+  - name: AddMobEx
+    kind: command
+    returns: void
+    params:
+      - {name: file, type: string}
+      - {name: skipScripts, type: number, optional: true}
+    category: objects
+    source: addon
+    description: >-
+      Adds the objects of a `.mob` file without a loading movie, and optionally skips its scripts.
+  - name: AddUnitToServer
+    kind: command
+    returns: void
+    params:
+      - {name: mapName, type: string}
+      - {name: prototype, type: string}
+      - {name: displayName, type: string}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+    category: objects
+    source: game
+    description: >-
+      Places a unit of the given prototype on the map at (x, y, z). `mapName` is its internal name, case-sensitive;
+      `displayName` is the name shown in info windows.
+  - name: DistanceUnitPoint
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: objects
+    source: game
+    description: >-
+      Returns the straight distance between an object and a point.
+  - name: DistanceUnitUnit
+    kind: function
+    returns: number
+    params:
+      - {name: unitA, type: object}
+      - {name: unitB, type: object}
+    category: objects
+    source: game
+    description: >-
+      Returns the straight distance between two objects.
+  - name: GetBSZValue
+    kind: function
+    returns: number
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: objects
+    source: game
+    description: >-
+      Returns the height of the surface at the point: like `GetZValue`, except that an unfrozen pool of water or lava
+      gives the height of its surface, not of its bottom.
+  - name: GetFutureX
+    kind: function
+    returns: number
+    params:
+      - {name: object, type: object}
+      - {name: ticks, type: number}
+    category: objects
+    source: game
+    description: >-
+      Returns the x coordinate the object is predicted to have after the given time, in 1/15 s units. The shorter the
+      time, the better the prediction.
+  - name: GetFutureY
+    kind: function
+    returns: number
+    params:
+      - {name: object, type: object}
+      - {name: ticks, type: number}
+    category: objects
+    source: game
+    description: >-
+      Returns the y coordinate the object is predicted to have after the given time, in 1/15 s units.
+  - name: GetLeader
+    kind: function
+    returns: object
+    category: objects
+    source: game
+    description: >-
+      Returns the leader of the current party: Zak in single player, the player's current character in multiplayer.
+  - name: GetObject
+    kind: function
+    returns: object
+    params:
+      - {name: id, type: number}
+    category: objects
+    source: game
+    description: >-
+      Returns the object with the given ID. Does not work with ten-digit IDs: use `GetObjectByID`.
+  - name: GetObjectByID
+    kind: function
+    returns: object
+    params:
+      - {name: id, type: string}
+    category: objects
+    source: game
+    description: >-
+      Returns the object with the given ID, written as a string. Accepts ten-digit IDs.
+  - name: GetObjectByName
+    kind: function
+    returns: object
+    params:
+      - {name: name, type: string}
+    category: objects
+    source: game
+    description: >-
+      Returns the object with the given in-game name.
+  - name: GetObjectID
+    kind: function
+    returns: number
+    params:
+      - {name: object, type: object}
+    category: objects
+    source: game
+    description: >-
+      Returns the ID of an object, a unit or any other object such as a chest.
+  - name: GetObjectStringID
+    kind: function
+    returns: string
+    params:
+      - {name: object, type: object}
+    category: objects
+    source: addon
+    description: >-
+      Returns the ID of an object as a decimal string.
+  - name: GetObjectTypeID
+    kind: function
+    returns: number
+    params:
+      - {name: object, type: object}
+    category: objects
+    source: addon
+    description: >-
+      Returns the class ID of an object, or -1.
+  - name: GetPrototype
+    kind: function
+    returns: string
+    params:
+      - {name: unit, type: object}
+    category: objects
+    source: addon
+    description: >-
+      Returns the name of the unit's prototype.
+    note: >-
+      stops on a missing object (the original crashes)
+  - name: GetRace
+    kind: function
+    returns: string
+    params:
+      - {name: unit, type: object}
+    category: objects
+    source: addon
+    description: >-
+      Returns the model name of the unit.
+    note: >-
+      stops on a missing object (the original crashes)
+  - name: GetX
+    kind: function
+    returns: number
+    params:
+      - {name: object, type: object}
+    category: objects
+    source: game
+    description: >-
+      Returns the x coordinate of an object.
+  - name: GetY
+    kind: function
+    returns: number
+    params:
+      - {name: object, type: object}
+    category: objects
+    source: game
+    description: >-
+      Returns the y coordinate of an object.
+  - name: GetZ
+    kind: function
+    returns: number
+    params:
+      - {name: object, type: object}
+    category: objects
+    source: game
+    description: >-
+      Returns the z coordinate of an object.
+  - name: GetZValue
+    kind: function
+    returns: number
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: objects
+    source: game
+    description: >-
+      Returns the height of the solid ground at the point, whatever water or lava lies over it.
+  - name: HideObject
+    kind: command
+    returns: void
+    params:
+      - {name: object, type: object}
+      - {name: hide, type: number}
+    category: objects
+    source: game
+    description: >-
+      Hides the object if `hide` is nonzero, shows it if 0. Works in briefing zones only.
+  - name: IsInArea
+    kind: function
+    returns: number
+    params:
+      - {name: area, type: number}
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: objects
+    source: game
+    description: >-
+      Returns 1 if the point (x, y) lies in a part of the quest area, otherwise 0.
+  - name: IsInSquare
+    kind: function
+    returns: number
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: x1, type: number}
+      - {name: y1, type: number}
+      - {name: x2, type: number}
+      - {name: y2, type: number}
+    category: objects
+    source: game
+    description: >-
+      Returns 1 if the point (x, y) lies in the rectangle (x1, y1)-(x2, y2), otherwise 0.
+  - name: IsUnitInWater
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: objects
+    source: game
+    description: >-
+      Returns 1 if the unit is in water, otherwise 0.
+  - name: IsUnitVisible
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: objects
+    source: game
+    description: >-
+      Returns 1 if the player can see the unit in the zone, otherwise 0. `HideObject` does not change the result.
+  - name: NearestUnit
+    kind: function
+    returns: object
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: radius, type: number}
+      - {name: filter, type: number}
+    category: objects
+    source: addon
+    description: >-
+      Returns the nearest object within the radius that passes the filter, or no object. Filter bits: 1 units, 2 other
+      objects, 4 living named objects.
+  - name: RemoveObjectFromServer
+    kind: command
+    returns: void
+    params:
+      - {name: object, type: object}
+    category: objects
+    source: game
+    description: >-
+      Removes the object from the server. Same as `RemoveUnitFromServer`.
+  - name: RemoveUnitFromServer
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: objects
+    source: game
+    description: >-
+      Removes the object from the server. Same as `RemoveObjectFromServer`.
+  - name: SetCP
+    kind: command
+    returns: void
+    params:
+      - {name: object, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+    category: objects
+    source: game
+    description: >-
+      Moves any map object, not only a unit, to (x, y). A unit loses its orders, and the passability graph is
+      recalculated, which is slower than `SetCPFast`.
+  - name: SetCPFast
+    kind: command
+    returns: void
+    params:
+      - {name: object, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+    category: objects
+    source: game
+    description: >-
+      Like `SetCP`, but the AI passability graph is not recalculated.
+  - name: UnitInSquare
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: x1, type: number}
+      - {name: y1, type: number}
+      - {name: x2, type: number}
+      - {name: y2, type: number}
+    category: objects
+    source: game
+    description: >-
+      Returns 1 if the unit stands in the rectangle (x1, y1)-(x2, y2), otherwise 0.
+  - name: BlockUnit
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: block, type: number}
+    category: units
+    source: game
+    description: >-
+      Blocks the player's control of a unit if `block` is nonzero, gives it back if 0. A unit can be controlled from
+      the moment it joins a party.
+  - name: GetActions
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: addon
+    description: >-
+      Returns the current action count of a unit.
+  - name: GetActionsBase
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: addon
+    description: >-
+      Returns the base action count of a unit.
+  - name: GetAIClass
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: game
+    description: >-
+      Returns what the unit is doing: 0 calm, 1 moving, 2 turning, 3 attacking, 4 casting, 5 using a skill, 6
+      following.
+  - name: GetAIClass
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: spelladdon
+    option: "[gameplay] getaiclasstrans"
+    description: >-
+      Reads the AI class field of the unit's server controller.
+  - name: GetArmor
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: kind, type: number}
+      - {name: part, type: number}
+    category: units
+    source: addon
+    description: >-
+      Returns the protection of a unit. `kind` 0 to 5 selects a body slot's layers and `part` 0 to 6 a damage type; a
+      negative `kind` uses the computed protection.
+  - name: GetDexterity
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: addon
+    description: >-
+      Returns the dexterity of a unit.
+  - name: GetEncumbrance
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: addon
+    description: >-
+      Returns the load a unit carries.
+  - name: GetIntelligence
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: addon
+    description: >-
+      Returns the intelligence of a unit.
+  - name: GetMaxEncumbrance
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: addon
+    description: >-
+      Returns the load a unit can carry.
+  - name: GetPerk
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: name, type: string}
+    category: units
+    source: addon
+    description: >-
+      Returns the level of a perk of a unit. Names: `sword`, `axe`, `dagger`, `spear`, `hammer`, `bow`, `crossbow`,
+      `fire`, `lightning`, `acid`, `illusion`, `divination`, `enchantments`, `healing`, `domination`, `infra`,
+      `health`, `mana`, `vitality`, `spirit`, `quickness`, `lift`, `backstab`, `strength`, `dexterity`,
+      `intelligence`.
+  - name: GetSkill
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: name, type: string}
+    category: units
+    source: addon
+    description: >-
+      Returns a skill or attribute of a unit: `science`, `melee`, `archery`, `elemental`, `sense` or `astral`.
+  - name: GetStrength
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: addon
+    description: >-
+      Returns the strength of a unit.
+  - name: GetUnitExp
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: what, type: string, optional: true}
+    category: units
+    source: addon
+    description: >-
+      Returns the experience of a unit: `max` (the default), `spent`, `penalty` (the experience not yet added) or
+      `real` (experience plus penalty).
+  - name: GiveDexterity
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: amount, type: number}
+    category: units
+    source: game
+    description: >-
+      Adds dexterity points to a unit. Zones only; works on enemies as well.
+  - name: GiveExp
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: amount, type: number}
+    category: units
+    source: addon
+    description: >-
+      Awards experience to a player's party.
+  - name: GiveIntelligence
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: amount, type: number}
+    category: units
+    source: game
+    description: >-
+      Adds intelligence points to a unit. Zones only; works on enemies as well.
+  - name: GiveSkill
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: skill, type: string}
+      - {name: amount, type: number}
+    category: units
+    source: game
+    description: >-
+      Raises a skill (`science`, `melee`, `archery`, and so on) by `amount` points. The experience needed is added to
+      the unit, not to the party, and spent on the skill, so health and stamina follow.
+  - name: GiveStrength
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: amount, type: number}
+    category: units
+    source: game
+    description: >-
+      Adds strength points to a unit. Zones only; works on enemies as well.
+  - name: GiveUnitExp
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: amount, type: number}
+    category: units
+    source: addon
+    description: >-
+      Awards experience to one unit.
+    note: >-
+      `GiveUnitExp` stops on a missing object (the original crashes)
+  - name: HP
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: game
+    description: >-
+      Returns the unit's current health, with the effects of weakening and strengthening spells.
+  - name: HP
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: index, type: number}
+    category: units
+    source: spelladdon
+    option: "[gameplay] hptrans"
+    description: >-
+      Reads a float by index from the unit's vitals. Valid indices are 0 to 29; the fields are listed under [indexed
+      stat readers](spelladdon.md#indexed-stat-readers).
+  - name: InflictDamage
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: amount, type: number}
+    category: units
+    source: game
+    description: >-
+      Deals damage to the unit, ignoring its armor. Experience is granted for a kill.
+  - name: IsAlive
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: addon
+    description: >-
+      Returns 1 if the unit is alive. Returns 0 for a missing object or a non-unit. Replaces the game's function.
+  - name: IsDead
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: addon
+    description: >-
+      Returns 1 if the unit is dead. Returns 0 for a missing object or a non-unit. Replaces the game's function.
+  - name: IsUnitBlocked
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: game
+    description: >-
+      Returns 1 if the player's control of the unit is blocked, otherwise 0.
+  - name: KillUnit
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: game
+    description: >-
+      Kills the unit. The party gets no experience for it.
+  - name: Mana
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: game
+    description: >-
+      Returns the unit's current mana.
+  - name: Mana
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: index, type: number}
+    category: units
+    source: spelladdon
+    option: "[gameplay] mptrans"
+    description: >-
+      Reads a float from the unit's stats, indices 0 to 448; an invalid object, controller or index returns 0. The
+      fields are listed under [indexed stat readers](spelladdon.md#indexed-stat-readers). Also adds the index argument
+      to `HP`, which keeps its reader unless `hptrans` is 1.
+  - name: MaxHP
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: game
+    description: >-
+      Returns the unit's maximum health, with the effects of weakening and strengthening spells.
+  - name: MaxHP
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: index, type: number}
+    category: units
+    source: spelladdon
+    option: "[gameplay] legendaryspellsystem"
+    description: >-
+      Reads a byte, starting at the skill-byte area of the unit, indices 0 to 631; outside it returns 0.
+    note: >-
+      stays inside the unit (the original reads any address)
+  - name: MaxMana
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: game
+    description: >-
+      Returns the unit's maximum mana.
+  - name: MaxMana
+    kind: function
+    returns: number
+    params:
+      - {name: x1, type: number}
+      - {name: y1, type: number}
+      - {name: z1, type: number}
+      - {name: x2, type: number}
+      - {name: y2, type: number}
+      - {name: z2, type: number}
+      - {name: extra, type: number}
+    category: units
+    source: spelladdon
+    option: "[gameplay] legendaryspellsystem"
+    description: >-
+      Takes seven numeric arguments, but the option supplies no working path-query implementation.
+      PENDING-MaxMana-arguments: the option documents seven numeric arguments, while a script reference documents six,
+      the coordinates of two points.
+  - name: WasLooted
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: units
+    source: game
+    description: >-
+      Returns whether the unit was robbed or its corpse searched: 0 if not. Stealing a quest item does not change the
+      result.
+  - name: WasLooted
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: bit, type: number, optional: true}
+    category: units
+    source: spelladdon
+    option: "[gameplay] waslootedtrans"
+    description: >-
+      Value 1: returns the full flag word. Value 2: `WasLooted(unit, bit)` returns the selected bit. Known bits: 15
+      moving, 19 knocked out, 20 looted, 24 stunned, 28 feebleminded.
+  - name: AlarmPosX
+    kind: function
+    returns: number
+    params:
+      - {name: alarm, type: number}
+    category: orders
+    source: game
+    description: >-
+      Returns the x coordinate of the point set for the alarm number by `InvokeAlarm`.
+  - name: AlarmPosY
+    kind: function
+    returns: number
+    params:
+      - {name: alarm, type: number}
+    category: orders
+    source: game
+    description: >-
+      Returns the y coordinate of the point set for the alarm number by `InvokeAlarm`.
+  - name: AlarmTime
+    kind: function
+    returns: number
+    params:
+      - {name: alarm, type: number}
+    category: orders
+    source: game
+    description: >-
+      Returns the time counter of the alarm number, in 1/15 s units. The counter runs while the alarm is the active
+      one.
+  - name: Attack
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: target, type: object}
+    category: orders
+    source: game
+    description: >-
+      Orders the unit to attack the target.
+  - name: Crawl
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Sets the unit's stance to crouching.
+  - name: Crawl
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: slot, type: number}
+    category: orders
+    source: spelladdon
+    option: "[gameplay] crawltrans"
+    description: >-
+      Requests a weapon slot instead of setting the crawl style.
+  - name: Follow
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: target, type: object}
+    category: orders
+    source: game
+    description: >-
+      Orders the unit to follow the target once. The order ends after a fight. See `UMFollow`.
+  - name: Guard
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: radius, type: number}
+    category: orders
+    source: game
+    description: >-
+      Orders the unit to guard the area of the given radius around (x, y), moving about in it.
+  - name: Idle
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Drops all behaviours and the current order of the unit: it stands and does nothing.
+  - name: InvokeAlarm
+    kind: command
+    returns: void
+    params:
+      - {name: alarm, type: number}
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: orders
+    source: game
+    description: >-
+      Raises the alarm with the given number at the point (x, y). Only one alarm is active at a time: a new number
+      replaces the previous one. Enemies with that alarm number in their `.mob` go to the point and guard it.
+      `InvokeAlarm(0, 0, 0)` clears the alarm, and they return to their places.
+  - name: IsAlarm
+    kind: function
+    returns: number
+    params:
+      - {name: alarm, type: number}
+    category: orders
+    source: game
+    description: >-
+      Returns 1 if the alarm number has been raised, otherwise 0.
+  - name: Lie
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Sets the unit's stance to lying down.
+  - name: MoveToObject
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: target, type: object}
+    category: orders
+    source: game
+    description: >-
+      Orders the unit to walk, in its current stance, to the place where the target stands at this moment. The unit
+      does not follow the target.
+  - name: MoveToObject
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: target, type: object}
+      - {name: skill, type: number, optional: true}
+      - {name: unused, type: number, optional: true}
+      - {name: run, type: number, optional: true}
+      - {name: slot, type: number, optional: true}
+    category: orders
+    source: spelladdon
+    option: "[gameplay] movetoobjecttrans"
+    description: >-
+      Value 1: `MoveToObject(unit, target)` performs thieving while walking. Value 2: runs instead. Value 3 and up:
+      the four numbers after the target supply the thieving order.
+  - name: MoveToPoint
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: orders
+    source: game
+    description: >-
+      Orders the unit to move to the point (x, y).
+  - name: PlayAnimation
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: animation, type: string}
+    category: orders
+    source: game
+    description: >-
+      Plays an animation from the unit's `.adb` file (`res/database.res/<mask name>.adb`; the mask is in
+      `RaceModels.txt`). The first letter of the name sets the kind: `u` plays once, then back to normal; `c` loops,
+      and the unit ignores everything until the next order; `s` is one step of a movement. Families: `uattack01..09`,
+      `udeath01..31`, `cidle01..09`, `ucast01..04`, `uhit01..21`, `crun01..02`, `cwalk01..09`, `ccrawl01`,
+      `ucross01..09`, `scross01..09`, `crest`; humans also have `ubriefing##`, `uspecial##` and `cspecial##`. An
+      unknown name does nothing.
+  - name: ResetTarget
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: addon
+    description: >-
+      Resets the unit's perception and reapplies its alarm state. Resets all guard, patrol and aggression behaviours:
+      call it before building a patrol or guard list. Replaces the game's command.
+    note: >-
+      refuses a negative slot or a unit without a controller
+  - name: Rest
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Orders the unit to rest. It sits down when it can.
+  - name: RotateTo
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: orders
+    source: game
+    description: >-
+      Turns the unit to face the point (x, y). Does nothing right after `AddUnitToServer`: the unit has to exist on
+      the map first.
+  - name: Run
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Sets the unit's stance to running.
+  - name: Run
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: style, type: number}
+    category: orders
+    source: spelladdon
+    option: "[gameplay] runtrans"
+    description: >-
+      Sets the requested movement style instead of always selecting run.
+  - name: Sentry
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: orders
+    source: game
+    description: >-
+      Orders the unit to guard the point (x, y) and attack the enemies it sees. It returns to the point afterwards.
+  - name: SetEnemy
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: diplomacyGroup, type: number}
+    category: orders
+    source: game
+    description: >-
+      Makes the diplomatic group hostile to the unit, as if one of its members had attacked it. Units only.
+  - name: SetPlayerAggression
+    kind: command
+    returns: void
+    params:
+      - {name: a, type: number}
+      - {name: b, type: number}
+    category: orders
+    source: game
+    description: >-
+      Does nothing.
+  - name: SetSpellAggression
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: aggression, type: number}
+    category: orders
+    source: game
+    description: >-
+      Does nothing.
+  - name: Stand
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Sets the unit's stance to walking, as `Walk`.
+  - name: Stand
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: spelladdon
+    option: "[gameplay] standtrans"
+    description: >-
+      Also revives the unit. A non-unit argument causes no revival.
+    note: >-
+      does nothing for an argument that is not a unit (the original crashes)
+  - name: StartAnimation
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: path, type: string}
+    category: orders
+    source: game
+    description: >-
+      Not implemented in game.exe: does nothing. Use `PlayAnimation`.
+  - name: UMAg
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: preset, type: number}
+    category: orders
+    source: game
+    description: >-
+      Replaces the unit's fear, aggression and suspicion behaviours with a preset: 0 always afraid (flees), 1 afraid
+      (fear without the "always" flag), 2 revenge plus fear. Each preset also adds suspicion and corpse watching.
+  - name: UMAggression
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Adds aggression: the unit attacks the enemies it sees.
+  - name: UMClear
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Removes all independent behaviours of the unit. The current order stays.
+  - name: UMCorpseWatcher
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Adds corpse watching: the unit reacts to dead bodies.
+  - name: UMFear
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: always, type: number}
+    category: orders
+    source: game
+    description: >-
+      Makes the unit never attack and try to hide from enemies, the default of neutral beasts. If `always` is nonzero,
+      the unit fears the player for good.
+  - name: UMFollow
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: target, type: object}
+    category: orders
+    source: game
+    description: >-
+      Orders the unit to follow the target for good. The order survives a fight. See `Follow`.
+  - name: UMGuard
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: radius, type: number}
+    category: orders
+    source: game
+    description: >-
+      Makes the unit guard the point (x, y) within the radius.
+  - name: UMGuardEx
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: radius, type: number}
+      - {name: delay, type: number}
+    category: orders
+    source: game
+    description: >-
+      Makes the unit guard the point (x, y) within the radius, pausing for `delay` at random stopping points.
+  - name: UMPatrol
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Adds a patrol behaviour. The command raises an error in the game. To make a unit patrol, call `ResetTarget`,
+      then `UMPatrolAddPoint`.
+  - name: UMPatrolAddPoint
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: orders
+    source: game
+    description: >-
+      Adds the patrol point (x, y). Does nothing when the unit has no patrol behaviour. Add `UMPatrolAddPointLook`
+      after it to make the unit wait there.
+  - name: UMPatrolAddPointLook
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: delay, type: number}
+    category: orders
+    source: game
+    description: >-
+      Sets the point (x, y) the unit looks at, and the time `delay` it stays, at the last patrol point.
+  - name: UMPatrolClear
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Removes all patrol points of the unit. `ResetTarget` also resets the other behaviours.
+  - name: UMPlayer
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Makes the unit obey the rules of a player's unit, which gives sensible behaviour. Briefing zones use it for
+      scripted NPCs. Clears the unit's other behaviours and orders.
+  - name: UMRevenge
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Gives the unit conditional fear: it runs away from everyone hostile and fights only when wounded or cornered.
+  - name: UMSentry
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: orders
+    source: game
+    description: >-
+      Makes the unit guard the point (x, y) and attack the enemies it sees. It returns to the point afterwards.
+  - name: UMStandard
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Gives the unit the behaviour of a standard enemy: aggression, suspicion and corpse watching.
+  - name: UMSuspection
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Adds suspicion: the unit goes to the nearest enemy it sees.
+  - name: WaitEndAnimation
+    kind: command
+    returns: void
+    category: orders
+    source: game
+    description: >-
+      Not implemented in game.exe: does nothing.
+  - name: Walk
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+    category: orders
+    source: game
+    description: >-
+      Sets the unit's stance to walking.
+  - name: Cast
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+    category: spells
+    source: game
+    description: >-
+      Makes the unit cast its active area spell at the point (x, y). The spell must be one meant for a place, not for
+      targets.
+  - name: Cast
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: spell, type: number}
+      - {name: target, type: object, optional: true}
+    category: spells
+    source: spelladdon
+    option: "[gameplay] castscripttrans"
+    description: >-
+      Value 1: `Cast(unit, x, y, spell)` uses the numbered spell. Value 2: with `target`, casts on the target if there
+      is one, otherwise at the point.
+    note: >-
+      value 2 reads its target from the running command (the original: a stale value)
+  - name: CastSpellPoint
+    kind: command
+    returns: void
+    params:
+      - {name: spell, type: string}
+      - {name: x1, type: number}
+      - {name: y1, type: number}
+      - {name: x2, type: number}
+      - {name: y2, type: number}
+    category: spells
+    source: game
+    description: >-
+      Casts a terrain spell by its name: the effect starts at (x1, y1) and lands at (x2, y2). Area spells only.
+  - name: CastSpellPoint
+    kind: command
+    returns: void
+    params:
+      - {name: spell, type: string}
+      - {name: x1, type: number}
+      - {name: y1, type: number}
+      - {name: x2, type: number}
+      - {name: y2, type: number}
+      - {name: caster, type: object}
+    category: spells
+    source: spelladdon
+    option: "[gameplay] castspellpointtrans"
+    description: >-
+      Adds a caster unit to the named-spell command.
+  - name: CastSpellUnit
+    kind: command
+    returns: void
+    params:
+      - {name: spell, type: string}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: unit, type: object}
+    category: spells
+    source: game
+    description: >-
+      Casts a spell on a unit. The visual effect starts at (x, y).
+  - name: CastSpellUnit
+    kind: command
+    returns: void
+    params:
+      - {name: spell, type: string}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: target, type: object}
+      - {name: caster, type: object}
+    category: spells
+    source: spelladdon
+    option: "[gameplay] castspellunittrans"
+    description: >-
+      Adds a caster unit to the named-spell command.
+  - name: GiveUnitSpell
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: spell, type: string}
+    category: spells
+    source: game
+    description: >-
+      Puts the spell into the unit's set of active spells. Nothing happens when the set is full. Does not work in the
+      shop; in a zone the spell is given, but the panel does not refresh.
+  - name: GiveUnitSpell
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: name, type: string}
+    category: spells
+    source: spelladdon
+    option: "[gameplay] giveunitspelltrans"
+    description: >-
+      Creates and adds a quick item instead of a spell, from the same unit and name arguments.
+  - name: AddUnitToParty
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+      - {name: unit, type: string}
+    category: players
+    source: game
+    description: >-
+      Adds a localized character to a party; `name` is `PartyName::NamePersRes`.
+  - name: AddUnitUnderControl
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: unit, type: object}
+    category: players
+    source: game
+    description: >-
+      Adds the unit's icon to the player's control panel. Diplomacy does not change.
+  - name: CopyItems
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: from, type: string}
+      - {name: to, type: string}
+    category: players
+    source: game
+    description: >-
+      Copies the equipment (not the wagon, not the backpack) of a member of the current party to a member of another
+      party of the same player. `to` is `PartyName::Name`.
+  - name: CopyStats
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: from, type: string}
+      - {name: to, type: string}
+    category: players
+    source: game
+    description: >-
+      Copies the skills, abilities and parameters of a member of the current party to a member of another party of the
+      same player. `to` is `PartyName::Name`.
+  - name: CreateParty
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: players
+    source: game
+    description: >-
+      Creates a party for the player. A party of the same name is replaced. The name is case-sensitive.
+  - name: GetDiplomacy
+    kind: function
+    returns: number
+    params:
+      - {name: groupA, type: number}
+      - {name: groupB, type: number}
+    category: players
+    source: game
+    description: >-
+      Returns what group A is to group B: 1 ally, 0 neutral, -1 enemy.
+  - name: GetMercsNumber
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+    category: players
+    source: game
+    description: >-
+      Returns the number of mercenaries in the player's current party, the leader not counted.
+  - name: GetPlayer
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: players
+    source: game
+    description: >-
+      Returns the diplomatic group of the unit.
+  - name: GetPlayer
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: index, type: number}
+    category: players
+    source: spelladdon
+    option: "[gameplay] getplayertrans"
+    description: >-
+      Reads a 32-bit integer at four times the index within the unit (0 to 310); returns 0 outside it.
+    note: >-
+      returns 0 outside the unit (the original reads any address)
+  - name: GetPlayerOfUnit
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: players
+    source: addon
+    description: >-
+      Returns the number of the player the unit belongs to, or -1.
+  - name: GetUnitOfPlayer
+    kind: function
+    returns: object
+    params:
+      - {name: player, type: number}
+      - {name: index, type: number}
+    category: players
+    source: game
+    description: >-
+      Returns the unit at position `index` in the player's current party, in the order the units joined.
+  - name: IsEnemy
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+      - {name: diplomacyGroup, type: number}
+    category: players
+    source: game
+    description: >-
+      Returns 1 if the unit is an enemy of the diplomatic group, otherwise 0.
+  - name: IsPlayer
+    kind: function
+    returns: number
+    params:
+      - {name: unit, type: object}
+    category: players
+    source: addon
+    description: >-
+      Returns 1 if the named unit belongs to a player, otherwise 0.
+  - name: IsPlayerInDanger
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+    category: players
+    source: game
+    description: >-
+      Returns 1 if at least one member of the player's current party is in danger, otherwise 0.
+      PENDING-IsPlayerInSafety-complement
+  - name: IsPlayerInSafety
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+    category: players
+    source: game
+    description: >-
+      Returns whether the player's current party is safe. PENDING-IsPlayerInSafety-complement
+  - name: PlayerExists
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+    category: players
+    source: addon
+    description: >-
+      Returns 1 if the player exists, otherwise 0.
+  - name: RedeployParty
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+    category: players
+    source: game
+    description: >-
+      Finishes the change of the current party.
+  - name: RemoveParty
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: players
+    source: game
+    description: >-
+      Removes the party.
+  - name: RemoveUnitFromControl
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: unit, type: object}
+    category: players
+    source: game
+    description: >-
+      Removes the unit's icon from the player's control panel.
+  - name: RemoveUnitFromParty
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: players
+    source: game
+    description: >-
+      Removes a character from its party. `PartyName::Name` reaches a party other than the current one.
+  - name: SendCurrentParty
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+    category: players
+    source: addon
+    description: >-
+      Resends the player's party state.
+    note: >-
+      `SendCurrentParty` stops on a missing object (the original crashes)
+  - name: SetCurrentParty
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: players
+    source: game
+    description: >-
+      Makes the party the player's current one.
+  - name: SetDiplomacy
+    kind: command
+    returns: void
+    params:
+      - {name: groupA, type: number}
+      - {name: groupB, type: number}
+      - {name: relation, type: number}
+    category: players
+    source: game
+    description: >-
+      Sets the relation between two diplomatic groups: 1 ally, 0 neutral, -1 enemy. The player's party is always group
+      0.
+  - name: SetPlayer
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: diplomacyGroup, type: number}
+    category: players
+    source: game
+    description: >-
+      Assigns the unit to a diplomatic group.
+  - name: SetPlayer
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: value, type: number}
+      - {name: field, type: number}
+    category: players
+    source: spelladdon
+    option: "[gameplay] setplayertrans"
+    description: >-
+      Writes a rounded 32-bit integer at four times `field` within the unit (0 to 310). Fields 132 to 148 keep the
+      game's normal player-setting path; a write outside the unit is ignored.
+    note: >-
+      stores nothing outside the unit (the original writes any address)
+  - name: AddLoot
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: from, type: string}
+      - {name: to, type: string}
+    category: items
+    source: game
+    description: >-
+      Moves all items and gold from the wagon of a party to the wagon of another party of the same player.
+  - name: CopyLoot
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: from, type: string}
+      - {name: to, type: string}
+    category: items
+    source: game
+    description: >-
+      Copies the wagon (items and gold) of a party to the wagon of another party, which is emptied first. Do not
+      confuse wagon and backpack: `RedeployParty` empties the sender's backpack, and the new party's one stays empty,
+      though its items still show in the window.
+  - name: EraseQuestItem
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: id, type: number}
+    category: items
+    source: game
+    description: >-
+      Removes a quest item from the player's wagon.
+  - name: FixItems
+    kind: command
+    returns: void
+    category: items
+    source: game
+    description: >-
+      Repairs every item of the current party: wagon, backpack, worn equipment and weapons.
+  - name: GetLootItemsCount
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+    category: items
+    source: game
+    description: >-
+      Returns how many item lines the current party has picked up in the zone, found, stolen or taken from enemies and
+      corpses, quest items included. Money does not count, and identical items picked up one at a time each count.
+  - name: GetMoney
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+    category: items
+    source: game
+    description: >-
+      Returns the money of the player's current party.
+  - name: GiveItem
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: item, type: string}
+    category: items
+    source: game
+    description: >-
+      Gives a regular item to the player's backpack.
+  - name: GiveMoney
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: amount, type: number}
+    category: items
+    source: game
+    description: >-
+      Adds money to the player's party. Does not work in a shop.
+  - name: GiveQuestItem
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: item, type: string}
+    category: items
+    source: game
+    description: >-
+      Gives a quest item to the player.
+  - name: GiveQuestItem
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: value, type: number}
+    category: items
+    source: spelladdon
+    option: "[gameplay] legendaryspellsystem"
+    description: >-
+      Writes byte 10 of the unit's skill-byte area.
+  - name: GiveUnitArmor
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: name, type: string}
+      - {name: override, type: number}
+    category: items
+    source: addon
+    description: >-
+      Creates an armor and equips the unit with it. `override` 1 also updates a non-named unit's natural protection.
+    note: >-
+      stops on a missing object (the original crashes)
+  - name: GiveUnitQuestItem
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: item, type: string}
+    category: items
+    source: game
+    description: >-
+      Puts a quest item into the unit's backpack, such as a chest's contents. For a member of the player's party it
+      goes to the party's wagon.
+  - name: GiveUnitWeapon
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: name, type: string}
+      - {name: override, type: number}
+    category: items
+    source: addon
+    description: >-
+      Creates a weapon and equips the unit with it. `override` 1 also updates a non-named unit's natural attack.
+    note: >-
+      stops on a missing object (the original crashes)
+  - name: HaveItem
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+      - {name: id, type: number}
+    category: items
+    source: game
+    description: >-
+      Returns 1 if the player has the quest item in the wagon or the backpack, otherwise 0.
+  - name: Loot
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: unit, type: object}
+    category: items
+    source: addon
+    description: >-
+      Loots the dead unit and removes it.
+  - name: RemoveQuestItem
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: object}
+      - {name: id, type: number}
+    category: items
+    source: game
+    description: >-
+      Removes a quest item from the unit's backpack. Only items given by `GiveUnitQuestItem` or listed in the `.mob`
+      file's QuestItems are removed.
+  - name: QFinish
+    kind: command
+    returns: void
+    category: quests
+    source: game
+    description: >-
+      Completes the quest started by `QStart`. In single player the quest's experience is paid too.
+  - name: QObjArea
+    kind: command
+    returns: void
+    params:
+      - {name: area, type: number}
+    category: quests
+    source: game
+    description: >-
+      Quest objective: enter the area. The area is a virtual object made of all the parts with that ID, usually area
+      1.
+  - name: QObjGetItem
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+    category: quests
+    source: game
+    description: >-
+      Quest objective: get the quest item with the ID. A macro for ordinary commands.
+  - name: QObjKillGroup
+    kind: command
+    returns: void
+    params:
+      - {name: group, type: string}
+    category: quests
+    source: game
+    description: >-
+      Quest objective: kill the whole game group, given by the name of its global variable.
+  - name: QObjKillUnit
+    kind: command
+    returns: void
+    params:
+      - {name: unitName, type: string}
+    category: quests
+    source: game
+    description: >-
+      Quest objective: kill the named unit. A macro for ordinary commands.
+  - name: QObjSeeObject
+    kind: command
+    returns: void
+    params:
+      - {name: objectName, type: string}
+    category: quests
+    source: game
+    description: >-
+      Quest objective: see the named object, a chest and not a unit. A macro for ordinary commands.
+  - name: QObjSeeUnit
+    kind: command
+    returns: void
+    params:
+      - {name: unitName, type: string}
+    category: quests
+    source: game
+    description: >-
+      Quest objective: see the named unit. A macro for ordinary commands.
+  - name: QObjUse
+    kind: command
+    returns: void
+    params:
+      - {name: lever, type: string}
+      - {name: state, type: number}
+    category: quests
+    source: game
+    description: >-
+      Quest objective: put the lever into the state. A macro for ordinary commands.
+  - name: QStart
+    kind: command
+    returns: void
+    params:
+      - {name: name, type: string}
+    category: quests
+    source: game
+    description: >-
+      Starts a dynamic multiplayer quest and opens its list of objectives, which ends with `QFinish`.
+  - name: QuestComplete
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: quests
+    source: game
+    description: >-
+      Completes the quest and pays its experience, like `QFinish` but without the message in the info window.
+  - name: GSDelVar
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: vars
+    source: game
+    description: >-
+      Deletes a variable of the player.
+  - name: GSGetPlayerVar
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: vars
+    source: addon
+    description: >-
+      Returns a numeric variable of a player.
+  - name: GSGetVar
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: vars
+    source: game
+    description: >-
+      Returns the value of a variable of the player. Works differently in single and multiplayer.
+  - name: GSGetVar
+    kind: function
+    returns: number
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: vars
+    source: spelladdon
+    option: "[speed] gsgetvar"
+    description: >-
+      Returns the difficulty for names that begin with `Diff`, and the update period for names whose characters 4 to 7
+      (zero-based) are `peed`, such as `SetSpeed`.
+    note: >-
+      reads the variable's name before freeing it
+  - name: GSListPlayerVars
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+    category: vars
+    source: addon
+    description: >-
+      Prints the variables of a player.
+    note: >-
+      stops on a missing object (the original crashes)
+  - name: GSSetPlayerVar
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+      - {name: value, type: number}
+    category: vars
+    source: addon
+    description: >-
+      Sets a numeric variable of a player.
+    note: >-
+      `GSSetPlayerVar` stops on a missing object (the original crashes)
+  - name: GSSetVar
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+      - {name: value, type: number}
+    category: vars
+    source: game
+    description: >-
+      Sets a variable of the player. Works differently in single and multiplayer.
+  - name: GSSetVar
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+      - {name: value, type: number}
+    category: vars
+    source: spelladdon
+    option: "[speed] gssetvar"
+    description: >-
+      Also sets the update period for names with `peed` at characters 4 to 7. The variable is still stored normally.
+  - name: GSSetVarMax
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+      - {name: value, type: number}
+    category: vars
+    source: game
+    description: >-
+      Sets a variable of the player only when the new value is higher than the stored one.
+  - name: ActivateTrap
+    kind: command
+    returns: void
+    params:
+      - {name: trap, type: object}
+      - {name: activate, type: number}
+    category: world
+    source: game
+    description: >-
+      Activates a trap on the map if `activate` is nonzero, deactivates it if 0. Traps attack only diplomatic group 0.
+  - name: AddRectToArea
+    kind: command
+    returns: void
+    params:
+      - {name: area, type: number}
+      - {name: x1, type: number}
+      - {name: y1, type: number}
+      - {name: x2, type: number}
+      - {name: y2, type: number}
+    category: world
+    source: game
+    description: >-
+      Adds a rectangle, given by two opposite corners, to a quest area.
+  - name: AddRoundToArea
+    kind: command
+    returns: void
+    params:
+      - {name: area, type: number}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: radius, type: number}
+    category: world
+    source: game
+    description: >-
+      Adds a circle to a quest area.
+  - name: AttachParticles
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: unit, type: object}
+    category: world
+    source: game
+    description: >-
+      Attaches the particle source to the unit. It follows the unit with the offset given in `CreateParticleSource`.
+  - name: AttachParticleSource
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: unitId, type: number}
+    category: world
+    source: game
+    description: >-
+      Attaches the particle source to the unit with the ID `unitId`. It follows the unit with the offset given in
+      `CreateParticleSource`.
+  - name: CreateFX
+    kind: command
+    returns: void
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+      - {name: volume, type: number}
+      - {name: radius, type: number}
+      - {name: wav, type: string}
+    category: world
+    source: game
+    description: >-
+      Plays a WAV file once at (x, y, z), audible within the radius.
+  - name: CreateFXSource
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+      - {name: volume, type: number}
+      - {name: radius, type: number}
+      - {name: wav, type: string}
+    category: world
+    source: game
+    description: >-
+      Creates a looping sound source at (x, y, z).
+  - name: CreateLightning
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: x1, type: number}
+      - {name: y1, type: number}
+      - {name: z1, type: number}
+      - {name: x2, type: number}
+      - {name: y2, type: number}
+      - {name: z2, type: number}
+      - {name: intensity, type: number}
+    category: world
+    source: game
+    description: >-
+      Creates a lightning that stays, from (x1, y1, z1) to (x2, y2, z2). A positive intensity ends the bolt in a ball,
+      as if it hit an object.
+  - name: CreateParticleSource
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+      - {name: radius, type: number}
+      - {name: type, type: string}
+    category: world
+    source: game
+    description: >-
+      Creates a particle source of the given type at (x, y, z). A negative radius flips the source upside down.
+  - name: CreatePointLight
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+      - {name: radius, type: number}
+      - {name: r, type: number}
+      - {name: g, type: number}
+      - {name: b, type: number}
+    category: world
+    source: game
+    description: >-
+      Creates a point light of the given color at (x, y, z). A torch or a campfire at night is a light; a dim one
+      darkens a dense forest by day.
+  - name: CreateRandomizedFXSource
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: x1, type: number}
+      - {name: x2, type: number}
+      - {name: y1, type: number}
+      - {name: y2, type: number}
+      - {name: z1, type: number}
+      - {name: z2, type: number}
+      - {name: volume, type: number}
+      - {name: radius, type: number}
+      - {name: wav, type: string}
+    category: world
+    source: game
+    description: >-
+      Creates a looping sound source placed at random inside the box x1..x2, y1..y2, z1..z2. Remove it with
+      `DeleteFXSource`.
+  - name: DeleteArea
+    kind: command
+    returns: void
+    params:
+      - {name: area, type: number}
+    category: world
+    source: game
+    description: >-
+      Deletes every part of the quest area.
+  - name: DeleteFXSource
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+    category: world
+    source: game
+    description: >-
+      Deletes all sound sources with the ID.
+  - name: DeleteLightning
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+    category: world
+    source: game
+    description: >-
+      Deletes all lightnings with the ID.
+  - name: DeleteParticleSource
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+    category: world
+    source: game
+    description: >-
+      Deletes all particle sources with the ID.
+  - name: DeletePointLight
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+    category: world
+    source: game
+    description: >-
+      Deletes all point lights with the ID.
+  - name: EnableLever
+    kind: command
+    returns: void
+    params:
+      - {name: lever, type: object}
+      - {name: enable, type: number}
+    category: world
+    source: game
+    description: >-
+      Lets the player use a lever (1) or not (0). A usable lever shows the grabbing-hand cursor.
+  - name: FixWorldTime
+    kind: command
+    returns: void
+    params:
+      - {name: time, type: number}
+    category: world
+    source: game
+    description: >-
+      Sets the time of day and stops the clock.
+  - name: FixWorldTime
+    kind: command
+    returns: void
+    params:
+      - {name: time, type: number}
+      - {name: speed, type: number}
+    category: world
+    source: spelladdon
+    option: "[gameplay] fixworldtimetrans"
+    description: >-
+      Adds an explicit time-speed argument.
+  - name: GetLeverState
+    kind: function
+    returns: number
+    params:
+      - {name: lever, type: object}
+    category: world
+    source: game
+    description: >-
+      Returns 1 if the lever is on, 0 if it is off.
+  - name: GetWorldTime
+    kind: function
+    returns: number
+    category: world
+    source: game
+    description: >-
+      Returns the time of day, in hours.
+  - name: IsCameraPlaying
+    kind: function
+    returns: number
+    category: world
+    source: game
+    description: >-
+      Returns 1 if a camera path file is playing now, otherwise 0.
+  - name: IsNight
+    kind: function
+    returns: number
+    category: world
+    source: game
+    description: >-
+      Returns a number from 0 to 1 that depends on the time of day. PENDING-IsNight-curve: the hours at which it rises
+      and falls.
+  - name: MoveParticleSource
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+      - {name: time, type: number}
+      - {name: remove, type: number}
+    category: world
+    source: game
+    description: >-
+      Moves the particle source to (x, y, z) over the time, in 1/15 s units. If `remove` is nonzero, the source is
+      deleted on arrival.
+  - name: MovePointLight
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+      - {name: time, type: number}
+      - {name: remove, type: number}
+    category: world
+    source: game
+    description: >-
+      Moves the point light to (x, y, z) over the time, in 1/15 s units. If `remove` is nonzero, the light is deleted
+      on arrival.
+  - name: PlayCamera
+    kind: command
+    returns: void
+    params:
+      - {name: name, type: string}
+    category: world
+    source: game
+    description: >-
+      Starts the automatic camera path in the file `CAMERA\<name>`.
+  - name: PlayFX
+    kind: command
+    returns: void
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+      - {name: radius, type: number}
+      - {name: wav, type: string}
+    category: world
+    source: game
+    description: >-
+      Not implemented in game.exe: does nothing.
+  - name: PlayMovie
+    kind: command
+    returns: void
+    params:
+      - {name: name, type: string}
+    category: world
+    source: game
+    description: >-
+      Plays the video `MOVIES\<name>`, the name with its extension.
+  - name: PlayMusic
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: world
+    source: game
+    description: >-
+      Plays the piece `STREAM\<name>` for the player, the name without its extension. The name `0` turns the zone's
+      music off, `1` on.
+  - name: PlayMusic
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: name, type: string}
+    category: world
+    source: spelladdon
+    option: "[gameplay] playmusictrans"
+    description: >-
+      Values 1 and 2: the name `"0"` or `"1"` re-selects the local map's music theme and sets the music system's level
+      to the digit. The first character selects this behavior. Value 1 uses the map's theme, value 2 its alternative
+      name field. Other text, or no map or music system, uses normal handling.
+    note: >-
+      without a map or a music system, does what the game does (the original crashes)
+  - name: RunWorldTime
+    kind: command
+    returns: void
+    params:
+      - {name: hour, type: number}
+    category: world
+    source: game
+    description: >-
+      Sets the time of day and lets the clock run at normal speed.
+  - name: SetBackGroundColor
+    kind: command
+    returns: void
+    params:
+      - {name: r, type: number}
+      - {name: g, type: number}
+      - {name: b, type: number}
+    category: world
+    source: game
+    description: >-
+      Sets the color the screen is cleared to, which is the sky behind everything. Each value is 0 to 255.
+  - name: SetCameraOrientation
+    kind: command
+    returns: void
+    params:
+      - {name: angle, type: number}
+    category: world
+    source: game
+    description: >-
+      Not implemented in game.exe: does nothing.
+  - name: SetCameraPosition
+    kind: command
+    returns: void
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+    category: world
+    source: game
+    description: >-
+      Not implemented in game.exe: does nothing.
+  - name: SetDirectionToObject
+    kind: command
+    returns: void
+    params:
+      - {name: unit, type: number}
+    category: world
+    source: game
+    description: >-
+      Not implemented in game.exe: does nothing.
+  - name: SetParticleSourceSize
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: radius, type: number}
+    category: world
+    source: game
+    description: >-
+      Changes the radius of the particle source.
+  - name: SetScience
+    kind: command
+    returns: void
+    params:
+      - {name: lever, type: object}
+      - {name: questItem, type: number}
+      - {name: skill, type: number}
+      - {name: hands, type: number}
+      - {name: lockpick, type: number}
+      - {name: crowbar, type: number}
+      - {name: key, type: number}
+    category: world
+    source: game
+    description: >-
+      Sets how a lever can be switched: with the quest item, with that much Sleight of hand, and by hands, lockpick,
+      crowbar or key (1 allowed, 0 not).
+  - name: SetSunLight
+    kind: command
+    returns: void
+    params:
+      - {name: sunR, type: number}
+      - {name: sunG, type: number}
+      - {name: sunB, type: number}
+      - {name: ambientR, type: number}
+      - {name: ambientG, type: number}
+      - {name: ambientB, type: number}
+      - {name: skyR, type: number}
+      - {name: skyG, type: number}
+      - {name: skyB, type: number}
+    category: world
+    source: game
+    description: >-
+      Not implemented in game.exe: does nothing.
+  - name: SetWaterLevel
+    kind: command
+    returns: void
+    params:
+      - {name: basin, type: number}
+      - {name: level, type: number}
+      - {name: delay, type: number}
+    category: world
+    source: game
+    description: >-
+      Sets the water level of a basin, relative to its bottom, after the delay. Does not change where the party can
+      wade.
+  - name: SetWeather
+    kind: command
+    returns: void
+    params:
+      - {name: name, type: string}
+    category: world
+    source: addon
+    description: >-
+      Sets the weather: `rain` or `snow`, exact and lowercase. Any other text clears the weather.
+  - name: SetWind
+    kind: command
+    returns: void
+    params:
+      - {name: x, type: number}
+      - {name: y, type: number}
+      - {name: z, type: number}
+      - {name: force, type: number}
+    category: world
+    source: game
+    description: >-
+      Makes a gust of wind blow toward the point (x, y, z) with the given force.
+  - name: ShowBitmap
+    kind: command
+    returns: void
+    params:
+      - {name: id, type: number}
+      - {name: bitmap, type: string}
+    category: world
+    source: game
+    description: >-
+      Not implemented in game.exe: does nothing.
+  - name: ShowCredits
+    kind: command
+    returns: void
+    params:
+      - {name: text, type: string}
+    category: world
+    source: game
+    description: >-
+      Does nothing.
+  - name: SwitchLeverState
+    kind: command
+    returns: void
+    params:
+      - {name: lever, type: object}
+      - {name: state, type: number}
+    category: world
+    source: game
+    description: >-
+      Puts the lever into the off (0) or on (1) position. `GetLeverState` reads it.
+  - name: SwitchLeverStateEx
+    kind: command
+    returns: void
+    params:
+      - {name: lever, type: object}
+      - {name: state, type: number}
+      - {name: delay, type: number}
+    category: world
+    source: game
+    description: >-
+      Like `SwitchLeverState`, with a delay before the animation.
+  - name: GameOver
+    kind: command
+    returns: void
+    category: game
+    source: addon
+    description: >-
+      Ends player 0's game with the default title and text, the text keys `game_over` and `game_over_msg`.
+  - name: GameOverMSG
+    kind: command
+    returns: void
+    params:
+      - {name: title, type: string}
+      - {name: text, type: string}
+    category: game
+    source: addon
+    description: >-
+      Ends player 0's game with the given text keys for title and text.
+  - name: GodMode
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: mode, type: number}
+    category: game
+    source: game
+    description: >-
+      Sets the mode of the player's current party: 0 normal, 1 invulnerable when running and mana is free, 2 like 1,
+      and every hit kills.
+  - name: IsFileExists
+    kind: function
+    returns: number
+    params:
+      - {name: path, type: string}
+    category: game
+    source: addon
+    description: >-
+      Tests whether a file exists under the mod folder. A path that climbs to a parent folder is refused.
+  - name: KillUnit
+    kind: command
+    returns: void
+    params:
+      - {name: kind, type: number}
+      - {name: strength, type: number}
+    category: game
+    source: spelladdon
+    option: "[gameplay] killunittrans"
+    description: >-
+      Sets the weather with two rounded numbers instead of killing a unit.
+  - name: LeaveToZone
+    kind: command
+    returns: void
+    params:
+      - {name: player, type: number}
+      - {name: zone, type: string}
+      - {name: entry, type: number}
+    category: game
+    source: game
+    description: >-
+      Moves the player, every party and the wagon, to the zone, at its entry place `entry` (the numbers are in
+      `Res/texts.res/map.txt`).
+  - name: PauseGame
+    kind: command
+    returns: void
+    params:
+      - {name: value, type: number}
+    category: game
+    source: addon
+    description: >-
+      Outside multiplayer, 0 requests a pause and any other value unpauses.
+  - name: RecalcMercBriefings
+    kind: command
+    returns: void
+    category: game
+    source: game
+    description: >-
+      Single player: recalculates which dialogues the companions and candidates offer.
+  - name: ShowAllUnits
+    kind: command
+    returns: void
+    params:
+      - {name: value, type: number}
+    category: game
+    source: addon
+    description: >-
+      0 draws all units; any other value restores normal visibility.
+  - name: StartCameraSave
+    kind: command
+    returns: void
+    params:
+      - {name: file, type: string}
+    category: game
+    source: addon
+    description: >-
+      Starts recording a camera path to a file.
+  - name: StopCameraSave
+    kind: command
+    returns: void
+    category: game
+    source: addon
+    description: >-
+      Stops recording the camera path.

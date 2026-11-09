@@ -728,6 +728,31 @@ mod tests {
         }
     }
 
+    /// The script reference documents each record under its name and signature, and nothing else as the addon's.
+    #[test]
+    fn every_record_is_documented_with_its_signature() {
+        use eix_docs::scripting::{Scripting, Source};
+        let data = Scripting::parse(eix_docs::SCRIPTING_DATA).expect("docs/scripting.yml is valid");
+        let documented: Vec<_> = data
+            .entries
+            .iter()
+            .filter(|e| e.source == Source::Addon)
+            .collect();
+        for (name, signature, _) in RECORDS {
+            let name = name.to_str().expect("record names are ASCII");
+            let entry = documented
+                .iter()
+                .find(|e| e.name == name)
+                .unwrap_or_else(|| panic!("{name} is not in docs/scripting.yml"));
+            assert_eq!(
+                entry.signature(),
+                signature.to_str().expect("signatures are ASCII"),
+                "{name}"
+            );
+        }
+        assert_eq!(documented.len(), RECORDS.len());
+    }
+
     #[test]
     fn the_rewritten_case_calls_the_string_evaluator() {
         let code = calc_parameters_code();

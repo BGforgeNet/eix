@@ -1,0 +1,10 @@
+/* The `eix` tag on the script reference: marks a function or a change that eix adds to the original game. */
+.eix {
+  display: inline-block;
+  padding: 0 0.4em;
+  border-radius: 0.3em;
+  background: #2b7a78;
+  color: #fff;
+  font-size: 0.85em;
+  font-weight: bold;
+}

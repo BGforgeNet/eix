@@ -21,5 +21,8 @@ eix-lua = { path = "../lua" }
 eix-sites = { path = "../sites" }
 eix-spelladdon = { path = "../spelladdon" }
 
+[dev-dependencies]
+eix-docs = { path = "../docs" }
+
 [lints]
 workspace = true

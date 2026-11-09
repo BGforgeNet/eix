@@ -1,8 +1,10 @@
 //! Project tasks: `cargo xtask check` runs the gate; `cargo xtask dist` builds the release package;
 //! `cargo xtask container [check|dist]` runs either in the build image (check by default); `cargo xtask public` runs
-//! the gate's public-text check alone.
+//! the gate's public-text check alone; `cargo xtask docs` writes the generated reference pages.
 
 mod dist;
+mod docs;
+mod links;
 mod public;
 
 use std::io::Write;
@@ -31,7 +33,8 @@ fn main() -> ExitCode {
         ["container"] | ["container", "check"] => container("check"),
         ["container", "dist"] => container("dist"),
         ["public"] => public_text(),
-        _ => Err("usage: cargo xtask <check|dist|container [check|dist]|public>".to_string()),
+        ["docs"] => docs::write(),
+        _ => Err("usage: cargo xtask <check|dist|container [check|dist]|public|docs>".to_string()),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -111,7 +114,16 @@ fn release_build() -> Step {
 fn check() -> Result<(), String> {
     // The host steps cover only the host crates: engine, loader, addon and lua build for 32-bit Windows only
     // (thiscall, stdcall and the trampolines exist nowhere else).
-    let host: &[&str] = &["-p", "eix-core", "-p", "eix-sites", "-p", "xtask"];
+    let host: &[&str] = &[
+        "-p",
+        "eix-core",
+        "-p",
+        "eix-docs",
+        "-p",
+        "eix-sites",
+        "-p",
+        "xtask",
+    ];
     let windows: &[&str] = &WINDOWS_CRATES;
     let clippy: &[&str] = &["clippy", "--locked", "--all-targets"];
     let deny_warnings: &[&str] = &["--", "-D", "warnings"];
@@ -150,6 +162,13 @@ fn check() -> Result<(), String> {
     for s in steps {
         s.run()?;
     }
+    say("generated pages");
+    docs::check()?;
+    say("book links");
+    links::check()?;
+    // mdBook builds a page whose link points nowhere, so the links are read above; the build still fails on a page
+    // that does not parse or a summary entry without a file. It writes into `target/book`.
+    tool("site (mdbook)", "mdbook", &["build"]).run()?;
     say("public text");
     public_text()?;
     say("check passed");

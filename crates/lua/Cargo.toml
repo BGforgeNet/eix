@@ -11,5 +11,8 @@ eix-core = { path = "../core" }
 eix-engine = { path = "../engine" }
 mlua = { version = "=0.12.2", features = ["luajit", "vendored"] }
 
+[dev-dependencies]
+eix-docs = { path = "../docs" }
+
 [lints]
 workspace = true

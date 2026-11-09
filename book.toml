@@ -1,0 +1,16 @@
+[book]
+title = "eix"
+language = "en"
+# The reference pages and guides are the repository's docs folder; the release package ships it as it is.
+src = "docs"
+
+[build]
+# Under target/, which is not tracked. The gate builds the book here to check its links.
+build-dir = "target/book"
+create-missing = false
+
+[output.html]
+additional-css = ["docs/eix-badge.css"]
+site-url = "/eix/"
+git-repository-url = "https://github.com/BGforgeNet/eix"
+no-section-label = true
