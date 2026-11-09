@@ -1,5 +1,6 @@
-//! AutoPause: the single-player game pauses when a party member's health falls below a limit, set in eix.ini's
-//! `[AutoPause]` section (`docs/eix-ini.md`).
+//! AutoPause: the single-player game pauses when a party member's health falls below a limit, an enemy comes into
+//! view, an enemy turns on the party or an enemy in view dies, as eix.ini's `[AutoPause]` section sets
+//! (`docs/eix-ini.md`).
 
 /// The section of eix.ini.
 pub const SECTION: &str = "AutoPause";
@@ -85,6 +86,69 @@ impl Watch {
         self.seen = seen;
         pause
     }
+}
+
+/// The key of [`Triggers::enemy_sighted`].
+pub const SIGHTED_KEY: &str = "EnemySighted";
+/// The key of [`Triggers::enemy_aggro`].
+pub const AGGRO_KEY: &str = "EnemyAggro";
+/// The key of [`Triggers::enemy_dead`].
+pub const DEAD_KEY: &str = "EnemyDead";
+
+/// Everything that pauses the game.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Triggers {
+    /// The health limits.
+    pub limits: Limits,
+    /// An enemy comes into the party's view while none was in view.
+    pub enemy_sighted: bool,
+    /// An enemy's aggression turns on a party member while no enemy's was.
+    pub enemy_aggro: bool,
+    /// An enemy in the party's view dies.
+    pub enemy_dead: bool,
+}
+
+impl Triggers {
+    /// Whether anything pauses the game.
+    pub fn any(self) -> bool {
+        self.limits.any() || self.enemy_sighted || self.enemy_aggro || self.enemy_dead
+    }
+
+    /// Whether a trigger needs the enemies in the party's view.
+    pub fn needs_view(self) -> bool {
+        self.enemy_sighted || self.enemy_dead
+    }
+}
+
+/// Whether a unit with the side masks `hostile` and `hostile_limit` is an enemy of side `side`: the side's bit is
+/// set in both, as the game's hostility tests take it (the shift counts modulo 32).
+pub fn is_enemy(hostile: u32, hostile_limit: u32, side: u32) -> bool {
+    1u32.wrapping_shl(side) & hostile & hostile_limit != 0
+}
+
+/// The start of an encounter: a set of enemies (those in view, or those aggressive) that was empty becomes non-empty.
+#[derive(Debug, Default)]
+pub struct Onset {
+    active: bool,
+}
+
+impl Onset {
+    /// No enemy yet.
+    pub const fn new() -> Self {
+        Self { active: false }
+    }
+
+    /// Takes whether the set holds an enemy now and tells whether that starts an encounter.
+    pub fn check(&mut self, any: bool) -> bool {
+        let start = any && !self.active;
+        self.active = any;
+        start
+    }
+}
+
+/// The first of the units that died, `deaths`, that was among the enemies in view, `in_view`.
+pub fn death_in_view(deaths: &[i32], in_view: &[i32]) -> Option<i32> {
+    deaths.iter().copied().find(|id| in_view.contains(id))
 }
 
 #[cfg(test)]
@@ -199,5 +263,70 @@ mod tests {
         watch.check(HEALTH_50, [(1, 80.0, 100.0)]);
         watch.check(HEALTH_50, []);
         assert_eq!(watch.check(HEALTH_50, [(1, 10.0, 100.0)]), None);
+    }
+
+    #[test]
+    fn an_enemy_has_the_sides_bit_in_both_masks() {
+        assert!(is_enemy(0b1, u32::MAX, 0));
+        assert!(!is_enemy(0b10, u32::MAX, 0));
+        assert!(is_enemy(0b10, u32::MAX, 1));
+        assert!(!is_enemy(0b1, 0b10, 0));
+        assert!(!is_enemy(0, u32::MAX, 0));
+        // The game's shift takes the count modulo 32.
+        assert!(is_enemy(0b1, u32::MAX, 32));
+        assert!(is_enemy(1 << 31, u32::MAX, 31));
+    }
+
+    #[test]
+    fn an_encounter_starts_once_until_no_enemy_is_left() {
+        let mut onset = Onset::new();
+        assert!(!onset.check(false));
+        assert!(onset.check(true));
+        assert!(!onset.check(true));
+        assert!(!onset.check(false));
+        assert!(onset.check(true));
+    }
+
+    #[test]
+    fn only_a_death_in_view_counts() {
+        assert_eq!(death_in_view(&[5, 7], &[1, 7, 9]), Some(7));
+        assert_eq!(death_in_view(&[5], &[1, 7]), None);
+        assert_eq!(death_in_view(&[], &[1]), None);
+        assert_eq!(death_in_view(&[3, 1], &[1, 3]), Some(3));
+    }
+
+    #[test]
+    fn any_trigger_switches_autopause_on() {
+        assert!(!Triggers::default().any());
+        let on = |t: Triggers| (t.any(), t.needs_view());
+        let none = Triggers::default();
+        assert_eq!(
+            on(Triggers {
+                limits: HEALTH_50,
+                ..none
+            }),
+            (true, false)
+        );
+        assert_eq!(
+            on(Triggers {
+                enemy_sighted: true,
+                ..none
+            }),
+            (true, true)
+        );
+        assert_eq!(
+            on(Triggers {
+                enemy_aggro: true,
+                ..none
+            }),
+            (true, false)
+        );
+        assert_eq!(
+            on(Triggers {
+                enemy_dead: true,
+                ..none
+            }),
+            (true, true)
+        );
     }
 }

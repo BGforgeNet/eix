@@ -23,7 +23,8 @@ First release.
   panel.
 - [eix.ini](docs/eix-ini.md), eix's own settings in the mod's folder: `[EngineFixes]`, the switches above, and
   `[AutoPause]`, off by default: in single player the game pauses when a party member's health drops below `Health`
-  hit points or `HealthPercent` of its maximum.
+  hit points or `HealthPercent` of its maximum, when an enemy comes into view (`EnemySighted`), turns on the party
+  (`EnemyAggro`) or dies in view (`EnemyDead`).
 - `[MOD] ShowTutorialDefault` in config.reg: a mod sets whether tutorials show until the player chooses.
 - Bug reports: addon.log records the eix build and commit, the system, the game.exe build and the loaded modules; a
   crash adds a record naming the patch group, fix or feature behind each address, and its box points to the issue

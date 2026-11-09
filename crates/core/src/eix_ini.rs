@@ -1,6 +1,6 @@
 //! eix.ini, eix's own settings in the mod folder (`docs/eix-ini.md`): `[EngineFixes]` and `[AutoPause]`.
 
-use crate::auto_pause::{self, Limits};
+use crate::auto_pause::{self, Limits, Triggers};
 
 /// The section of [`FixSettings`].
 pub const FIXES_SECTION: &str = "EngineFixes";
@@ -63,7 +63,7 @@ pub struct EixIni {
     /// `[EngineFixes]`.
     pub fixes: FixSettings,
     /// `[AutoPause]`.
-    pub auto_pause: Limits,
+    pub auto_pause: Triggers,
 }
 
 impl EixIni {
@@ -71,10 +71,17 @@ impl EixIni {
     /// each value left out.
     pub fn read(int: impl Fn(&str, &str, i32) -> i32) -> (Self, Vec<String>) {
         let fixes = FixSettings::read(|key, default| int(FIXES_SECTION, key, default));
-        let (auto_pause, warnings) = Limits::from_values(
-            int(auto_pause::SECTION, auto_pause::HEALTH_KEY, 0),
-            int(auto_pause::SECTION, auto_pause::PERCENT_KEY, 0),
+        let pause = |key| int(auto_pause::SECTION, key, 0);
+        let (limits, warnings) = Limits::from_values(
+            pause(auto_pause::HEALTH_KEY),
+            pause(auto_pause::PERCENT_KEY),
         );
+        let auto_pause = Triggers {
+            limits,
+            enemy_sighted: pause(auto_pause::SIGHTED_KEY) != 0,
+            enemy_aggro: pause(auto_pause::AGGRO_KEY) != 0,
+            enemy_dead: pause(auto_pause::DEAD_KEY) != 0,
+        };
         (Self { fixes, auto_pause }, warnings)
     }
 }
@@ -157,11 +164,31 @@ mod tests {
     #[test]
     fn auto_pause_reads_its_section() {
         let ini = with("AutoPause", "HealthPercent", 30);
-        assert_eq!(ini.auto_pause.percent, 30);
+        assert_eq!(ini.auto_pause.limits.percent, 30);
         assert_eq!(
-            with(FIXES_SECTION, "HealthPercent", 30).auto_pause.percent,
+            with(FIXES_SECTION, "HealthPercent", 30)
+                .auto_pause
+                .limits
+                .percent,
             0
         );
+        let pause = |key| with("AutoPause", key, 1).auto_pause;
+        let t = pause("EnemySighted");
+        assert_eq!(
+            (t.enemy_sighted, t.enemy_aggro, t.enemy_dead),
+            (true, false, false)
+        );
+        let t = pause("EnemyAggro");
+        assert_eq!(
+            (t.enemy_sighted, t.enemy_aggro, t.enemy_dead),
+            (false, true, false)
+        );
+        let t = pause("EnemyDead");
+        assert_eq!(
+            (t.enemy_sighted, t.enemy_aggro, t.enemy_dead),
+            (false, false, true)
+        );
+        assert!(!with(FIXES_SECTION, "EnemyDead", 1).auto_pause.enemy_dead);
         let (_, warnings) = EixIni::read(|s, k, d| {
             if s == "AutoPause" && k == "Health" {
                 -5

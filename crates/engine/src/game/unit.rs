@@ -225,7 +225,11 @@ pub struct Unit {
     /// The controller, a [`UnitServer`] on the server: `CUnit::AttachObjectImpl` 0x52E870 stores it and points its
     /// +0x1C back at the unit.
     pub controller: *mut EngineObject,
-    _unknown244: [u8; 0x24C - 0x244],
+    /// The sides the unit is hostile to, a bit per side: `CDiplomacy::SetRelation` 0x4554E0 rewrites it for a side's
+    /// units; the script `IsEnemy` (0x4B4985) and `CUnit::IsHostileTo` 0x530150 test a side's bit in it.
+    pub hostile: u32,
+    /// A second side mask the same tests AND with [`hostile`](Self::hostile) (all bits by default).
+    pub hostile_limit: u32,
     /// The player that owns the unit, or null: the slot getters (`CUnit::GetWeapon` 0x5318B0) then read the player's
     /// items instead of the unit's.
     pub player: *mut c_void,
@@ -265,6 +269,8 @@ const _: () = {
     assert!(offset_of!(Unit, map_object) == 0x0);
     assert!(offset_of!(Unit, script_name) == 0x238);
     assert!(offset_of!(Unit, controller) == 0x240);
+    assert!(offset_of!(Unit, hostile) == 0x244);
+    assert!(offset_of!(Unit, hostile_limit) == 0x248);
     assert!(offset_of!(Unit, player) == 0x24C);
     assert!(offset_of!(Unit, side) == 0x250);
     assert!(offset_of!(Unit, motion_mode) == 0x25C);
@@ -673,14 +679,29 @@ pub struct AiBrain {
     _unknowna4: [u8; 0xD0 - 0xA4],
     /// What the unit perceives (ei-rebuild's `AIMemory memory`).
     pub memory: AiMemory,
-    _unknownd4: [u8; 0x190 - 0xD4],
+    _unknown118: [u8; 0x190 - 0x118],
 }
 
-/// The perception memory of an [`AiBrain`]; opaque.
+/// The perception memory of an [`AiBrain`], up to the units it sees.
 #[repr(C)]
 #[derive(Debug)]
 pub struct AiMemory {
-    _opaque: [u8; 4],
+    _unknown0: [u8; 0x44],
+    /// The units the unit sees, a chain from its head: `AIMemory::IsEnemy` 0x5CB7F0 walks it (0x5CB81A), the script
+    /// `PlayerSee` adds each party unit's (0x4B5D5A).
+    pub visible: *mut SeenNode,
+}
+
+/// A node of [`AiMemory::visible`].
+#[repr(C)]
+#[derive(Debug)]
+pub struct SeenNode {
+    /// The next node, or null (0x5CB826).
+    pub next: *mut SeenNode,
+    /// The previous node: `AIViewer::See` links a new node at the head (0x5CA927).
+    pub prev: *mut SeenNode,
+    /// The unit seen (0x5CB821).
+    pub unit: *mut Unit,
 }
 
 const _: () = {
@@ -688,6 +709,8 @@ const _: () = {
     assert!(offset_of!(AiBrain, alarm_records) == 0x90);
     assert!(offset_of!(AiBrain, memory) == 0xD0);
     assert!(size_of::<AiBrain>() == 0x190);
+    assert!(offset_of!(AiMemory, visible) == 0x44);
+    assert!(offset_of!(SeenNode, unit) == 0x8);
 };
 
 impl AiBrain {
@@ -705,6 +728,23 @@ impl AiBrain {
         };
         // SAFETY: the caller guarantees the brain, the record and the thread.
         unsafe { f(this, record, index) }
+    }
+
+    /// The object the brain's aggression is aimed at, or null: `AIBrain::AggressionEnemy` 0x5D5F20 (thiscall, plain
+    /// `ret`), the enemy of its first aggression mode while that mode is in charge. `CPlayerServer::SendPartyState`
+    /// calls it for its danger state (0x66E666).
+    ///
+    /// # Safety
+    /// `this` must be a live unit's brain of game.exe RU 1.06, on the game's thread.
+    pub unsafe fn aggression_enemy(this: *mut Self) -> *mut EngineObject {
+        // SAFETY: 0x5D5F20 is `CEngineObject* __thiscall ()`; it reads the mode list only.
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self) -> *mut EngineObject>(
+                eix_sites::AI_BRAIN_AGGRESSION_ENEMY,
+            )
+        };
+        // SAFETY: the caller guarantees the brain and the thread.
+        unsafe { f(this) }
     }
 }
 
