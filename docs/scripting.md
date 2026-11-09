@@ -1233,8 +1233,7 @@ function MaxMana(x1: number, y1: number, z1: number, x2: number, y2: number, z2:
 
 <span class="eix">eix</span> SpellAddon option `[gameplay] legendaryspellsystem`.
 
-Takes seven numeric arguments, but the option supplies no working path-query implementation. PENDING-MaxMana-arguments:
-the option documents seven numeric arguments, while a script reference documents six, the coordinates of two points.
+Takes seven numeric arguments, but the option supplies no working path-query implementation.
 
 ### WasLooted
 
@@ -1868,8 +1867,9 @@ Returns 1 if the named unit belongs to a player, otherwise 0.
 function IsPlayerInDanger(player: number): number
 ```
 
-Returns 1 if at least one member of the player's current party is in danger, otherwise 0.
-PENDING-IsPlayerInSafety-complement
+Returns 1 if the player's danger state is "in danger", otherwise 0 (also for a player that does not exist). The state
+has three values: safe, an in-between value, and in danger; at the in-between value both this and `IsPlayerInSafety`
+return 0.
 
 ### IsPlayerInSafety
 
@@ -1877,7 +1877,8 @@ PENDING-IsPlayerInSafety-complement
 function IsPlayerInSafety(player: number): number
 ```
 
-Returns whether the player's current party is safe. PENDING-IsPlayerInSafety-complement
+Returns 1 if the player's danger state is "safe", otherwise 0 (also for a player that does not exist). Not the opposite
+of `IsPlayerInDanger`: at the state's in-between value both return 0.
 
 ### PlayerExists
 
@@ -2487,8 +2488,8 @@ Returns 1 if a camera path file is playing now, otherwise 0.
 function IsNight(): number
 ```
 
-Returns a number from 0 to 1 that depends on the time of day. PENDING-IsNight-curve: the hours at which it rises and
-falls.
+Returns how dark it is, from 0 to 1, by the game's hour of day: 0 from 8:00 to 20:00, rising evenly from 0 at 20:00 to 1
+at 24:00, and 1 from 0:00 until 8:00, when it drops to 0 at once. The server updates it every tick.
 
 ### MoveParticleSource
 
