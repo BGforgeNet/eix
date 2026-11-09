@@ -6,9 +6,6 @@ use std::path::{Path, PathBuf};
 /// This file states the rules, so it is the one file they do not scan.
 const SELF: &str = "xtask/src/public.rs";
 
-/// Directories that hold no authored text.
-const SKIP_DIRS: [&str; 2] = [".git", "target"];
-
 /// The testing notes' evidence marks, matched as written: lower case, `[v]` is an index (`vec![v]`).
 const MARKS: [&str; 2] = ["[V]", "[V-"];
 
@@ -64,19 +61,31 @@ pub(crate) fn line_hits(line: &str) -> Vec<String> {
     hits
 }
 
-fn files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
-    let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    for entry in entries {
-        let path = entry.map_err(|e| format!("{}: {e}", dir.display()))?.path();
-        let skipped = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| SKIP_DIRS.contains(&n));
-        if path.is_dir() {
-            if !skipped {
-                files(&path, out)?;
-            }
-        } else {
+/// The files a commit can take: the tracked ones and the untracked ones git does not ignore. An ignored file (a build
+/// tree, another checkout's worktree, an editor's state) is never published, so it is not scanned.
+fn files(root: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+    let listed = std::process::Command::new("git")
+        .args([
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("git ls-files: {e}"))?;
+    if !listed.status.success() {
+        return Err(format!(
+            "git ls-files: {}: {}",
+            listed.status,
+            String::from_utf8_lossy(&listed.stderr).trim()
+        ));
+    }
+    for name in listed.stdout.split(|&b| b == 0).filter(|n| !n.is_empty()) {
+        let path = root.join(String::from_utf8_lossy(name).as_ref());
+        // A tracked file deleted in the working tree has nothing left to publish.
+        if path.is_file() {
             out.push(path);
         }
     }
@@ -112,12 +121,19 @@ mod tests {
     use super::{check, line_hits};
 
     #[test]
-    fn binary_files_are_scanned() {
+    fn binary_files_are_scanned_and_ignored_ones_are_not() {
         let root = std::env::temp_dir().join(format!("eix-public-{}", std::process::id()));
-        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(root.join("wt")).unwrap();
+        let init = std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(&root)
+            .status();
         std::fs::write(root.join("data.reg"), b"\xFB\x3E\x03\x00lab\xFF\x02").unwrap();
+        std::fs::write(root.join(".gitignore"), "/wt/\n").unwrap();
+        std::fs::write(root.join("wt").join("copy.md"), "the lab run").unwrap();
         let found = check(&root);
         std::fs::remove_dir_all(&root).unwrap();
+        assert!(init.is_ok_and(|s| s.success()));
         assert_eq!(found, Ok(vec!["data.reg:1: the word \"lab\"".to_owned()]));
     }
 
