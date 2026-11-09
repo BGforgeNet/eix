@@ -28,4 +28,6 @@ First release.
   stray selection; the chat log escapes messages and shows colours; equal music pause limits no longer crash; every
   renewed spell effect goes; an item with no maximum condition has a repair price; Ghostliness lowers loudness too
   and visibility stops at 0; SpellAddon's hero tests all take IDs from one billion up; byte parameters outside
-  0..255 warn.
+  0..255 warn; anonymous objects of one mob file each get their own ID; `ChargeMethod=2` gives every hero the whole
+  experience; with Lua attack scripts players hurt each other only with `enablekillsinmulti`, which keeps god mode;
+  `normalkey` defaults to the game's 55; a cast of no time plays at normal speed.

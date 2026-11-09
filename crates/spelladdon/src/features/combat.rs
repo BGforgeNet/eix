@@ -954,14 +954,15 @@ fn unbreakable_body_parts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bu
     ])
 }
 
-/// `CUnitServer::TakeHit`'s `je` past the god-mode test of a player's unit becomes a `jmp`.
+/// `CUnitServer::TakeHit`'s `jne` that ignores a hit from another player's unit becomes NOPs. The original turns the
+/// `je` before the god-mode test into a `jmp` instead, which drops god mode as well.
 const KILLS_IN_MULTI: Bytes = (
-    eix_sites::C_UNIT_SERVER_TAKE_HIT__204,
-    &[0x74, 0x27],
-    &[0xEB, 0x27],
+    eix_sites::C_UNIT_SERVER_TAKE_HIT__227,
+    &[0x0F, 0x85, 0x11, 0x02, 0x00, 0x00],
+    NOP6,
 );
 
-/// `enablekillsinmulti` = 1: players can hurt players.
+/// `enablekillsinmulti` = 1: players can hurt players; god mode still holds.
 fn kills_in_multi(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
@@ -2209,7 +2210,7 @@ mod tests {
         );
         assert_eq!(
             sites(&kills_in_multi(&ctx, 1).unwrap()),
-            [(eix_sites::C_UNIT_SERVER_TAKE_HIT__204, 2)]
+            [(eix_sites::C_UNIT_SERVER_TAKE_HIT__227, 6)]
         );
         assert_eq!(
             sites(&only_min_damage(&ctx, 1).unwrap()),

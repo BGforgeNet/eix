@@ -5,6 +5,9 @@
     reason = "reading the mob record at the hooked site and asking the server world for ids"
 )]
 
+use std::collections::BTreeSet;
+use std::sync::{Mutex, PoisonError};
+
 use eix_core::rules::free_id;
 use eix_engine::game::mob::MobSpec;
 use eix_engine::game::world::{SERVER_WORLD, World};
@@ -15,6 +18,10 @@ use super::{BuildError, Labelled, Setup};
 
 /// Where `ReadMobChunks` goes on with the next record once one is filed (it clears ESI first).
 const NEXT_RECORD: usize = eix_sites::READ_MOB_CHUNKS__2B8;
+
+/// The ids given to records without one. The world holds none of them while their file loads, so without this list
+/// two such records of one file got the same id and only the second appeared, as in the original.
+static GIVEN: Mutex<BTreeSet<i32>> = Mutex::new(BTreeSet::new());
 
 /// Whether the server world has an object with `id`.
 fn taken(id: i32) -> bool {
@@ -35,7 +42,9 @@ extern "C" fn record(_: usize, ctx: &mut Context) {
         return;
     }
     if id == -1 {
-        let id = free_id(taken);
+        let mut given = GIVEN.lock().unwrap_or_else(PoisonError::into_inner);
+        let id = free_id(|n| taken(n) || given.contains(&n));
+        given.insert(id);
         // SAFETY: as above.
         unsafe { (*spec).id = id };
     }

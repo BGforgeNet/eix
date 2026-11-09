@@ -107,7 +107,7 @@ Unless stated otherwise, these `[Addon]` keys default to 0: 0 leaves the option 
 | `MagicRandom` (RandomMagicDamage) | Float, default -1 (off); nonnegative values scale spell damage by `1 + MagicRandom * u`, with random `u` in `[-1, 1)` | :white_check_mark: |
 | `AllowMagicNegative` (NegativeMagicEffect) | Allow negative spell effects; choose the strongest overlapping effect by magnitude | :white_check_mark: |
 | `DeagrPlayerOnLoose` | Stop tracking an unseen enemy merely because it is on guard; clear a player's target when sight of another player's unit is lost | :white_check_mark::white_check_mark: releases the target reference it clears (the original leaks it) |
-| `AttackAnimSpeed` | Match attack and cast animation speed to their action duration | :white_check_mark: |
+| `AttackAnimSpeed` | Match attack and cast animation speed to their action duration | :white_check_mark::white_check_mark: a cast of no time plays at normal speed, as an attack of no time does (the original's speed is then infinite) |
 | `NewRunes` (NewRuneCodes) | Rune code `xa` adds its whole strength to cast time, with a minimum of one tick | :white_check_mark: |
 | `UsePrototypeActionsForMobAttack` | Use the natural attack interval for non-named units, scaled by their action rate | :white_check_mark: |
 | `UsePrototypeActionsForMobCast` | Use the natural attack interval for non-named units' casts, scaled by their action rate | :white_check_mark: |
@@ -129,7 +129,7 @@ Unless stated otherwise, these `[Addon]` keys default to 0: 0 leaves the option 
 
 | Section and key | Default | Effect | eix |
 |---|---|---|---|
-| `[AddonExp] ChargeMethod` (ExpCalc) | 0 | Share awarded experience among heroes: 1 multiplies by hero count, 2 adds hero count, all other values divide by count | :white_check_mark: |
+| `[AddonExp] ChargeMethod` (ExpCalc) | 0 | Share awarded experience among heroes: 1 multiplies by hero count, 2 gives each hero the whole amount, all other values divide by count | :white_check_mark::white_check_mark: 2 gives the whole amount (the original adds the hero count to it) |
 | `[AddonExp] MulFactor` (ExpCalc) | 1.0 | Multiply the resulting experience share | :white_check_mark: |
 | `[AddonExp] Limit` (ExpLimit) | -1 | Negative disables the cap; otherwise cap experience at this value times the hero's intelligence factor | :white_check_mark::white_check_mark: no stray FPU pop on an empty stack |
 | `[AddonPerk] Melee`, `Archery`, `Elemental`, `Sense`, `Astral` (PerkLimit) | 100 each | Training caps for the five skills; any value other than 100 enables the cap group; Backstab is a perk, not a sixth skill | :white_check_mark: |
@@ -167,7 +167,7 @@ These need no individual switch. Mod-file overrides and the settings above suppl
 | `PlayerNumbers` | Give each new session player the next number after the highest existing player | :white_check_mark: |
 | `AddNewScriptCommands` | Add the script interface below and log script-load errors | :white_check_mark: |
 | `PersistentGlobalVars` | Preserve party variables with the case-sensitive `gvar.` prefix across network resets and saved-party reloads | :white_check_mark: |
-| `MultipleLoadingMobs` | When adding a mob to a populated zone, skip duplicate object IDs and assign unused IDs from 100 to anonymous objects | :white_check_mark::white_check_mark: frees the entries it skips (the original leaks them) |
+| `MultipleLoadingMobs` | When adding a mob to a populated zone, skip duplicate object IDs and assign unused IDs from 100 to anonymous objects | :white_check_mark::white_check_mark: frees the entries it skips (the original leaks them); anonymous objects of one file each get their own ID (the original gives them one, so only the last appears) |
 
 ## Console and command line
 

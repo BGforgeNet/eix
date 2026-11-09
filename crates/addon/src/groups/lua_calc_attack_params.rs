@@ -1,8 +1,10 @@
 //! LuaCalcAttackParams: the attack parameters of server and client go through the script's
-//! `CalcAttackParamsOnServer` / `OnClient`, and a hit on a unit is ignored only in god mode.
+//! `CalcAttackParamsOnServer` / `OnClient`; a hit on a unit is ignored in god mode, and from another player's unit
+//! as the game decides.
 //!
-//! Kept from the original: the difficulty scaling skips text-key units (the game passes a local flag), and
-//! a hit from another player's unit is no longer ignored, so players' units can hurt each other.
+//! Kept from the original: the difficulty scaling skips text-key units (the game passes a local flag). A hit from
+//! another player's unit is still ignored unless `enablekillsinmulti` is on (the original drops that test, so
+//! players' units could always hurt each other).
 #![expect(
     unsafe_code,
     reason = "reading the attacking unit, its controller and its player"
@@ -65,20 +67,26 @@ extern "C" fn client(_: usize, ctx: &mut Context) {
     ctx.resume = eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__23C;
 }
 
-/// `CUnitServer::TakeHit` at 0x554139 (ESI the controller): the hit is ignored when the unit's player is in god mode.
+/// `CUnitServer::TakeHit` at 0x554139 (ESI the controller): the hit is ignored when the unit's player is in god mode;
+/// otherwise a unit with a player goes on to the game's test of a hit from another player's unit (EAX that player),
+/// which `enablekillsinmulti` lifts.
 extern "C" fn take_hit(_: usize, ctx: &mut Context) {
     // SAFETY: at this site ESI is a live CUnitServer, on the game's thread.
     let unit = unsafe { (*ptr::<UnitServer>(ctx.esi)).unit };
-    let god = !unit.is_null() && {
+    let player = if unit.is_null() {
+        core::ptr::null_mut()
+    } else {
         // SAFETY: a live unit.
-        let player = unsafe { (*unit).player }.cast::<Player>();
-        // SAFETY: a unit's non-null player is live.
-        !player.is_null() && unsafe { (*player).god_mode } != 0
+        unsafe { (*unit).player }.cast::<Player>()
     };
-    ctx.resume = if god {
+    ctx.resume = if player.is_null() {
+        eix_sites::C_UNIT_SERVER_TAKE_HIT__22D
+    // SAFETY: a unit's non-null player is live.
+    } else if unsafe { (*player).god_mode } != 0 {
         eix_sites::C_UNIT_SERVER_TAKE_HIT__43E
     } else {
-        eix_sites::C_UNIT_SERVER_TAKE_HIT__22D
+        ctx.eax = addr(player);
+        eix_sites::C_UNIT_SERVER_TAKE_HIT__214
     };
 }
 

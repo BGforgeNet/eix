@@ -317,7 +317,8 @@ pub static KEYS: [Key; 535] = [
     Key::int("speed", "fast", 27, Width::Dword),
     Key::int("speed", "normal", 55, Width::Dword),
     Key::int("speed", "fastkey", 27, Width::Dword),
-    Key::int("speed", "normalkey", 5, Width::Dword),
+    // The game's own period, as for `normal`, `normal1` and `normal2` (the original's 5 made the key 11 times faster).
+    Key::int("speed", "normalkey", 55, Width::Dword),
     Key::int("speed", "pause", 0, Width::Dword),
     Key::int("speed", "pausekey", 0, Width::Dword),
     Key::int("gameplay", "astralbeam", 5, Width::Byte),

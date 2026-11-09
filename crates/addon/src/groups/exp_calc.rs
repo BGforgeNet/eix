@@ -12,7 +12,7 @@ use eix_engine::group::SiteWrite;
 
 use super::{BuildError, Labelled, Setup};
 
-/// `ChargeMethod`: 1 multiplies, 2 adds, anything else divides.
+/// `ChargeMethod`: 1 multiplies, 2 keeps the amount, anything else divides.
 static METHOD: AtomicU32 = AtomicU32::new(0);
 /// `MulFactor`, as `f32` bits.
 static FACTOR: AtomicU32 = AtomicU32::new(0x3F80_0000);
@@ -36,8 +36,10 @@ extern "C" fn share() {
         "2:",
         "fmul dword ptr [ebp + 0xc]",
         "jmp 4f",
+        // Every hero gets the whole amount (the original adds the count to it).
         "3:",
-        "fadd dword ptr [ebp + 0xc]",
+        "fstp st(0)",
+        "fld dword ptr [ebp + 0xc]",
         "4:",
         "fmul dword ptr [{factor}]",
         "fstp dword ptr [ebp + 0xc]",

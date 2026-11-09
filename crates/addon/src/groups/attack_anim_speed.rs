@@ -112,13 +112,21 @@ extern "C" fn read_speed(_: usize, ctx: &mut Context) {
 }
 
 /// #3, `CUnitServer::BuildCastSteps` 0x55071F, jumped to with the animation's frame count in ST0: the unit's speed
-/// becomes `frames / [esp+0x2c]` (the cast's tick count), then the replaced `push eax; fstp dword [esp+0x24]` run and
-/// execution goes on at 0x550724. EDI is the controller, whose +0x1C is the unit.
+/// becomes `frames / [esp+0x2c]` (the cast's tick count) or 1 for no ticks, then the replaced `push eax; fstp dword
+/// [esp+0x24]` run and execution goes on at 0x550724. EDI is the controller, whose +0x1C is the unit.
 #[unsafe(naked)]
 extern "C" fn cast_speed() {
     core::arch::naked_asm!(
+        // A cast of no ticks gets speed 1, as an attack of no ticks does (the original divides by zero, giving an
+        // infinite speed). The flags are free: the game's next instruction is a call.
+        "cmp dword ptr [esp + 0x2c], 0",
+        "jne 2f",
+        "fld1",
+        "jmp 3f",
+        "2:",
         "fld st(0)",
         "fidiv dword ptr [esp + 0x2c]",
+        "3:",
         "push edx",
         "mov edx, dword ptr [edi + 0x1c]",
         "fstp dword ptr [edx + 0x178]",

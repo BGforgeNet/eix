@@ -89,7 +89,12 @@ fn every_key_matches_the_key_index() {
             }
             Kind::Int { default: d, .. } => {
                 assert_eq!(kind, "int", "{what}");
-                assert_eq!(default, &d.to_string(), "{what}");
+                // The one default that differs on purpose: the game's 55, not the original's 5.
+                if (section.as_str(), name.as_str()) == ("speed", "normalkey") {
+                    assert_eq!((default.as_str(), d), ("5", 55), "{what}");
+                } else {
+                    assert_eq!(default, &d.to_string(), "{what}");
+                }
             }
             Kind::Text { default: d, .. } => {
                 assert_eq!(kind, "str", "{what}");

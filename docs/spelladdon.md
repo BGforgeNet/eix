@@ -43,7 +43,7 @@ built-in settings.
 |---|---|---|
 | `archersdefence` | 1+: bows and crossbows retain defence. | :white_check_mark: |
 | `unbreakablebodyparts` | 1+: prevent limb breaking; also use `bodypartbreakmodifier` for the limb-damage floor. | :white_check_mark: |
-| `enablekillsinmulti` | 1: remove player damage immunity so players can hurt other players. | :white_check_mark: |
+| `enablekillsinmulti` | 1: remove player damage immunity so players can hurt other players. | :white_check_mark::white_check_mark: god mode still holds (the original drops it too) |
 | `rangedweaponbackstabs` | 1: allow ranged backstabs. | :white_check_mark::white_check_mark: with `newrangedweapontypes`, its change to how orders are carried out stays (the original's `newrangedweapontypes` replaces it) |
 | `backstabsforall` | 1: allow units without a player to backstab. | :white_check_mark: |
 | `newattackdefence` | 1, 2: physical damage after armour uses attack minus defence divided by `divmod`, plus `submod` and the speed term; 1 also includes the distance/weight term. 3, 4: use `max((attack - defence) * divmod + 1, submod)`; backstabs ignore defence. 4 also disables misses. | :white_check_mark: |
@@ -334,7 +334,7 @@ values outside them can select unrelated fields or unsupported game data.
 | `rebalanceengine` | `runconst`, `runconstex` | 0.006666666666, 0.5 | F | `rewriterunabilitytime`/`newrunsystem`: drain coefficient and extra drain. |
 | `rebalanceengine` | `bsbase` | 300 | I | `backstabvisualbase`: displayed percent. |
 | `speed` | `normal`, `fast` | 55, 27 | I | `rewritespeed`: clock periods. |
-| `speed` | `normalkey`, `fastkey` | 5, 27 | I | `rewritespeedkey`: keyboard periods. |
+| `speed` | `normalkey`, `fastkey` | 55, 27 | I | `rewritespeedkey`: keyboard periods; the game's own are 55 and 27 (the original's built-in `normalkey` is 5). |
 | `speed` | `normal1` | 55 | I | `rewriteotherspeed` 1/2: close/reset period. |
 | `speed` | `normal2`, `fast2` | 55, 27 | B | `rewriteotherspeed` 1/3: initial clock periods. |
 | `speed` | `pause`, `pausekey` | 0, 0 | I | `disablepause`/`disablepausekey`: replacement periods. |
