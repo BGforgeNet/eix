@@ -25,3 +25,26 @@ Pointers are passed as signed 32-bit integers; raw memory operations require val
 The [Lua reference](lua-reference.md) lists the callbacks the mod defines, with the patch group that calls each, and the
 functions eix supplies. Each entry has its LuaLS signature and its difference from addon.dll 0.12.4.2. The same
 declarations ship as the definitions file [eix.lua](eix.lua) for the Lua language server.
+
+## Editor setup
+
+With the definitions file, an editor running the Lua language server (LuaLS) completes eix's functions, shows their
+documentation on hover and checks the arguments of each call.
+
+1. Install the language server's plugin: in VS Code, the **Lua** extension (`sumneko.lua`); other editors run
+   `lua-language-server`.
+2. Get `eix.lua`: the `docs` folder of the release package has it, and so does
+   [the site](https://bgforgenet.github.io/eix/eix.lua). Keep it outside the mod folder, so the mod does not ship it.
+3. In the mod folder (the editor's workspace), create `.luarc.json` naming the file:
+
+   ```json
+   {
+     "runtime.version": "LuaJIT",
+     "workspace.library": ["C:/EvilIslands/eix/eix.lua"]
+   }
+   ```
+
+   The path is an example: use where you saved the file. A folder holding it works too.
+4. Reopen the folder.
+
+After an eix update, replace `eix.lua` with the one from the new release.

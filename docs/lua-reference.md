@@ -5,7 +5,7 @@
 The Lua API of a mod's main script: the functions addon.dll registers before the script runs, and the callbacks the
 script defines. [Lua](lua.md) says how the host runs the script. The declarations below are annotations for the Lua
 language server (LuaLS); the same text is the definitions file [eix.lua](eix.lua), in the `docs` folder of the release
-package. Add it to the server's workspace library for completion and type checks.
+package: [editor setup](lua.md#editor-setup) says how to give it to the server for completion and type checks.
 
 ## Types
 
