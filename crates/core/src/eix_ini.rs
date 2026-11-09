@@ -1,6 +1,8 @@
-//! eix.ini, eix's own settings in the mod folder (`docs/eix-ini.md`): `[EngineFixes]` and `[AutoPause]`.
+//! eix.ini, eix's own settings in the mod folder (`docs/eix-ini.md`): `[EngineFixes]`, `[AutoPause]`, `[Music]` and
+//! `[Encumbrance]`.
 
 use crate::auto_pause::{self, Limits, Triggers};
+use crate::encumbrance;
 
 /// The section of [`FixSettings`].
 pub const FIXES_SECTION: &str = "EngineFixes";
@@ -76,6 +78,8 @@ pub struct EixIni {
     pub auto_pause: Triggers,
     /// `[Music]`.
     pub music: Music,
+    /// `[Encumbrance]`.
+    pub encumbrance: encumbrance::Settings,
 }
 
 impl Default for EixIni {
@@ -90,7 +94,7 @@ impl EixIni {
     pub fn read(int: impl Fn(&str, &str, i32) -> i32) -> (Self, Vec<String>) {
         let fixes = FixSettings::read(|key, default| int(FIXES_SECTION, key, default));
         let pause = |key| int(auto_pause::SECTION, key, 0);
-        let (limits, warnings) = Limits::from_values(
+        let (limits, mut warnings) = Limits::from_values(
             pause(auto_pause::HEALTH_KEY),
             pause(auto_pause::PERCENT_KEY),
         );
@@ -103,11 +107,22 @@ impl EixIni {
         let music = Music {
             flac: int(MUSIC_SECTION, "Flac", 1) != 0,
         };
+        let d = encumbrance::Settings::default();
+        let load = |key, default: u32| int(encumbrance::SECTION, key, default.cast_signed());
+        let (encumbrance, more) = encumbrance::Settings::from_values(
+            load(encumbrance::ENABLED_KEY, u32::from(d.enabled)),
+            load(encumbrance::RUN_SLOPE_KEY, d.run_slope),
+            load(encumbrance::WALK_SLOPE_KEY, d.walk_slope),
+            load(encumbrance::MIN_SPEED_KEY, d.min_speed),
+            load(encumbrance::RUN_DRAIN_KEY, d.run_drain),
+        );
+        warnings.extend(more);
         (
             Self {
                 fixes,
                 auto_pause,
                 music,
+                encumbrance,
             },
             warnings,
         )
@@ -233,5 +248,28 @@ mod tests {
         assert!(!with("Music", "Flac", 0).music.flac);
         assert!(with("Music", "Flac", 2).music.flac);
         assert!(with(FIXES_SECTION, "Flac", 0).music.flac);
+    }
+
+    #[test]
+    fn encumbrance_is_its_own_section() {
+        assert_eq!(
+            EixIni::default().encumbrance,
+            encumbrance::Settings::default()
+        );
+        assert!(with("Encumbrance", "Enabled", 1).encumbrance.enabled);
+        assert!(!with(FIXES_SECTION, "Enabled", 1).encumbrance.enabled);
+        assert_eq!(
+            with("Encumbrance", "RunSlope", 30).encumbrance.run_slope,
+            30
+        );
+        let (ini, warnings) = EixIni::read(|s, k, d| {
+            if s == "Encumbrance" && k == "RunSlope" {
+                150
+            } else {
+                d
+            }
+        });
+        assert_eq!(ini.encumbrance.run_slope, 20);
+        assert_eq!(warnings, ["RunSlope 150 is not 0 to 100: 20"]);
     }
 }
