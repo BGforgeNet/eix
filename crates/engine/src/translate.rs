@@ -38,7 +38,11 @@ fn rebase(site: usize, bytes: &[u8], map: impl Fn(usize) -> usize) -> Option<Vec
         if let Some(r) = insn.rel32 {
             let rel = word(bytes, at + r)?;
             let target = ((site + end) as u32).wrapping_add(rel) as usize;
-            put(&mut out, at + r, (map(target) as u32).wrapping_sub((to + end) as u32));
+            put(
+                &mut out,
+                at + r,
+                (map(target) as u32).wrapping_sub((to + end) as u32),
+            );
         }
         for field in [insn.disp32, insn.imm32].into_iter().flatten() {
             let value = word(bytes, at + field)? as usize;
@@ -195,10 +199,13 @@ mod tests {
         let rel = (LOW as u32).wrapping_sub(site as u32 + 5).to_le_bytes();
         let data = (DATA_7AF784 as u32).to_le_bytes();
         let ru = [
-            0xE8, rel[0], rel[1], rel[2], rel[3], 0xA1, data[0], data[1], data[2], data[3], 0x75, 0x02,
+            0xE8, rel[0], rel[1], rel[2], rel[3], 0xA1, data[0], data[1], data[2], data[3], 0x75,
+            0x02,
         ];
         let en = rebase(site, &ru, map).unwrap();
-        let rel_en = (LOW as u32).wrapping_sub(map(site) as u32 + 5).to_le_bytes();
+        let rel_en = (LOW as u32)
+            .wrapping_sub(map(site) as u32 + 5)
+            .to_le_bytes();
         assert_eq!(&en[1..5], &rel_en);
         assert_eq!(en[6..10], (map(DATA_7AF784) as u32).to_le_bytes());
         assert_eq!(&en[10..], &[0x75, 0x02]);
@@ -215,9 +222,16 @@ mod tests {
     fn a_jump_into_a_stub_keeps_its_target() {
         let site = HIGH + 0x1000;
         let stub = 0x1000_0000u32;
-        let ru = [&[0xE9][..], &stub.wrapping_sub(site as u32 + 5).to_le_bytes()].concat();
+        let ru = [
+            &[0xE9][..],
+            &stub.wrapping_sub(site as u32 + 5).to_le_bytes(),
+        ]
+        .concat();
         let en = rebase(site, &ru, map).unwrap();
-        assert_eq!(en[1..5], stub.wrapping_sub(map(site) as u32 + 5).to_le_bytes());
+        assert_eq!(
+            en[1..5],
+            stub.wrapping_sub(map(site) as u32 + 5).to_le_bytes()
+        );
         assert!(equivalent_with(site, &ru, &en, map));
     }
 
@@ -239,7 +253,11 @@ mod tests {
         assert!(!equivalent_with(site + 2, &[r0], &[e0], map));
         // A data pointer is translated as a value.
         assert_eq!(
-            translated_with(MOVED_DATA + 0x1000, &(DATA_7AF784 as u32).to_le_bytes(), map),
+            translated_with(
+                MOVED_DATA + 0x1000,
+                &(DATA_7AF784 as u32).to_le_bytes(),
+                map
+            ),
             (map(DATA_7AF784) as u32).to_le_bytes()
         );
     }

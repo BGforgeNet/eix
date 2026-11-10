@@ -714,11 +714,13 @@ fn for_build(site: usize, original: &[u8]) -> alloc::borrow::Cow<'_, [u8]> {
 fn shimmed(entry: Entry, arg: usize) -> (Entry, usize) {
     match entry {
         Entry::Context(h) => {
-            let pair: &'static (Handler, usize) = alloc::boxed::Box::leak(alloc::boxed::Box::new((h, arg)));
+            let pair: &'static (Handler, usize) =
+                alloc::boxed::Box::leak(alloc::boxed::Box::new((h, arg)));
             (Entry::Context(shim_context), pair as *const _ as usize)
         }
         Entry::Fpu(h) => {
-            let pair: &'static (FpuHandler, usize) = alloc::boxed::Box::leak(alloc::boxed::Box::new((h, arg)));
+            let pair: &'static (FpuHandler, usize) =
+                alloc::boxed::Box::leak(alloc::boxed::Box::new((h, arg)));
             (Entry::Fpu(shim_fpu), pair as *const _ as usize)
         }
     }

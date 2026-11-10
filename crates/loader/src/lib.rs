@@ -225,7 +225,10 @@ fn attach() -> Result<(), alloc::string::String> {
         return Err(messages::invalid_version(&id));
     };
     eix_sites::select(build);
-    ENTRY_HERE.store(eix_sites::here(ENTRY), core::sync::atomic::Ordering::Relaxed);
+    ENTRY_HERE.store(
+        eix_sites::here(ENTRY),
+        core::sync::atomic::Ordering::Relaxed,
+    );
     // SAFETY: the entry point is mapped code that has not run yet; the loader runs DllMain on this one thread.
     unsafe { patch::write(ENTRY, &ENTRY_BYTES, &hook_bytes()) }
         .map_err(|e| alloc::format!("Cannot hook game.exe's entry point: {e}"))

@@ -106,11 +106,11 @@ pub unsafe fn write(site: usize, expected: &[u8], new: &[u8]) -> Result<(), Patc
     unsafe { write_at(site, &expected, &new) }
 }
 
-/// [`write`] with `expected` and `new` already the running build's bytes ([`localize`] made them): only the site is
+/// [`write()`] with `expected` and `new` already the running build's bytes ([`localize`] made them): only the site is
 /// translated.
 ///
 /// # Safety
-/// As for [`write`].
+/// As for [`write()`].
 pub unsafe fn write_native(site: usize, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
     if expected.len() != new.len() {
         return Err(PatchError::Length {
@@ -145,7 +145,7 @@ pub fn as_built(site: usize, bytes: &[u8]) -> Vec<u8> {
 }
 
 /// # Safety
-/// As for [`write`], for `site` itself.
+/// As for [`write()`], for `site` itself.
 unsafe fn write_at(site: usize, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
     let len = new.len();
     let ptr = site as *mut u8;
