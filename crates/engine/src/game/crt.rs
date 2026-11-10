@@ -82,7 +82,7 @@ pub unsafe fn ci_pow(base: f64, exponent: f64) -> f64 {
             "fstp qword ptr [edi]",
             b = in(reg) &base,
             e = in(reg) &exponent,
-            pow = in(reg) eix_sites::TEXT_6E81A0,
+            pow = in(reg) eix_sites::here(eix_sites::TEXT_6E81A0),
             in("edi") &mut out,
             clobber_abi("C"),
         );

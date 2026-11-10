@@ -412,9 +412,9 @@ unsafe fn is_behind(unit: u32, target: u32) -> u32 {
             "push {target}",
             "call {f}",
             target = in(reg) target,
-            f = in(reg) eix_sites::C_UNIT_IS_BEHIND,
+            f = in(reg) eix_sites::here(eix_sites::C_UNIT_IS_BEHIND),
             in("ecx") unit,
-            in("edi") IS_BEHIND_EDI,
+            in("edi") eix_sites::here(IS_BEHIND_EDI as usize),
             lateout("eax") behind,
             clobber_abi("C"),
         );
@@ -503,7 +503,7 @@ fn scale_by_attack_defence(ctx: &Context) {
             "fld qword ptr [{f}]",
             "fcomp dword ptr [{s}]",
             f = in(reg) &factor,
-            s = in(reg) ATTACK_SUBMOD,
+            s = in(reg) eix_sites::here(ATTACK_SUBMOD as usize),
             options(nostack),
         );
     }

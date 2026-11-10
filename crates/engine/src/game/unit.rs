@@ -964,10 +964,10 @@ impl UnitStats {
                 "fsub dword ptr [{k}]",
                 "call {pow}",
                 "fstp dword ptr [edi]",
-                base = in(reg) eix_sites::RDATA_73E128,
+                base = in(reg) eix_sites::here(eix_sites::RDATA_73E128),
                 i = in(reg) &intelligence,
-                k = in(reg) eix_sites::RDATA_73E124,
-                pow = in(reg) eix_sites::TEXT_6E81A0,
+                k = in(reg) eix_sites::here(eix_sites::RDATA_73E124),
+                pow = in(reg) eix_sites::here(eix_sites::TEXT_6E81A0),
                 in("edi") &mut out,
                 clobber_abi("C"),
             );
