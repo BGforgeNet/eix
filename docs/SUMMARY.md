@@ -3,6 +3,7 @@
 [eix](index.md)
 
 - [Recipes](recipes.md)
+  - [Running drain (stamina)](recipe-running-drain.md)
 - [Script reference](scripting.md)
 - [Lua](lua.md)
   - [Lua reference](lua-reference.md)
