@@ -1,9 +1,10 @@
-# Engine fixes
+# Fixes
 
 Fixes of game.exe RU 1.06 defects that the original addon.dll and SpellAddon leave. Code: `crates/addon/src/fixes/`,
 one module per fix, applied in table order after the patch groups.
 
-- A fix changes nothing a player sees, except the visible ones and the mod setting below.
+- A fix changes nothing a player sees, except the mod setting below. The changes a player sees are
+  [game options](features.md#game-options), switched in the same section.
 - No fix writes a place a SpellAddon feature patches, or changes what a multiplayer peer computes.
 - addon.log lists each fix under `fixes`: applied, failed with the reason, or off. With `Enabled` 0 one line says no
   fix applied, and only the mod setting is listed.
@@ -51,23 +52,3 @@ key the game's default (on) stands. `Enabled` 0 does not turn it off.
 | TruncatedScript | a script ending mid-statement crashes or hangs the game | "Unexpected end of file" |
 | VertexLighting | 3DfpFPU.dll lights vertices in slow x87 code | SSE, four at a time, same colours bit for bit, also with Universal Mod's um-engine.dll |
 
-## Visible fixes
-
-Each has its own [setting](eix-ini.md#enginefixes); `UnitShadowResolution`, `KeepRunningOnFocusLoss` and
-`ClipCursorToWindow` are off by default, the others on. The focus fixes change the window only, never full screen.
-`Enabled` 0 turns all of them off.
-
-| Fix | Before | After |
-|---|---|---|
-| KeepWindowOnFocusLoss | in a window, the game minimises on focus loss | stays on screen, paused |
-| KeepRunningOnFocusLoss | in a window, the game pauses (tick, sound, input) and minimises on focus loss; a multiplayer client falls out of step | keeps running and playing, not minimised |
-| ClipCursorToWindow | in a window, the cursor leaves it | confined to the client area while the window has the focus; let go on focus loss, minimising and closing |
-| UnitShadowResolution | unit shadows are 64 by 64 pixels | 128 or 256: a sharper edge, more video memory and work per shadowed unit; rendering only |
-| SmoothCamera | panning stutters: a tick's camera step lands in one frame | spread over frames, same speed |
-| PlayerListOnJoin | a client may see an empty player list until players change | refreshed when its player arrives |
-| SkipDiscCheck | the starter's game.exe asks for the game disc | starts without it, as GOG's exe |
-| UnitPanelSpells | the unit panel's values page shows no spells of a unit outside the party | each spell below the values: its icon and "Effect:" with its value, as the spell windows show it; a page taller than the panel gets the game's scroll bar (arrows, thumb, and the mouse wheel over the page instead of the camera's zoom); single player and the host only |
-
-`KeepRunningOnFocusLoss` covers `KeepWindowOnFocusLoss` in a window: with both on, the game never sees the focus loss,
-so nothing pauses and nothing minimises. With `KeepRunningOnFocusLoss` 0 the second still keeps the window on the
-screen, paused. Minimising the window yourself stays the game's: it pauses, and resumes when the window is restored.

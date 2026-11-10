@@ -7,12 +7,12 @@ addon.log names the file read, and each value left out with the reason.
 
 ## EngineFixes
 
-The switches of the [engine fixes](engine-fixes.md):
+The switches of the [fixes](fixes.md) and the [game options](features.md#game-options):
 
 | Key | Value |
 |---|---|
 | `Enabled` | 0: all fixes off; else on (default 1) |
-| `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck`, `UnitPanelSpells` | 0: the game's behaviour for that fix; else on (default 1) |
+| `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck`, `UnitPanelSpells` | 0: the game's behaviour for that option; else on (default 1) |
 | `UnitShadowResolution` | 64 (default): the game's; 128 or 256: sharper unit shadows; another value is logged and stays 64 |
 | `KeepRunningOnFocusLoss`, `ClipCursorToWindow` | 0 (default): off; else on |
 

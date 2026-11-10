@@ -3,7 +3,7 @@
 Engine fixes and tweaks for Evil Islands: Curse of the Lost Soul.
 
 eix implements most of the features provided by EI [addon.dll](addon.md), as well as [SpellAddon](spelladdon.md), and
-adds [fixes](engine-fixes.md) and [features](features.md). Scripts can be written in the game's own language ([script reference](scripting.md)) or
+adds [fixes](fixes.md) and [features](features.md). Scripts can be written in the game's own language ([script reference](scripting.md)) or
 in [Lua](lua.md) ([Lua reference](lua-reference.md)).
 
 {{#include ../README.md:compat}}
@@ -18,8 +18,8 @@ in [Lua](lua.md) ([Lua reference](lua-reference.md)).
 | [Lua](lua.md), [Lua reference](lua-reference.md) | The Lua host, and the functions and callbacks of a mod's script |
 | [Addon and loader](addon.md) | Settings of `config.reg` and `ai.reg`, console commands, start-up behavior |
 | [SpellAddon options](spelladdon.md) | Every `spelladdon.ini` option |
-| [Engine fixes](engine-fixes.md) | Fixes of game.exe defects that eix adds |
-| [Features](features.md) | eix's own features: AutoPause, encumbrance, FLAC music |
+| [Fixes](fixes.md) | Fixes of game.exe defects that eix adds |
+| [Features](features.md) | eix's own features: game options, AutoPause, encumbrance, FLAC music |
 | [eix.ini](eix-ini.md) | eix's own settings: engine fixes, AutoPause, encumbrance, FLAC music |
 | [Development](development.md) | Building, testing, releasing and publishing this site |
 

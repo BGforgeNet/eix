@@ -1,5 +1,5 @@
 //! eix's own fixes of game.exe defects, beyond what the original addon and SpellAddon change
-//! (`docs/engine-fixes.md`). None writes a site a SpellAddon feature patches: SpellAddon applies later, and a
+//! (`docs/fixes.md`). None writes a site a SpellAddon feature patches: SpellAddon applies later, and a
 //! feature that found our bytes would be left out. A fix a player can see has a setting of its own in eix.ini's
 //! `[EngineFixes]` that turns it off; `Enabled` = 0 there leaves them all out, but not the mod settings
 //! ([`MOD_SETTINGS`]).

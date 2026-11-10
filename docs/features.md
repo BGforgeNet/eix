@@ -1,7 +1,29 @@
 # Features
 
-eix's own additions to the game, beside the originals' features and the [engine fixes](engine-fixes.md). Each is
+eix's own additions to the game, beside the originals' features and the [fixes](fixes.md). Each is
 set in [eix.ini](eix-ini.md): AutoPause and encumbrance are off by default, FLAC music on.
+
+## Game options
+
+Window, display and start-up changes. Each has its own key in [eix.ini](eix-ini.md#enginefixes)'s `[EngineFixes]`;
+`UnitShadowResolution`, `KeepRunningOnFocusLoss` and `ClipCursorToWindow` are off by default, the others on. The
+focus options change the window only, never full screen. `Enabled` 0 there turns all of them off. addon.log lists each
+under `fixes`.
+
+| Option | Before | After |
+|---|---|---|
+| KeepWindowOnFocusLoss | in a window, the game minimises on focus loss | stays on screen, paused |
+| KeepRunningOnFocusLoss | in a window, the game pauses (tick, sound, input) and minimises on focus loss; a multiplayer client falls out of step | keeps running and playing, not minimised |
+| ClipCursorToWindow | in a window, the cursor leaves it | confined to the client area while the window has the focus; let go on focus loss, minimising and closing |
+| UnitShadowResolution | unit shadows are 64 by 64 pixels | 128 or 256: a sharper edge, more video memory and work per shadowed unit; rendering only |
+| SmoothCamera | panning stutters: a tick's camera step lands in one frame | spread over frames, same speed |
+| PlayerListOnJoin | a client may see an empty player list until players change | refreshed when its player arrives |
+| SkipDiscCheck | the starter's game.exe asks for the game disc | starts without it, as GOG's exe |
+| UnitPanelSpells | the unit panel's values page shows no spells of a unit outside the party | each spell below the values: its icon and "Effect:" with its value, as the spell windows show it; a page taller than the panel gets the game's scroll bar (arrows, thumb, and the mouse wheel over the page instead of the camera's zoom); single player and the host only |
+
+`KeepRunningOnFocusLoss` covers `KeepWindowOnFocusLoss` in a window: with both on, the game never sees the focus loss,
+so nothing pauses and nothing minimises. With `KeepRunningOnFocusLoss` 0 the second still keeps the window on the
+screen, paused. Minimising the window yourself stays the game's: it pauses, and resumes when the window is restored.
 
 ## AutoPause
 

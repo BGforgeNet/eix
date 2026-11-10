@@ -15,3 +15,7 @@ additional-css = ["docs/eix-badge.css"]
 site-url = "/eix/"
 git-repository-url = "https://github.com/BGforgeNet/eix"
 no-section-label = true
+
+[output.html.redirect]
+# Old page names, so links to the published site keep working.
+"/engine-fixes.html" = "fixes.html"
