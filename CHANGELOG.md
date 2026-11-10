@@ -16,9 +16,10 @@ First release.
   `[EngineFixes] Enabled`.
 - [Game options](docs/engine.md#game-options), each with its own setting in `[EngineFixes]`:
   - On by default: `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck` (the starter's
-    game.exe starts without the game disc) and `UnitPanelSpells` (the unit panel's values page lists the spells of a
+    game.exe starts without the game disc), `UnitPanelSpells` (the unit panel's values page lists the spells of a
     unit outside the party, each with its icon and effect, and gets a scroll bar, the mouse wheel over the page
-    scrolling it, when it outgrows the panel).
+    scrolling it, when it outgrows the panel) and `SpellsNeedAcceptedSkills` (the camp's spell constructor counts
+    only accepted skill purchases).
   - Off by default: `KeepRunningOnFocusLoss` (a windowed game keeps running when it loses the focus),
     `ClipCursorToWindow` (the cursor stays in the window) and `UnitShadowResolution` (128 or 256 for sharper unit
     shadows).

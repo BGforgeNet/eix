@@ -32,6 +32,9 @@ pub struct FixSettings {
     /// `UnitPanelSpells`: 0 leaves a unit outside the player's party without its spells on the unit panel's values
     /// page, as the game shows it. Default 1.
     pub unit_panel_spells: u32,
+    /// `SpellsNeedAcceptedSkills`: 0 lets the camp's spell constructor count skills bought on the skills page before
+    /// the purchase is accepted, as the game does. Default 1.
+    pub spells_need_accepted_skills: u32,
 }
 
 impl Default for FixSettings {
@@ -55,6 +58,7 @@ impl FixSettings {
             keep_running_on_focus_loss: value("KeepRunningOnFocusLoss", 0),
             clip_cursor_to_window: value("ClipCursorToWindow", 0),
             unit_panel_spells: value("UnitPanelSpells", 1),
+            spells_need_accepted_skills: value("SpellsNeedAcceptedSkills", 1),
         }
     }
 }
@@ -157,9 +161,10 @@ mod tests {
                 f.smooth_camera,
                 f.player_list_on_join,
                 f.skip_disc_check,
-                f.unit_panel_spells
+                f.unit_panel_spells,
+                f.spells_need_accepted_skills
             ),
-            (1, 1, 1, 1, 1, 1)
+            (1, 1, 1, 1, 1, 1, 1)
         );
         assert_eq!(
             (
@@ -194,6 +199,10 @@ mod tests {
         assert_eq!(fixes("ClipCursorToWindow", 1).clip_cursor_to_window, 1);
         assert_eq!(fixes("UnitPanelSpells", 0).unit_panel_spells, 0);
         assert_eq!(fixes("SmoothCamera", 0).unit_panel_spells, 1);
+        assert_eq!(
+            fixes("SpellsNeedAcceptedSkills", 0).spells_need_accepted_skills,
+            0
+        );
     }
 
     #[test]

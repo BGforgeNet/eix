@@ -12,7 +12,7 @@ use core::mem::offset_of;
 use super::item::Item;
 use super::object::EngineObject;
 use super::stl::{HashNode, HashTable};
-use super::unit::Unit;
+use super::unit::{Unit, UnitStats};
 use super::world::PlayerManager;
 use super::{Global, code};
 
@@ -108,7 +108,9 @@ pub struct PartyRecord {
     _unknown0: [u8; 0x1C],
     /// The id of the hero's unit: 0x6621B0 matches it.
     pub unit_id: i32,
-    _unknown20: [u8; 0x730 - 0x20],
+    /// The hero's statistics: `CCampScreen::BestPartySkill` 0x610020 reads each record's at +0x20.
+    pub stats: UnitStats,
+    _unknown724: [u8; 0x730 - 0x724],
     /// The hero's weapons: `CUnit::GetWeapon` 0x5318B0 reads a player's unit's weapon here.
     pub weapons: ItemList,
     /// Quick items: `CUnit::GetQuickItem` 0x531920.
@@ -122,6 +124,7 @@ pub struct PartyRecord {
 
 const _: () = {
     assert!(offset_of!(PartyRecord, unit_id) == 0x1C);
+    assert!(offset_of!(PartyRecord, stats) == 0x20);
     assert!(offset_of!(PartyRecord, weapons) == 0x730);
     assert!(offset_of!(PartyRecord, quick_items) == 0x740);
     assert!(offset_of!(PartyRecord, armor) == 0x750);
@@ -169,6 +172,19 @@ impl Player {
             }
         }
         core::ptr::null_mut()
+    }
+
+    /// The local player, whose party the camp shows: `LocalPlayerData` 0x578BA0 (no arguments, plain `ret`) gives
+    /// its party object at +0x70, the player of the client world's local view.
+    ///
+    /// # Safety
+    /// The process must be game.exe RU 1.06, on the game's thread, while the client world has a local view (a camp
+    /// or hero screen is open).
+    pub unsafe fn local() -> *mut Self {
+        // SAFETY: 0x578BA0 sets ECX itself and takes nothing else.
+        let f = unsafe { code::<unsafe extern "C" fn() -> *mut u8>(eix_sites::LOCAL_PLAYER_DATA) };
+        // SAFETY: the caller guarantees the build, the thread and the local view.
+        unsafe { f() }.wrapping_sub(0x70).cast()
     }
 }
 

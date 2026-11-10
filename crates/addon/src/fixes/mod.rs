@@ -11,6 +11,7 @@ use crate::groups::{Build, Tally, apply_built};
 use crate::log;
 use crate::setup::Setup;
 
+mod accepted_skills;
 mod briefing_text;
 mod cast_target_gone;
 mod diplomacy_sides;
@@ -153,6 +154,16 @@ const FIXES: &[(&str, Option<Switch>, Build)] = &[
         "UnitPanelSpells",
         Some(|s| setting(s.options.eix.fixes.unit_panel_spells, "UnitPanelSpells")),
         unit_panel_spells::build,
+    ),
+    (
+        "SpellsNeedAcceptedSkills",
+        Some(|s| {
+            setting(
+                s.options.eix.fixes.spells_need_accepted_skills,
+                "SpellsNeedAcceptedSkills",
+            )
+        }),
+        accepted_skills::build,
     ),
 ];
 

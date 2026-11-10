@@ -12,7 +12,7 @@ The switches of the [fixes](engine.md#fixes) and the [game options](engine.md#ga
 | Key | Value |
 |---|---|
 | `Enabled` | 0: all fixes off; else on (default 1) |
-| `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck`, `UnitPanelSpells` | 0: the game's behaviour for that option; else on (default 1) |
+| `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck`, `UnitPanelSpells`, `SpellsNeedAcceptedSkills` | 0: the game's behaviour for that option; else on (default 1) |
 | `UnitShadowResolution` | 64 (default): the game's; 128 or 256: sharper unit shadows; another value is logged and stays 64 |
 | `KeepRunningOnFocusLoss`, `ClipCursorToWindow` | 0 (default): off; else on |
 
