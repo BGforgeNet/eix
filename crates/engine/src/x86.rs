@@ -27,6 +27,10 @@ pub struct Insn {
     pub len: usize,
     /// Where its 32-bit branch displacement starts, for `E8`, `E9` and `0F 8x`; the displacement is its last 4 bytes.
     pub rel32: Option<usize>,
+    /// Where its 32-bit memory displacement starts (an absolute address, or a table's base next to a register).
+    pub disp32: Option<usize>,
+    /// Where its 32-bit immediate starts, `mov eax, [moffs]`'s address included.
+    pub imm32: Option<usize>,
 }
 
 /// Why code could not be decoded or relocated. `offset` counts from the start of the copied code.
@@ -153,33 +157,50 @@ fn two_byte(op: u8) -> Option<Operands> {
     })
 }
 
-/// Length of a ModR/M byte with its SIB byte and displacement.
-fn modrm_len(modrm: u8, sib: Option<u8>) -> Option<usize> {
+/// Length of a ModR/M byte with its SIB byte and displacement, and where a 32-bit displacement starts in it.
+fn modrm_len(modrm: u8, sib: Option<u8>) -> Option<(usize, Option<usize>)> {
     let md = modrm >> 6;
     let rm = modrm & 7;
     if md == 3 {
-        return Some(1);
+        return Some((1, None));
     }
     let mut len = 1;
+    let mut disp32 = None;
     if rm == 4 {
         len += 1;
         if md == 0 && sib? & 7 == 5 {
+            disp32 = Some(len);
             len += 4;
         }
     } else if md == 0 && rm == 5 {
+        disp32 = Some(len);
         len += 4;
     }
-    Some(
+    if md == 2 {
+        disp32 = Some(len);
+    }
+    Some((
         len + match md {
             1 => 1,
             2 => 4,
             _ => 0,
         },
-    )
+        disp32,
+    ))
 }
 
 /// Decodes the instruction at the start of `code`; `offset` only labels errors.
 pub fn decode(code: &[u8], offset: usize) -> Result<Insn, CodeError> {
+    decode_with(code, offset, false)
+}
+
+/// [`decode`], which also takes a short branch (as an instruction with no address field): for code that stays where
+/// it is relative to its targets.
+pub fn decode_in_place(code: &[u8], offset: usize) -> Result<Insn, CodeError> {
+    decode_with(code, offset, true)
+}
+
+fn decode_with(code: &[u8], offset: usize, short_ok: bool) -> Result<Insn, CodeError> {
     let truncated = CodeError::Truncated { offset };
     let first = *code.first().ok_or(truncated.clone())?;
     if first == 0x64 {
@@ -192,16 +213,27 @@ pub fn decode(code: &[u8], offset: usize) -> Result<Insn, CodeError> {
         if code.get(1) == Some(&0x64) {
             return Err(unsupported);
         }
-        let insn = decode(&code[1..], offset)?;
+        let insn = decode_with(&code[1..], offset, short_ok)?;
         if insn.rel32.is_some() {
             return Err(unsupported);
         }
+        let after_prefix = |at: Option<usize>| at.map(|a| a + 1);
         return Ok(Insn {
             len: insn.len + 1,
             rel32: None,
+            disp32: after_prefix(insn.disp32),
+            imm32: after_prefix(insn.imm32),
         });
     }
     if matches!(first, 0x70..=0x7F | 0xEB | 0xE0..=0xE3) {
+        if short_ok && code.len() >= 2 {
+            return Ok(Insn {
+                len: 2,
+                rel32: None,
+                disp32: None,
+                imm32: None,
+            });
+        }
         return Err(CodeError::ShortBranch { offset });
     }
     let (opcode_len, operands) = if first == 0x0F {
@@ -224,22 +256,30 @@ pub fn decode(code: &[u8], offset: usize) -> Result<Insn, CodeError> {
         Operands::None => Insn {
             len: opcode_len,
             rel32: None,
+            disp32: None,
+            imm32: None,
         },
         Operands::Imm(n) => Insn {
             len: opcode_len + n,
             rel32: None,
+            disp32: None,
+            imm32: (n == 4).then_some(opcode_len),
         },
         Operands::Rel32 => Insn {
             len: opcode_len + 4,
             rel32: Some(opcode_len),
+            disp32: None,
+            imm32: None,
         },
         Operands::ModRm(imm) => {
             let modrm = *code.get(opcode_len).ok_or(truncated.clone())?;
-            let len =
+            let (len, disp32) =
                 modrm_len(modrm, code.get(opcode_len + 1).copied()).ok_or(truncated.clone())?;
             Insn {
                 len: opcode_len + len + imm,
                 rel32: None,
+                disp32: disp32.map(|d| opcode_len + d),
+                imm32: (imm == 4).then_some(opcode_len + len),
             }
         }
     };

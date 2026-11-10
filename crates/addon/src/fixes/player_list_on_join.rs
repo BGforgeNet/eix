@@ -59,7 +59,7 @@ extern "fastcall" fn on_binding(client: *mut c_void, binding: *mut c_void) {
             unsafe { hook::as_fn::<PlayersChanged>(eix_sites::C_INTERFACE_3D_ON_PLAYERS_CHANGED) };
         // SAFETY: the game's interface object, on the thread that handles the client's messages, as `ClientOnPlayer`
         // calls it.
-        unsafe { refresh(core::ptr::with_exposed_provenance_mut(INTERFACE), ADDED) };
+        unsafe { refresh(core::ptr::with_exposed_provenance_mut(eix_sites::here(INTERFACE)), ADDED) };
         log::info(
             "fixes",
             "players came before the binding: player list refreshed",

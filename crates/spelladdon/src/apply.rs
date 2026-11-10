@@ -63,7 +63,9 @@ fn addon_writes_covered(
     let end = site + base.len();
     let (mut taken, mut shared) = (Vec::new(), Vec::new());
     for at in site.saturating_sub(ADDON_WRITE_REACH)..end {
-        let Some(written) = addon(at) else { continue };
+        let Some(written) = addon(at).map(|w| patch::as_built(at, &w)) else {
+            continue;
+        };
         if at + written.len() <= site {
             continue;
         }
@@ -131,6 +133,9 @@ impl Merge {
             // SAFETY: the range lies in game.exe's image (checked above), which is mapped and readable; the game
             // writes no code while its sound system starts.
             let base = unsafe { patch::read(site, expected_run.len()) };
+            // The merge compares and keeps the running build's bytes; each address stays RU 1.06's.
+            // SAFETY: as above.
+            let (expected_run, new_run) = unsafe { patch::localize(site, &expected_run, &new_run) };
             let mismatch = expected_run
                 .iter()
                 .enumerate()
@@ -165,7 +170,7 @@ impl Merge {
         Ok(taken)
     }
 
-    /// The merged writes: one per run of consecutive changed addresses.
+    /// The merged writes: one per run of consecutive changed addresses, in the running build's bytes.
     fn writes(&self) -> Result<Vec<SiteWrite>, patch::PatchError> {
         let mut writes = Vec::new();
         let mut run: Option<(usize, Vec<u8>, Vec<u8>)> = None;
@@ -177,14 +182,14 @@ impl Merge {
                 }
                 _ => {
                     if let Some((start, old, new)) = run.take() {
-                        writes.push(SiteWrite::bytes(start, &old, &new)?);
+                        writes.push(SiteWrite::native(start, &old, &new)?);
                     }
                     run = Some((at, vec![was], vec![now]));
                 }
             }
         }
         if let Some((start, old, new)) = run {
-            writes.push(SiteWrite::bytes(start, &old, &new)?);
+            writes.push(SiteWrite::native(start, &old, &new)?);
         }
         Ok(writes)
     }

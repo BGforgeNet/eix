@@ -14,6 +14,8 @@ pub struct SiteWrite {
     site: usize,
     expected: Vec<u8>,
     new: Vec<u8>,
+    /// The bytes are the running build's already ([`patch::localize`]); only the site is translated.
+    native: bool,
 }
 
 impl SiteWrite {
@@ -30,6 +32,15 @@ impl SiteWrite {
             site,
             expected: expected.to_vec(),
             new: new.to_vec(),
+            native: false,
+        })
+    }
+
+    /// [`bytes`](Self::bytes) whose bytes are the running build's already, as [`patch::localize`] gives them.
+    pub fn native(site: usize, expected: &[u8], new: &[u8]) -> Result<Self, PatchError> {
+        Ok(Self {
+            native: true,
+            ..Self::bytes(site, expected, new)?
         })
     }
 
@@ -39,6 +50,7 @@ impl SiteWrite {
             site,
             expected: expected.to_vec(),
             new: vec![0x90; expected.len()],
+            native: false,
         }
     }
 
@@ -65,6 +77,7 @@ impl SiteWrite {
             site,
             expected: expected.to_vec(),
             new,
+            native: false,
         })
     }
 
@@ -74,6 +87,7 @@ impl SiteWrite {
             site,
             expected: (expected as u32).to_le_bytes().to_vec(),
             new: (new as u32).to_le_bytes().to_vec(),
+            native: false,
         }
     }
 
@@ -104,6 +118,32 @@ impl SiteWrite {
     /// The bytes written over them: what a later group that takes over the site expects there.
     pub fn new_bytes(&self) -> &[u8] {
         &self.new
+    }
+
+    /// # Safety
+    /// As for [`patch::verify`].
+    unsafe fn verify(&self) -> Result<(), PatchError> {
+        if self.native {
+            // SAFETY: the caller's guarantee.
+            unsafe { patch::verify_native(self.site, &self.expected) }
+        } else {
+            // SAFETY: the caller's guarantee.
+            unsafe { patch::verify(self.site, &self.expected) }
+        }
+    }
+
+    /// Writes `new` over `expected` at the site, in this write's byte space.
+    ///
+    /// # Safety
+    /// As for [`patch::write`].
+    unsafe fn write(&self, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
+        if self.native {
+            // SAFETY: the caller's guarantee.
+            unsafe { patch::write_native(self.site, expected, new) }
+        } else {
+            // SAFETY: the caller's guarantee.
+            unsafe { patch::write(self.site, expected, new) }
+        }
     }
 }
 
@@ -187,15 +227,15 @@ pub unsafe fn apply(
 unsafe fn write_all(writes: &[SiteWrite]) -> Result<(), (HookError, Vec<PatchError>)> {
     for w in writes {
         // SAFETY: the caller guarantees the site is mapped and not written meanwhile.
-        unsafe { patch::verify(w.site, &w.expected) }.map_err(|e| (e.into(), Vec::new()))?;
+        unsafe { w.verify() }.map_err(|e| (e.into(), Vec::new()))?;
     }
     for (i, w) in writes.iter().enumerate() {
         // SAFETY: as above.
-        if let Err(e) = unsafe { patch::write(w.site, &w.expected, &w.new) } {
+        if let Err(e) = unsafe { w.write(&w.expected, &w.new) } {
             let mut unrestored = Vec::new();
             for done in writes[..i].iter().rev() {
                 // SAFETY: as above; this site holds `new` now.
-                if let Err(u) = unsafe { patch::write(done.site, &done.new, &done.expected) } {
+                if let Err(u) = unsafe { done.write(&done.new, &done.expected) } {
                     unrestored.push(u);
                 }
             }

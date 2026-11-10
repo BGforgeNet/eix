@@ -93,7 +93,7 @@ fn place() -> std::sync::MutexGuard<'static, Option<Place>> {
 extern "C" fn phrase_start(_: usize, ctx: &mut Context) {
     let screen = ctx.ecx as usize;
     SCREEN.store(screen, Ordering::Relaxed);
-    if ctx.stack_word(0) == Some(FIRST_PHRASE_RETURN) {
+    if ctx.stack_word(0).map(|w| eix_sites::ru(w as usize) as u32) == Some(FIRST_PHRASE_RETURN) {
         return;
     }
     // SAFETY: NextPhrase runs on the game's thread, after WinMain created the manager.

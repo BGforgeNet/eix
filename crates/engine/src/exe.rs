@@ -31,20 +31,15 @@ impl ExeId {
     }
 }
 
-/// The game.exe builds eix knows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Build {
-    /// Russian 1.06: the starter's `Engine\game.exe` and GOG's Russian exe.
-    Ru106,
-}
+pub use eix_sites::Build;
 
-impl Build {
-    /// Matches header fields against the known builds.
-    pub fn identify(id: &ExeId) -> Option<Self> {
-        match (id.base, id.entry_rva, id.size_of_image, id.time_date_stamp) {
-            (0x40_0000, 0x2E_C226, 0x3D_7000, 0x3ABF_0DB3) => Some(Self::Ru106),
-            _ => None,
-        }
+/// The build whose header fields `id` has. GOG's exe and the official 1.06 patch's differ only in a code byte, not
+/// in these fields.
+pub fn identify(id: &ExeId) -> Option<Build> {
+    match (id.base, id.entry_rva, id.size_of_image, id.time_date_stamp) {
+        (0x40_0000, 0x2E_C226, 0x3D_7000, 0x3ABF_0DB3) => Some(Build::Ru106),
+        (0x40_0000, 0x2E_C1E6, 0x3D_7000, 0x3ABB_4A08) => Some(Build::En106),
+        _ => None,
     }
 }
 
@@ -95,13 +90,19 @@ mod tests {
             size_of_image: 0x3D_7000,
             time_date_stamp: 0x3ABF_0DB3,
         };
-        assert_eq!(Build::identify(&id), Some(Build::Ru106));
+        assert_eq!(identify(&id), Some(Build::Ru106));
         assert_eq!(id.entry(), eix_sites::ENTRY);
         let gog_en = ExeId {
             entry_rva: 0x2E_C1E6,
+            time_date_stamp: 0x3ABB_4A08,
             ..id
         };
-        assert_eq!(Build::identify(&gog_en), None);
+        assert_eq!(identify(&gog_en), Some(Build::En106));
+        let unknown = ExeId {
+            entry_rva: 0x2E_C1E6,
+            ..id
+        };
+        assert_eq!(identify(&unknown), None);
     }
 
     #[test]

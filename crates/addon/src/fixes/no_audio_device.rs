@@ -83,7 +83,7 @@ fn audio() -> u32 {
         0
     } else {
         // SAFETY: the game's option word, which the main thread alone writes.
-        unsafe { core::ptr::with_exposed_provenance::<u32>(AUDIO).read() }
+        unsafe { core::ptr::with_exposed_provenance::<u32>(eix_sites::here(AUDIO)).read() }
     }
 }
 

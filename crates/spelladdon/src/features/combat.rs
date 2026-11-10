@@ -441,7 +441,7 @@ fn word(address: u32) -> u32 {
 fn scale_by_attack_defence(ctx: &Context) {
     let kind = word(ctx.ebp.wrapping_sub(0x10));
     let chain = word(ctx.stack() as u32 + 0x128);
-    if kind > 2 || chain != DELIVER_ATTACK_RETURN {
+    if kind > 2 || eix_sites::ru(chain as usize) as u32 != DELIVER_ATTACK_RETURN {
         return;
     }
     // The caller's frame (`DeliverAttack`) holds the attacker's and the defender's unit servers there.
@@ -452,7 +452,7 @@ fn scale_by_attack_defence(ctx: &Context) {
         unsafe {
             AttackParams::of_server(
                 core::ptr::with_exposed_provenance_mut(server as usize),
-                core::ptr::with_exposed_provenance_mut(out as usize),
+                core::ptr::with_exposed_provenance_mut(eix_sites::here(out as usize)),
             );
         }
     };
@@ -474,11 +474,11 @@ fn scale_by_attack_defence(ctx: &Context) {
     let target = word(word(defender_at) + 0x1C);
     // SAFETY: two live units.
     let behind = unsafe { is_behind(unit, target) };
-    let attack = word(ATTACKER_PARAMS + 0x18) as i32;
+    let attack = word(eix_sites::here(ATTACKER_PARAMS as usize + 0x18) as u32) as i32;
     let minus = if behind != 0 {
         f64::from(game_float(ZERO))
     } else {
-        f64::from(word(DEFENDER_PARAMS + 0x1C) as i32)
+        f64::from(word(eix_sites::here(DEFENDER_PARAMS as usize + 0x1C) as u32) as i32)
     };
     let factor = Ext::new(attack.into())
         .fsub(minus)
@@ -1448,7 +1448,9 @@ extern "C" fn night_client(arg: usize, ctx: &mut Context) {
 extern "C" fn night_client_scale(arg: usize, ctx: &mut Context) {
     // SAFETY: the build keeps the parameters for the process.
     let night = unsafe { common::kept::<NightPower>(arg) };
-    if ctx.stack_word(4) == Some(eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__29B as u32) {
+    if ctx.stack_word(4).map(|w| eix_sites::ru(w as usize))
+        == Some(eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__29B)
+    {
         // SAFETY: `DrawUnitInfo`'s frame and its pointer into the shown unit.
         let shown = unsafe { read::<u32>(ctx.ebp - 0x1C) };
         // SAFETY: the shown unit's byte.

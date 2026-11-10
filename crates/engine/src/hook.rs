@@ -560,6 +560,20 @@ fn stub_around(
         0x24,
     ];
     let prefix: &[u8] = if pop_return { &POP_RETURN } else { &[] };
+    // Another build: the copies are what the site holds, the handler sees RU 1.06 resume addresses.
+    let (before, after) = (for_build(origin, before), for_build(origin, after));
+    let (before, after, origin, resume) = (
+        &before[..],
+        &after[..],
+        eix_sites::here(origin),
+        eix_sites::here(resume),
+    );
+    let entry = if eix_sites::translating() {
+        shimmed(entry, arg)
+    } else {
+        (entry, arg)
+    };
+    let (entry, arg) = entry;
     let (handler, save, entry_drop, entry_after): (usize, &[u8], usize, usize) = match entry {
         Entry::Context(h) => (
             h as usize,
@@ -675,12 +689,55 @@ pub fn replace_function(
 pub fn trampoline(site: usize, original: &[u8]) -> Result<usize, HookError> {
     check_len(site, original)?;
     let len = original.len() + 5;
+    let copy = for_build(site, original);
+    let (site, original) = (eix_sites::here(site), &copy[..]);
     exec::place(len, |at| {
         let mut code = relocate(site, original, at)?;
         let from = at + code.len();
         code.extend(patch::jmp_rel32(from, site + original.len()));
         Ok::<_, HookError>(code)
     })
+}
+
+/// The code at RU 1.06 address `site` whose bytes are `original`, as the running build holds it: the bytes found
+/// there when they are `original` translated, else `original` (the site's write then fails its check).
+fn for_build(site: usize, original: &[u8]) -> alloc::borrow::Cow<'_, [u8]> {
+    if !eix_sites::translating() || original.is_empty() {
+        return alloc::borrow::Cow::Borrowed(original);
+    }
+    // SAFETY: a hook site lies in game.exe's mapped code, which the build check placed; nothing writes it while the
+    // patch groups are built.
+    alloc::borrow::Cow::Owned(unsafe { crate::translate::expected(site, original) })
+}
+
+/// The entry and argument a stub calls on another build: a shim that gives the handler RU 1.06 resume addresses.
+fn shimmed(entry: Entry, arg: usize) -> (Entry, usize) {
+    match entry {
+        Entry::Context(h) => {
+            let pair: &'static (Handler, usize) = alloc::boxed::Box::leak(alloc::boxed::Box::new((h, arg)));
+            (Entry::Context(shim_context), pair as *const _ as usize)
+        }
+        Entry::Fpu(h) => {
+            let pair: &'static (FpuHandler, usize) = alloc::boxed::Box::leak(alloc::boxed::Box::new((h, arg)));
+            (Entry::Fpu(shim_fpu), pair as *const _ as usize)
+        }
+    }
+}
+
+extern "C" fn shim_context(pair: usize, ctx: &mut Context) {
+    // SAFETY: `shimmed` leaked the pair, so it lives for the process.
+    let &(handler, arg) = unsafe { &*(pair as *const (Handler, usize)) };
+    ctx.resume = eix_sites::ru(ctx.resume);
+    handler(arg, ctx);
+    ctx.resume = eix_sites::here(ctx.resume);
+}
+
+extern "C" fn shim_fpu(pair: usize, ctx: &mut FpuContext) {
+    // SAFETY: as in `shim_context`.
+    let &(handler, arg) = unsafe { &*(pair as *const (FpuHandler, usize)) };
+    ctx.regs.resume = eix_sites::ru(ctx.regs.resume);
+    handler(arg, ctx);
+    ctx.regs.resume = eix_sites::here(ctx.regs.resume);
 }
 
 /// Points the `call rel32` at `site` (its bytes are `original`) at `to`. Returns the site write and the call's old
@@ -697,12 +754,13 @@ pub fn redirect_call(
     ))
 }
 
-/// `address` as a function pointer of type `F`.
+/// `address` (an RU 1.06 address in game.exe, or any other) as a function pointer of type `F`, in the running build.
 ///
 /// # Safety
 /// `address` must be a function of exactly type `F`, which must be a function pointer type.
 pub unsafe fn as_fn<F: Copy>(address: usize) -> F {
     const { assert!(size_of::<F>() == size_of::<usize>()) };
+    let address = eix_sites::here(address);
     // SAFETY: both are pointer-sized; the caller guarantees `F` is the function's type.
     unsafe { core::mem::transmute_copy(&address) }
 }

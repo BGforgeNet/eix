@@ -370,7 +370,7 @@ const TIMER_WORD: u32 = eix_sites::C_DIPLOMACY_GET_HOSTILE_MASK__1D as u32;
 fn set_timer_word(value: u16) {
     // SAFETY: the word lies in game.exe's `.text` padding, which start-up made writable; only these handlers and the
     // external timer touch it.
-    unsafe { common::write(TIMER_WORD, value) };
+    unsafe { common::write(eix_sites::here(TIMER_WORD as usize) as u32, value) };
 }
 
 /// Before `CWorldServer::NewZone` or `LoadSave`: the code in the padding right before the function, which the
@@ -383,7 +383,7 @@ extern "C" fn loading(_: usize, _: &mut Context) {
 extern "C" fn mission_loading(_: usize, ctx: &mut Context) {
     set_timer_word(0);
     // SAFETY: 0x7af784 is a global of game.exe's `.data`, which the replaced instruction read here.
-    ctx.ecx = unsafe { common::read(eix_sites::DATA_7AF784 as u32) };
+    ctx.ecx = unsafe { common::read(eix_sites::here(eix_sites::DATA_7AF784) as u32) };
     ctx.resume = eix_sites::LOAD_MISSION__1E;
 }
 

@@ -4,6 +4,7 @@
     reason = "changing page protection and writing game.exe's code"
 )]
 
+use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -16,6 +17,7 @@ use windows_sys::Win32::System::Memory::{
 use windows_sys::Win32::System::Threading::GetCurrentProcess;
 
 use crate::lock::SpinLock;
+use crate::translate;
 
 /// Why a patch was not written.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -98,6 +100,53 @@ pub unsafe fn write(site: usize, expected: &[u8], new: &[u8]) -> Result<(), Patc
             new: new.len(),
         });
     }
+    // SAFETY: the caller's guarantee, for the site in the running build.
+    let (site, expected, new) = unsafe { for_build(site, expected, new) };
+    // SAFETY: as above.
+    unsafe { write_at(site, &expected, &new) }
+}
+
+/// [`write`] with `expected` and `new` already the running build's bytes ([`localize`] made them): only the site is
+/// translated.
+///
+/// # Safety
+/// As for [`write`].
+pub unsafe fn write_native(site: usize, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
+    if expected.len() != new.len() {
+        return Err(PatchError::Length {
+            site,
+            expected: expected.len(),
+            new: new.len(),
+        });
+    }
+    // SAFETY: the caller's guarantee.
+    unsafe { write_at(eix_sites::here(site), expected, new) }
+}
+
+/// The bytes `expected` and `new` for RU 1.06 address `site` as the running build has them: what the site holds when
+/// it is `expected` translated (else `expected`), and `new` translated. Both unchanged on RU 1.06.
+///
+/// # Safety
+/// As for [`verify`].
+pub unsafe fn localize(site: usize, expected: &[u8], new: &[u8]) -> (Vec<u8>, Vec<u8>) {
+    // SAFETY: the caller's guarantee.
+    let (_, expected, new) = unsafe { for_build(site, expected, new) };
+    (expected.into_owned(), new.into_owned())
+}
+
+/// `bytes` written at RU 1.06 address `site`, as the running build holds them once written (code rebased, a data
+/// address translated); reads nothing.
+pub fn as_built(site: usize, bytes: &[u8]) -> Vec<u8> {
+    if eix_sites::translating() {
+        translate::translated(site, bytes)
+    } else {
+        bytes.to_vec()
+    }
+}
+
+/// # Safety
+/// As for [`write`], for `site` itself.
+unsafe fn write_at(site: usize, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
     let len = new.len();
     let ptr = site as *mut u8;
     // Protection is per page: two writes to different sites on one page must not interleave, or one restores
@@ -139,12 +188,53 @@ pub unsafe fn write(site: usize, expected: &[u8], new: &[u8]) -> Result<(), Patc
 
 static PROTECT: SpinLock<()> = SpinLock::new(());
 
+/// An RU 1.06 site and the bytes expected and written there, for the running build: the site translated, the
+/// expected bytes those found when they are the RU bytes translated, the written bytes translated.
+///
+/// # Safety
+/// The translated range must be mapped, readable memory that no other thread writes meanwhile.
+unsafe fn for_build<'a>(
+    site: usize,
+    expected: &'a [u8],
+    new: &'a [u8],
+) -> (usize, Cow<'a, [u8]>, Cow<'a, [u8]>) {
+    if !eix_sites::translating() {
+        return (site, Cow::Borrowed(expected), Cow::Borrowed(new));
+    }
+    let at = eix_sites::here(site);
+    // SAFETY: the caller's guarantee.
+    let found = unsafe { core::slice::from_raw_parts(at as *const u8, expected.len()) }.to_vec();
+    // SAFETY: the caller's guarantee; a site in the image has its neighbours mapped.
+    let matched = unsafe { translate::matches(site, expected, &found) };
+    let new = translate::written(site, expected, matched.then_some(&found[..]), new);
+    let expected = if matched { found } else { expected.to_vec() };
+    (at, Cow::Owned(expected), Cow::Owned(new))
+}
+
 /// Checks that `expected` is what is at `site`, without writing.
 ///
 /// # Safety
 /// `site..site + expected.len()` must be mapped, readable memory of this process that no other thread writes while
 /// the call lasts.
 pub unsafe fn verify(site: usize, expected: &[u8]) -> Result<(), PatchError> {
+    // SAFETY: the caller's guarantee, for the site in the running build.
+    let (site, expected, _) = unsafe { for_build(site, expected, expected) };
+    // SAFETY: as above.
+    unsafe { verify_at(site, &expected) }
+}
+
+/// [`verify`] with `expected` already the running build's bytes: only the site is translated.
+///
+/// # Safety
+/// As for [`verify`].
+pub unsafe fn verify_native(site: usize, expected: &[u8]) -> Result<(), PatchError> {
+    // SAFETY: the caller's guarantee.
+    unsafe { verify_at(eix_sites::here(site), expected) }
+}
+
+/// # Safety
+/// As for [`verify`], for `site` itself.
+unsafe fn verify_at(site: usize, expected: &[u8]) -> Result<(), PatchError> {
     // SAFETY: the caller guarantees the range is mapped, readable and not written meanwhile.
     let found = unsafe { core::slice::from_raw_parts(site as *const u8, expected.len()) };
     if found == expected {
@@ -158,14 +248,14 @@ pub unsafe fn verify(site: usize, expected: &[u8]) -> Result<(), PatchError> {
     }
 }
 
-/// The `len` bytes at `site`.
+/// The `len` bytes at RU 1.06 address `site`, in the running build.
 ///
 /// # Safety
 /// `site..site + len` must be mapped, readable memory of this process that no other thread writes while the call
 /// lasts.
 pub unsafe fn read(site: usize, len: usize) -> Vec<u8> {
     // SAFETY: the caller guarantees the range is mapped, readable and not written meanwhile.
-    unsafe { core::slice::from_raw_parts(site as *const u8, len) }.to_vec()
+    unsafe { core::slice::from_raw_parts(eix_sites::here(site) as *const u8, len) }.to_vec()
 }
 
 /// Makes `start..start + len` readable, writable and executable, and leaves it so; nothing is written.

@@ -22,7 +22,7 @@ mod paths;
 use core::ffi::c_void;
 
 use eix_engine::dll::Dll;
-use eix_engine::exe::{self, Build};
+use eix_engine::exe;
 use eix_engine::heap::ProcessHeap;
 use eix_engine::{patch, registry, win};
 
@@ -154,16 +154,19 @@ fn hook_bytes() -> [u8; 5] {
     patch::jmp_rel32(ENTRY, entry_stub as *const () as usize)
 }
 
+/// The entry point in the running build, set before the entry is hooked.
+static ENTRY_HERE: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(ENTRY);
+
 /// Jumped to from game.exe's entry point: calls `on_entry`, then continues at the restored entry. The call clobbers
 /// only the caller-saved registers, as the original loader's stub does.
 #[unsafe(naked)]
 extern "C" fn entry_stub() {
     core::arch::naked_asm!(
         "call {on_entry}",
-        "push {entry}",
+        "push dword ptr [{entry}]",
         "ret",
         on_entry = sym on_entry,
-        entry = const ENTRY,
+        entry = sym ENTRY_HERE,
     );
 }
 
@@ -218,9 +221,11 @@ fn install_handler(handler: usize) -> Result<(), patch::PatchError> {
 /// Checks game.exe and hooks its entry point.
 fn attach() -> Result<(), alloc::string::String> {
     let id = exe::current().map_err(|e| alloc::format!("Invalid version of game.exe!\n\n{e}"))?;
-    if Build::identify(&id) != Some(Build::Ru106) {
+    let Some(build) = exe::identify(&id) else {
         return Err(messages::invalid_version(&id));
-    }
+    };
+    eix_sites::select(build);
+    ENTRY_HERE.store(eix_sites::here(ENTRY), core::sync::atomic::Ordering::Relaxed);
     // SAFETY: the entry point is mapped code that has not run yet; the loader runs DllMain on this one thread.
     unsafe { patch::write(ENTRY, &ENTRY_BYTES, &hook_bytes()) }
         .map_err(|e| alloc::format!("Cannot hook game.exe's entry point: {e}"))

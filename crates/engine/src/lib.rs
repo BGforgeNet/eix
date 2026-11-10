@@ -30,6 +30,7 @@ pub mod owners;
 pub mod patch;
 pub mod registry;
 pub mod sse;
+mod translate;
 pub mod win;
 pub mod x86;
 pub mod x87;

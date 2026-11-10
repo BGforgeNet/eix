@@ -7,7 +7,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use eix_engine::exe::{self, Build};
+use eix_engine::exe;
 use eix_engine::group::{self, Report, SiteWrite};
 use eix_engine::hook::{self, HookError};
 use eix_engine::patch;
@@ -28,10 +28,14 @@ const NIVAL_REGISTRY_ROOT: u32 = eix_sites::DATA_7848A8 as u32;
 /// Whether the process is the game.exe build eix knows.
 pub(crate) fn known_exe() -> Result<(), String> {
     let id = exe::current()?;
-    match Build::identify(&id) {
-        Some(Build::Ru106) => Ok(()),
+    match exe::identify(&id) {
+        Some(build) => {
+            eix_sites::select(build);
+            Ok(())
+        }
         None => Err(format!(
-            "unknown game.exe: entry point RVA {:#x}, SizeOfImage {:#x}, TimeDateStamp {:#x}; known: Russian 1.06",
+            "unknown game.exe: entry point RVA {:#x}, SizeOfImage {:#x}, TimeDateStamp {:#x}; known: Russian 1.06, \
+             English and German 1.06",
             id.entry_rva, id.size_of_image, id.time_date_stamp
         )),
     }

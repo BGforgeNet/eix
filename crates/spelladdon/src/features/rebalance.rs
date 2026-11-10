@@ -1130,7 +1130,7 @@ extern "C" fn read_hard_label(_: usize, _: &mut Context) {
     unsafe {
         get(
             texts,
-            core::ptr::with_exposed_provenance(HARD_KEY as usize),
+            core::ptr::with_exposed_provenance(eix_sites::here(HARD_KEY as usize)),
             text,
         )
     };

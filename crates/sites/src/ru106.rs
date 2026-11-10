@@ -6,6 +6,8 @@
 
 /// The start of `.text`.
 pub const TEXT_SECTION: usize = 0x40_1000;
+/// The start of `.rdata`, right after `.text`'s last page.
+pub const RDATA_SECTION: usize = 0x73_B000;
 /// The start of `.data`, right after `.rdata`'s last page.
 pub const DATA_SECTION: usize = 0x78_3000;
 /// The start of `.rsrc`, right after `.data`: nothing of the game's code or data lies from here on.

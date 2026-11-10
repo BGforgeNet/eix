@@ -134,7 +134,7 @@ fn load_ended(ctx: &mut Context) {
     // SAFETY: SCRIPT_ERROR is the game's `ScriptError`, of this type.
     let report = unsafe { hook::as_fn::<ScriptError>(eix_sites::SCRIPT_ERROR) };
     let script = core::ptr::with_exposed_provenance_mut::<c_void>(ctx.esi as usize);
-    let format = core::ptr::with_exposed_provenance::<c_char>(eix_sites::DATA_78D740);
+    let format = core::ptr::with_exposed_provenance::<c_char>(eix_sites::here(eix_sites::DATA_78D740));
     // SAFETY: ESI is the script `Load` parses; the format is the game's "Unexpected end of file", which takes no
     // argument; the call is made on the parsing thread, as `Load`'s own.
     unsafe { report(script, line, ERROR_LEVEL, format) };

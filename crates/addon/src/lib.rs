@@ -134,7 +134,11 @@ pub unsafe extern "C" fn Apply() {
         error_box("addon.dll", &e);
         exit_process(1);
     }
-    log::info("main", "game.exe: Russian 1.06", "");
+    let build = match eix_sites::selected() {
+        eix_sites::Build::Ru106 => "game.exe: Russian 1.06",
+        eix_sites::Build::En106 => "game.exe: English/German 1.06",
+    };
+    log::info("main", build, "");
     // The original creates the state while addon.dll loads, whatever the config says; this is our load-time entry.
     lua::create();
     if !game::loader_contract_holds() {

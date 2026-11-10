@@ -53,7 +53,7 @@ static CHECKED: AtomicBool = AtomicBool::new(false);
 /// the speed `Pack` reads, so both would apply.
 fn check_spelladdon() {
     // SAFETY: game.exe's code section is mapped for the process's lifetime.
-    let first = unsafe { (eix_sites::UNIT_STATS_RECOMPUTE__67A as *const u8).read() };
+    let first = unsafe { (eix_sites::here(eix_sites::UNIT_STATS_RECOMPUTE__67A) as *const u8).read() };
     if first != RECOMPUTE_SPEED_FIRST {
         log::warn(
             "encumbrance",

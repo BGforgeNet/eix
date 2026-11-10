@@ -61,9 +61,9 @@ impl<T> Global<T> {
         self.address
     }
 
-    /// A pointer to it; making the pointer reads nothing.
+    /// A pointer to it in the running build; making the pointer reads nothing.
     pub fn as_ptr(&self) -> *mut T {
-        core::ptr::with_exposed_provenance_mut(self.address)
+        core::ptr::with_exposed_provenance_mut(eix_sites::here(self.address))
     }
 
     /// Reads its value.

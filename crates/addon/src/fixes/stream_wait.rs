@@ -48,7 +48,7 @@ extern "C" fn update_wait(_: usize, ctx: &mut Context) {
 }
 
 extern "C" fn jingle_wait(_: usize, ctx: &mut Context) {
-    let global = core::ptr::with_exposed_provenance::<u32>(MANAGER);
+    let global = core::ptr::with_exposed_provenance::<u32>(eix_sites::here(MANAGER));
     loop {
         // SAFETY: the global holds the stream manager while music plays; read each pass as the game's loop does.
         let manager = unsafe { global.read_volatile() };
