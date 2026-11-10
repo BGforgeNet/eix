@@ -104,7 +104,8 @@ pub(crate) fn dist() -> Result<(), String> {
     Ok(())
 }
 
-/// The body of `## <version>` in the changelog: the lines up to the next `## ` heading.
+/// The body of `## <version>` in the changelog, the lines up to the next `## ` heading, with its links made
+/// absolute ([`tagged_links`]).
 pub(crate) fn release_notes(changelog: &str, version: &str) -> Result<String, String> {
     let heading = format!("## {version}");
     let mut lines = changelog.lines().skip_while(|l| l.trim_end() != heading);
@@ -116,7 +117,27 @@ pub(crate) fn release_notes(changelog: &str, version: &str) -> Result<String, St
     if body.is_empty() {
         return Err(format!("CHANGELOG.md's section {heading:?} is empty"));
     }
-    Ok(body + "\n")
+    Ok(tagged_links(&body, version) + "\n")
+}
+
+/// `text` with each relative link target, `](<path>)`, pointed at that file as tagged `v<version>`: a release page
+/// shows a relative target as written, so the browser resolves it against the page's own URL. A target with a scheme
+/// and an anchor alone stay.
+fn tagged_links(text: &str, version: &str) -> String {
+    let base = format!("{}/blob/v{version}/", env!("CARGO_PKG_REPOSITORY"));
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find("](") {
+        let (head, tail) = rest.split_at(at + 2);
+        out.push_str(head);
+        let target = tail.split(')').next().unwrap_or_default();
+        if !target.starts_with('#') && !target.contains(':') {
+            out.push_str(&base);
+        }
+        rest = tail;
+    }
+    out.push_str(rest);
+    out
 }
 
 fn read(path: &Path) -> Result<String, String> {
@@ -141,6 +162,16 @@ mod tests {
         assert_eq!(
             release_notes(LOG, "0.1.0").unwrap(),
             "First release.\n\n- Old.\n"
+        );
+    }
+
+    #[test]
+    fn relative_links_point_at_the_tagged_files() {
+        let log = "## 1.2.0\n\n- [Fixes](docs/engine.md#fixes), [Fixes](#fixes), [site](https://example.org/a).\n";
+        assert_eq!(
+            release_notes(log, "1.2.0").unwrap(),
+            "- [Fixes](https://github.com/BGforgeNet/eix/blob/v1.2.0/docs/engine.md#fixes), [Fixes](#fixes), \
+             [site](https://example.org/a).\n"
         );
     }
 
