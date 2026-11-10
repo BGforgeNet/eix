@@ -15,18 +15,10 @@ ENV WINEDEBUG=-all
 # Installs the toolchain the file names; a later change to it reinstalls on the next image build.
 COPY rust-toolchain.toml /toolchain/
 RUN cd /toolchain && rustup show
-# The gate's dependency and workflow checks and the package's licence notices, built from their locked dependency
-# sets.
-RUN cd /toolchain && cargo install --locked --root /usr/local cargo-deny@0.20.2 cargo-shear@1.14.0 zizmor@1.32.0 \
-    && cargo install --locked --root /usr/local --features cli cargo-about@0.9.3 \
-    && test -x /usr/local/bin/cargo-about \
-    && rm -rf /root/.cargo/registry
-# The workflow linter, from its release, checked against the release's published checksum.
-RUN curl -sfL -o /tmp/actionlint.tgz \
-        https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
-    && echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/actionlint.tgz" | sha256sum -c - \
-    && tar -xzf /tmp/actionlint.tgz -C /usr/local/bin actionlint \
-    && rm /tmp/actionlint.tgz
+# The gate's dependency and workflow checks and the package's licence notices, from their releases' prebuilt
+# binaries: building them from source took most of a cold image build.
+COPY build/install-tools.sh /tmp/install-tools.sh
+RUN /tmp/install-tools.sh && rm /tmp/install-tools.sh
 # The documentation site's builder, from its release, checked against the release's published checksum. The Pages
 # workflow runs the same script, so the version is pinned there once.
 COPY build/install-mdbook.sh /tmp/install-mdbook.sh
