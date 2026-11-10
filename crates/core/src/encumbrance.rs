@@ -1,5 +1,5 @@
 //! Encumbrance: the load a hero carries slows running, and above the maximum load walking too, and makes running cost
-//! more mana, as eix.ini's `[Encumbrance]` section sets (`docs/eix-ini.md`).
+//! more mana, as eix.ini's `[Encumbrance]` section sets (`docs/features.md`, `docs/eix-ini.md`).
 //!
 //! E is the load over the maximum load (the hero panel's encumbrance). Running speed is `1 - RunSlope x E`, walking
 //! (and sneaking, crawling) speed `1 - WalkSlope x (E - 1)` above the maximum and unchanged below it, both at least

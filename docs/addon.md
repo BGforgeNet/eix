@@ -91,17 +91,7 @@ Loose files in the mod folder override matching game files:
 | `Stream` folder (StreamPatch) | Streamed sound | fixed: stream paths of 260 bytes and more work (the original ends the process) |
 | `binkw32.dll` (BinkPatch) | Replace the game's movie decoder | fixed: a binkw32.dll without `BinkSetVolume`: the volume call does nothing, with a warning (the original crashes) |
 
-#### FLAC music
-
-eix plays a music or streamed-sound track from `Stream\<name>.flac` when there is one, in place of `<name>.mp3`: the
-mod's `Stream` folder first, then the game's. The order is the mod's `.flac`, the mod's `.mp3`, the game's `.flac`,
-the game's `.mp3`.
-
-- The track keeps its `.mp3` name in the game: `music.reg` names and `streamsn.reg` sections (`<name>.mp3`) stay.
-- Mono or stereo, any sample rate, up to 32 bits a sample (played as 16 bits). Packs can mix FLAC and MP3 tracks.
-- addon.log names each FLAC file played. A file that does not decode plays silence, with a warning.
-- Briefing speech (`speech.res`) stays MP3.
-- On by default; [eix.ini](eix-ini.md#music)'s `[Music] Flac=0` turns it off.
+A `Stream` folder can also hold `.flac` tracks: [FLAC music](features.md#flac-music).
 
 ### Gameplay: ai.reg
 
