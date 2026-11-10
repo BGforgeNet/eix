@@ -2,8 +2,8 @@
 
 Engine fixes and tweaks for Evil Islands: Curse of the Lost Soul.
 
-EIX implements most of the features provided by EI [addon.dll](docs/addon.md), as well as
-[SpellAddon](docs/spelladdon.md), and adds [more](docs/engine-fixes.md). [Lua](docs/lua.md) scripting is available.
+EIX is an open source reimplementation of EI [addon.dll](docs/addon.md) and [SpellAddon](docs/spelladdon.md).
+It also adds [fixes](docs/engine-fixes.md) and features. [Lua](docs/lua.md) scripting is available.
 
 Reference pages: [eix site](https://bgforgenet.github.io/eix/).
 
@@ -13,6 +13,7 @@ Reference pages: [eix site](https://bgforgenet.github.io/eix/).
 <!-- ANCHOR_END: compat -->
 
 <!-- ANCHOR: install -->
+
 ## Install
 
 1. Install EIStarter-UM from [Universal Mod](https://github.com/Kyr4l/ei-universal-mod/releases). Just the starter,
@@ -28,10 +29,6 @@ To uninstall, put the starter's `dinput.dll` and `addon.dll` back.
 <!-- ANCHOR_END: install -->
 
 <!-- ANCHOR: report -->
-## Reporting a problem
-
-Open a [bug report](https://github.com/BGforgeNet/eix/issues/new?template=bug_report.yml).
-<!-- ANCHOR_END: report -->
 
 ## Development
 
