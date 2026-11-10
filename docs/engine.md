@@ -96,7 +96,7 @@ pauses. addon.log names what paused the game.
 
 ### Encumbrance
 
-The load a hero carries slows running, and makes running cost more mana; above the hero's maximum load it slows
+The load a hero carries slows running, and makes running cost more stamina; above the hero's maximum load it slows
 walking too. Load and maximum load are the encumbrance figures of the hero panel; their ratio is the encumbrance below
 (1.0 at the maximum). The rates are [settings](eix-ini.md#encumbrance).
 
@@ -105,7 +105,7 @@ walking too. Load and maximum load are the encumbrance figures of the hero panel
   maximum load: 80% at twice the maximum.
 - Turning while walking or standing slows with the running speed: the game turns a walking or standing unit at its
   running pace.
-- Running drains the mana the game's run system takes, divided by the load's running speed: at 80%, 1.25 times as
+- Running drains the stamina the game's run system takes, divided by the load's running speed: at 80%, 1.25 times as
   much. Wounded legs slow the hero without raising the drain. `RunDrain` scales the extra: 0 keeps the game's drain,
   50 halves the extra.
 - No load stops a hero from running; wounded legs still slow every movement and stop running, as in the game.
