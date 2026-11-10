@@ -3,8 +3,6 @@
 Common changes: which file to edit, which keys to set, and to what. Each key is described in full on its reference
 page.
 
-- [Running drain (stamina)](recipe-running-drain.md)
-
 ## The files
 
 | File | Where | Reference |
