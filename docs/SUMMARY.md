@@ -2,6 +2,7 @@
 
 [eix](index.md)
 
+- [Recipes](recipes.md)
 - [Script reference](scripting.md)
 - [Lua](lua.md)
   - [Lua reference](lua-reference.md)

@@ -14,6 +14,7 @@ in [Lua](lua.md) ([Lua reference](lua-reference.md)).
 
 | Page | Content |
 |---|---|
+| [Recipes](recipes.md) | Common changes: which file, which keys, which values; running drain |
 | [Script reference](scripting.md) | Every function and command of the game's script language, the original's and eix's |
 | [Lua](lua.md), [Lua reference](lua-reference.md) | The Lua host, and the functions and callbacks of a mod's script |
 | [Addon and loader](addon.md) | Settings of `config.reg` and `ai.reg`, console commands, start-up behavior |
