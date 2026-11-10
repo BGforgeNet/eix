@@ -328,7 +328,7 @@ function Round(value) end
     fn the_definitions_file_has_the_api() {
         assert!(LUA_DEFINITIONS.is_ascii());
         let api = LuaApi::parse(LUA_DEFINITIONS).expect("the definitions file is valid");
-        assert_eq!(api.function_names(FUNCTIONS_SECTION).len(), 56);
+        assert_eq!(api.function_names(FUNCTIONS_SECTION).len(), 57);
         assert_eq!(api.function_names(CALLBACKS_SECTION).len(), 19);
     }
 }

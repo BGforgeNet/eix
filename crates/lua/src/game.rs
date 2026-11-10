@@ -129,4 +129,9 @@ pub trait Game {
 
     /// `TempDumpVars(unit)`: every variable of the player's table in the table's walk order, or `None` when `unit.player` is not set.
     fn gs_vars(&self, unit: u32) -> Option<Vec<(Vec<u8>, f32)>>;
+
+    /// `GetIniValue(file, section, key)`, an addition to the original's functions: the value of `key` in
+    /// `[section]` of the INI file `file`, a path below the mod folder. `None` when the path is refused or the file,
+    /// section or key is missing.
+    fn ini_value(&self, file: &[u8], section: &[u8], key: &[u8]) -> Option<Vec<u8>>;
 }

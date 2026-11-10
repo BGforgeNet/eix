@@ -17,7 +17,7 @@ use eix_engine::game::world::{CLIENT_WORLD, LOADING_MOVIE_OFF, SERVER_WORLD, Wor
 use eix_engine::win::{file_exists, from_ansi};
 
 use super::{Call, MOD_DIR, invalid_arguments};
-use crate::report;
+use crate::{ini, report};
 
 /// Ids from here on are text keys: the player's and the named units'.
 const TEXT_KEY: i32 = 1_000_000_000;
@@ -288,6 +288,32 @@ pub(super) fn is_file_exists(call: &Call) -> bool {
     } else {
         0.0
     });
+    true
+}
+
+/// `GSGetIniNumber(file, section, key, default)` (eix's own): the INI value as a number, `default` when it is missing
+/// or not one.
+pub(super) fn gs_get_ini_number(call: &Call) -> bool {
+    let (file, section, key) = (
+        call.string(0).to_bytes(),
+        call.string(1).to_bytes(),
+        call.string(2).to_bytes(),
+    );
+    call.set_float(ini::number(file, section, key, call.float(0)));
+    true
+}
+
+/// `GSGetIniString(file, section, key, default)` (eix's own): the INI value, `default` when it is missing.
+pub(super) fn gs_get_ini_string(call: &Call) -> bool {
+    let (file, section, key) = (
+        call.string(0).to_bytes(),
+        call.string(1).to_bytes(),
+        call.string(2).to_bytes(),
+    );
+    match ini::read(file, section, key) {
+        Some(value) => call.set_text(&value),
+        None => call.set_text(call.string_bytes(3)),
+    }
     true
 }
 

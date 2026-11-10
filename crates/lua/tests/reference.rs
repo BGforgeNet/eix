@@ -56,6 +56,9 @@ impl Game for NoGame {
     fn gs_vars(&self, _: u32) -> Option<Vec<(Vec<u8>, f32)>> {
         None
     }
+    fn ini_value(&self, _: &[u8], _: &[u8], _: &[u8]) -> Option<Vec<u8>> {
+        None
+    }
 }
 
 type TestResult<T = ()> = Result<T, Box<dyn std::error::Error>>;

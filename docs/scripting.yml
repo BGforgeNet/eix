@@ -3159,6 +3159,36 @@ entries:
     source: addon
     description: >-
       Tests whether a file exists under the mod folder. A path that climbs to a parent folder is refused.
+  - name: GSGetIniNumber
+    kind: function
+    returns: number
+    params:
+      - {name: file, type: string}
+      - {name: section, type: string}
+      - {name: key, type: string}
+      - {name: default, type: number}
+    category: game
+    source: addon
+    description: >-
+      Reads a value from an INI file of the mod folder, at the call, as a number; `default` when the file, section or
+      key is missing or the value is not a number. The file is a path below the mod folder, with `/` or `\` as
+      separators; an absolute path, a drive letter or a `..` component is refused and gives `default`. The decimal
+      point is `.` or `,`. File, section and key are matched without regard to case. A missing value or a refusal is
+      logged once per file, section and key.
+  - name: GSGetIniString
+    kind: function
+    returns: string
+    params:
+      - {name: file, type: string}
+      - {name: section, type: string}
+      - {name: key, type: string}
+      - {name: default, type: string}
+    category: game
+    source: addon
+    description: >-
+      Reads a value from an INI file of the mod folder, at the call, as text; `default` when the file, section or key
+      is missing. The path and matching rules are those of `GSGetIniNumber`. A key with an empty value gives an empty
+      string.
   - name: KillUnit
     kind: command
     returns: void

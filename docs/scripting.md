@@ -2722,6 +2722,31 @@ function IsFileExists(path: string): number
 
 Tests whether a file exists under the mod folder. A path that climbs to a parent folder is refused.
 
+### GSGetIniNumber
+
+```ts
+function GSGetIniNumber(file: string, section: string, key: string, default: number): number
+```
+
+<span class="eix">eix</span> Added by addon.dll.
+
+Reads a value from an INI file of the mod folder, at the call, as a number; `default` when the file, section or key is
+missing or the value is not a number. The file is a path below the mod folder, with `/` or `\` as separators; an
+absolute path, a drive letter or a `..` component is refused and gives `default`. The decimal point is `.` or `,`. File,
+section and key are matched without regard to case. A missing value or a refusal is logged once per file, section and
+key.
+
+### GSGetIniString
+
+```ts
+function GSGetIniString(file: string, section: string, key: string, default: string): string
+```
+
+<span class="eix">eix</span> Added by addon.dll.
+
+Reads a value from an INI file of the mod folder, at the call, as text; `default` when the file, section or key is
+missing. The path and matching rules are those of `GSGetIniNumber`. A key with an empty value gives an empty string.
+
 ### KillUnit - SpellAddon `killunittrans`
 
 ```ts

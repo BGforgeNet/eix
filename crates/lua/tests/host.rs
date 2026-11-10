@@ -113,6 +113,15 @@ impl Game for FakeGame {
     fn gs_vars(&self, unit: u32) -> Option<Vec<(Vec<u8>, f32)>> {
         (unit != 0).then(|| self.vars.borrow().clone())
     }
+    fn ini_value(&self, file: &[u8], section: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+        self.log(format!(
+            "ini_value {} {} {}",
+            String::from_utf8_lossy(file),
+            String::from_utf8_lossy(section),
+            String::from_utf8_lossy(key)
+        ));
+        (file == b"a.ini" && section == b"Main" && key == b"Speed").then(|| b"1,5".to_vec())
+    }
 }
 
 struct Fixture {
@@ -201,7 +210,7 @@ fn opens_the_openlibs_set_with_ffi_only_through_require() {
 }
 
 #[test]
-fn registers_all_56_functions() {
+fn registers_all_57_functions() {
     let f = fixture();
     let names = [
         "Round",
@@ -260,12 +269,29 @@ fn registers_all_56_functions() {
         "Int32ToMem",
         "Int16ToMem",
         "Int8ToMem",
+        "GetIniValue",
     ];
-    assert_eq!(names.len(), 56);
+    assert_eq!(names.len(), 57);
     for name in names {
         let what: String = f.eval(&format!("return debug.getinfo({name}, 'S').what"));
         assert_eq!(what, "C", "{name}");
     }
+}
+
+#[test]
+fn get_ini_value_gives_the_string_or_nil() {
+    let f = fixture();
+    let (value, number): (String, f64) = f.eval(
+        "local v = GetIniValue('a.ini', 'Main', 'Speed') return v, tonumber((v:gsub(',', '.')))",
+    );
+    assert_eq!((value.as_str(), number), ("1,5", 1.5));
+    assert!(f.eval::<bool>("return GetIniValue('a.ini', 'Main', 'Other') == nil"));
+    assert!(f.eval::<bool>("return GetIniValue('b.ini', 'Main', 'Speed') == nil"));
+    assert_eq!(f.calls()[0], "ini_value a.ini Main Speed");
+    assert_eq!(
+        f.error_of("GetIniValue('a.ini', 'Main')"),
+        "t:1: bad argument #3 to 'GetIniValue' (string expected, got no value)"
+    );
 }
 
 // ---- 2. The main script ----

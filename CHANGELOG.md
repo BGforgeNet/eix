@@ -13,6 +13,8 @@ First release.
 - Built-in SpellAddon: every feature key of SpellAddon 20.6's spelladdon.ini, read from the mod folder or the game
   folder. A separate `SpellAddon*.asi` is not loaded. The package's `spelladdon.ini` has every feature off apart from
   bug fixes.
+- Mods read values from INI files in the mod folder: `GetIniValue` in Lua, `GSGetIniNumber` and `GSGetIniString` in
+  map scripts.
 - [Fixes](docs/engine.md#fixes): 30 fixes of game.exe crashes, hangs, leaks and slow paths, behind eix.ini's
   `[EngineFixes] Enabled`.
 - [Game options](docs/engine.md#game-options), each with its own setting in `[EngineFixes]`:

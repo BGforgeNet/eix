@@ -1,4 +1,4 @@
-//! The 56 functions registered for scripts, in the original's order. The memory family is in
+//! The 57 functions registered for scripts: the original's 56 in its order, then `GetIniValue`. The memory family is in
 //! [`crate::memory`]; the game-side work goes through [`Game`].
 
 use std::rc::Rc;
@@ -108,7 +108,7 @@ const TABLES: [(Table, &str, &str); 7] = [
     (Table::Runes, "GetRuneRecord", "GetRunesTableSize"),
 ];
 
-/// Registers all 56 functions as globals.
+/// Registers all 57 functions as globals.
 pub(crate) fn register_all(lua: &Lua, game: &Rc<dyn Game>) -> mlua::Result<()> {
     register(lua, "Round", |_, a| Ok(round(a.number(1)?)))?;
     let g = game.clone();
@@ -238,7 +238,15 @@ pub(crate) fn register_all(lua: &Lua, game: &Rc<dyn Game>) -> mlua::Result<()> {
         }
         Ok(())
     })?;
-    memory::register_all(lua)
+    memory::register_all(lua)?;
+    let g = game.clone();
+    register(lua, "GetIniValue", move |lua, a| {
+        let (file, section, key) = (a.bytes(1)?, a.bytes(2)?, a.bytes(3)?);
+        match g.ini_value(&file, &section, &key) {
+            Some(value) => Ok(Value::String(lua.create_string(value)?)),
+            None => Ok(Value::Nil),
+        }
+    })
 }
 
 #[cfg(test)]

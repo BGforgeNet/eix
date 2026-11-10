@@ -24,7 +24,7 @@ pub fn error_box_and_exit(title: String) -> FatalReport {
     })
 }
 
-/// The Lua state with the 56 registered functions, and the calls into it.
+/// The Lua state with the 57 registered functions, and the calls into it.
 pub struct Host {
     lua: Lua,
     /// LuaJIT's `xpcall` and `loadfile`, taken before any script can replace the globals, as the original calls
@@ -45,7 +45,7 @@ impl core::fmt::Debug for Host {
 }
 
 impl Host {
-    /// Creates the state as addon.dll does at load, whatever the config says: the libraries and the 56 functions.
+    /// Creates the state as addon.dll does at load, whatever the config says: the libraries and the 57 functions.
     pub fn new(game: Rc<dyn Game>, fatal: FatalReport) -> mlua::Result<Self> {
         let lua = state::new_state()?;
         functions::register_all(&lua, &game)?;

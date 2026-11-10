@@ -1,4 +1,4 @@
-//! AddNewScriptCommands: 69 script functions and commands, the `?` and `+` signature letters, a stricter keyword
+//! AddNewScriptCommands: 71 script functions and commands, the `?` and `+` signature letters, a stricter keyword
 //! match, and script load errors in addon.log.
 //!
 //! The keyword table (0x78BCA0, up to 300 ids) is copied and extended with the addon's records: a record whose name
@@ -49,8 +49,8 @@ struct Call {
 /// The game ids below this are the game's.
 const FIRST_NEW_ID: i32 = 300;
 
-/// The records in the original's order: name, signature (a result letter first for a function), handler.
-const RECORDS: [(&CStr, &CStr, Handler); 69] = [
+/// The records in the original's order, then eix's own at the end: name, signature (a result letter first for a function), handler.
+const RECORDS: [(&CStr, &CStr, Handler); 71] = [
     (c"GetPlayerOfUnit", c"Fo", units::get_player_of_unit),
     (c"GetUnitExp", c"Fo?s", units::get_unit_exp),
     (c"GetArmor", c"Foff", units::get_armor),
@@ -120,6 +120,8 @@ const RECORDS: [(&CStr, &CStr, Handler); 69] = [
     (c"PauseGame", c"f", commands::pause_game),
     (c"SetWeather", c"s", commands::set_weather),
     (c"AddMobEx", c"s?f", commands::add_mob_ex),
+    (c"GSGetIniNumber", c"Fsssf", commands::gs_get_ini_number),
+    (c"GSGetIniString", c"Sssss", commands::gs_get_ini_string),
 ];
 
 /// The handler of each id, from the table's build.

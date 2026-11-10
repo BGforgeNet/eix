@@ -37,7 +37,7 @@ pub(crate) fn host() -> Option<&'static Host> {
     HOST.with(Cell::get)
 }
 
-/// Creates the state with the 56 functions, as addon.dll does at load.
+/// Creates the state with the 57 functions, as addon.dll does at load.
 pub(crate) fn create() {
     let show = error_box_and_exit(ERROR_TITLE.to_owned());
     // Logged before the box ends the game, so the message and its traceback survive in a bug report; one line per
@@ -335,6 +335,10 @@ impl Game for GameAccess {
             });
         }
         Some(all)
+    }
+
+    fn ini_value(&self, file: &[u8], section: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+        crate::ini::read(file, section, key)
     }
 }
 

@@ -591,6 +591,21 @@ function StrFromMem(address) end
 
 Reads the string pointer stored at `address`, then the NUL-terminated text it points to.
 
+### GetIniValue
+
+```lua
+---@param file string
+---@param section string
+---@param key string
+---@return string? value `nil` if the path is refused or the file, section or key is missing.
+function GetIniValue(file, section, key) end
+```
+
+Reads a value from an INI file of the mod folder, at the call. File, section and key are matched without regard to case.
+The file is a path below the mod folder, with `/` or `\` as separators; an absolute path, a drive letter or a `..`
+component is refused with a warning in addon.log, as is a missing value (once per file, section and key). Convert a
+number with `tonumber`, which wants a `.` as the decimal point.
+
 ## Callbacks supplied by the mod
 
 Global functions that the main script defines, each called by the patch group named in its description. Every callback

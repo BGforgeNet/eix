@@ -22,6 +22,7 @@ mod fixes;
 mod flac_music;
 mod game;
 mod groups;
+mod ini;
 mod log;
 mod lua;
 mod plugins;
