@@ -175,15 +175,33 @@ fn check() -> Result<(), String> {
     Ok(())
 }
 
-/// Runs `cargo xtask <task>` in the build image, which this builds first.
+/// The variable naming the build image's inputs, set by CI (`ci.yml`) to the key it caches the image under.
+const IMAGE_KEY_VAR: &str = "EIX_IMAGE_KEY";
+
+/// The image label that records the key the image was built for.
+const IMAGE_KEY_LABEL: &str = "eix.image-key";
+
+/// Runs `cargo xtask <task>` in the build image, which this builds first. With `EIX_IMAGE_KEY` set, an image already
+/// labelled with that key is used as it is: podman's layer cache does not reuse an image loaded from an archive, so
+/// CI's cached image would otherwise be rebuilt in full.
 fn container(task: &str) -> Result<(), String> {
     let root = root();
-    run(
-        Command::new("podman")
-            .args(["build", "-q", "-t", IMAGE, "-f", "build/Containerfile", "."])
-            .current_dir(&root),
-        "image build",
-    )?;
+    let key = std::env::var(IMAGE_KEY_VAR).ok().filter(|k| !k.is_empty());
+    match &key {
+        Some(key) if image_key().as_deref() == Some(key.as_str()) => {
+            say(&format!(
+                "image build: skipped, {IMAGE} is built for key {key}"
+            ));
+        }
+        _ => {
+            let mut build = Command::new("podman");
+            build.args(["build", "-q", "-t", IMAGE, "-f", "build/Containerfile"]);
+            if let Some(key) = &key {
+                build.args(["--label", &format!("{IMAGE_KEY_LABEL}={key}")]);
+            }
+            run(build.arg(".").current_dir(&root), "image build")?;
+        }
+    }
     let src = format!("{}:/src:Z", root.display());
     run(
         Command::new("podman").args([
@@ -208,6 +226,17 @@ fn container(task: &str) -> Result<(), String> {
         ]),
         &format!("container {task}"),
     )
+}
+
+/// The key label of the build image; none when there is no image or it has no label.
+fn image_key() -> Option<String> {
+    let format = format!("{{{{index .Labels \"{IMAGE_KEY_LABEL}\"}}}}");
+    let out = Command::new("podman")
+        .args(["image", "inspect", "--format", &format, IMAGE])
+        .output()
+        .ok()?;
+    let key = String::from_utf8_lossy(&out.stdout).trim().to_owned();
+    (out.status.success() && !key.is_empty() && key != "<no value>").then_some(key)
 }
 
 fn run(cmd: &mut Command, name: &str) -> Result<(), String> {

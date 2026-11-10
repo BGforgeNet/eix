@@ -16,11 +16,37 @@ jobs:
   gate:
     name: Gate
     runs-on: ubuntu-24.04
-    # The image build installs Wine and compiles the gate's tools on a cold runner.
-    timeout-minutes: 120
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The build image's inputs; xtask uses a loaded image only when it carries this key.
+      - name: Key the build image
+        id: key
+        run: echo "key=eix-build-$INPUTS" >> "$GITHUB_OUTPUT"
+        env:
+          INPUTS: ${{ hashFiles('build/**', 'rust-toolchain.toml') }}
+      - name: Restore the build image
+        id: image
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/eix-build.tar
+          key: ${{ steps.key.outputs.key }}
+      - name: Load the build image
+        if: steps.image.outputs.cache-hit == 'true'
+        run: podman load -q -i "$RUNNER_TEMP/eix-build.tar"
       - name: Gate in the build image
         run: cargo xtask container
+        env:
+          EIX_IMAGE_KEY: ${{ steps.key.outputs.key }}
+      # Only pushes to main write the cache: a pull request's run reads it and never stores an image of its own.
+      - name: Archive the build image
+        if: github.event_name == 'push' && steps.image.outputs.cache-hit != 'true'
+        run: podman save -o "$RUNNER_TEMP/eix-build.tar" eix-build
+      - name: Save the build image
+        if: github.event_name == 'push' && steps.image.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/eix-build.tar
+          key: ${{ steps.key.outputs.key }}

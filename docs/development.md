@@ -49,7 +49,9 @@ Two pages are generated, and each has one data file that holds every signature a
 
 ## Continuous integration
 
-- `.github/workflows/ci.yml`: the gate (`cargo xtask container`) on every push to `main` and every pull request.
+- `.github/workflows/ci.yml`: the gate (`cargo xtask container`) on every push to `main` and every pull request. The
+  build image is cached under a hash of `build/` and `rust-toolchain.toml`, and stored by pushes to `main` only;
+  `EIX_IMAGE_KEY` makes xtask use a loaded image carrying that key instead of building one.
 - `.github/workflows/pages.yml`: the documentation site, as above.
 - `.github/workflows/release.yml`: on a `v*` tag, the gate, the package, and a draft GitHub release.
 
@@ -76,5 +78,5 @@ keeps its symbols.
 | `crates/loader` | `dinput.dll` |
 | `crates/addon` | `addon.dll`: patch groups, command line, engine fixes |
 | `xtask` | project tasks |
-| `build` | the build image and the installer of its documentation tool |
+| `build` | the build image and the installers of its tools |
 | `dist` | the release package's spelladdon.ini and licence-notice settings |
