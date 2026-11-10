@@ -550,5 +550,20 @@ fn the_shipped_ini_turns_on_only_the_bug_fixes() {
         .into_iter()
         .filter(|(s, k, _)| !SHIPPED_ON.iter().any(|(fs, fk, _)| fs == s && fk == k))
         .collect();
-    assert_eq!(Values::read(&fake(&rest)), Values::read(&Fake::default()));
+    let none = Values::read(&Fake::default());
+    // The file writes these two with a decimal point, the original's defaults with a comma: the same numbers.
+    let pointed = ["runconst", "runconstex"];
+    let read = Values::read(&fake(&rest));
+    for name in pointed {
+        assert_eq!(
+            read.double("rebalanceengine", name),
+            none.double("rebalanceengine", name),
+            "{name}"
+        );
+    }
+    let rest: Vec<_> = rest
+        .into_iter()
+        .filter(|(s, k, _)| !(s == "rebalanceengine" && pointed.contains(&k.as_str())))
+        .collect();
+    assert_eq!(Values::read(&fake(&rest)), none);
 }
