@@ -27,12 +27,12 @@ First release.
     `ClipCursorToWindow` (the cursor stays in the window) and `UnitShadowResolution` (128 or 256 for sharper unit
     shadows).
 - [eix.ini](docs/eix-ini.md), eix's own settings in the mod's folder: `[EngineFixes]`, the switches above, and
-  [`[AutoPause]`](docs/engine.md#autopause), off by default: in single player the game pauses when a party member's health drops below `Health`
-  hit points or `HealthPercent` of its maximum, when an enemy comes into view (`EnemySighted`), turns on the party
-  (`EnemyAggro`) or dies in view (`EnemyDead`).
+  [`[AutoPause]`](docs/engine.md#autopause), off by default: in single player the game pauses when a party member's
+  health drops below `Health` hit points or `HealthPercent` of its maximum, when an enemy comes into view
+  (`EnemySighted`), turns on the party (`EnemyAggro`) or dies in view (`EnemyDead`).
 - [Encumbrance](docs/engine.md#encumbrance), eix.ini's `[Encumbrance]`, off by default: the load a hero carries
   slows running (20% per maximum load), and above the maximum load walking too, and running costs as much more
-  mana as it is slower; no load stops a hero from running, and wounded legs still slow every movement.
+  stamina as it is slower; no load stops a hero from running, and wounded legs still slow every movement.
 - [FLAC music](docs/engine.md#flac-music): a track plays from `Stream\<name>.flac`, the mod's or the game's, when
   there is one; eix.ini's `[Music] Flac=0` turns it off.
 - [INI variables](docs/engine.md#ini-variables): a map script's `GSGetVar(0, "ini.<file>.<section>.<key>")` reads
