@@ -1,6 +1,6 @@
 //! AutoPause: the single-player game pauses when a party member's health falls below a limit, an enemy comes into
 //! view, an enemy turns on the party or an enemy in view dies, as eix.ini's `[AutoPause]` section sets
-//! (`docs/features.md`, `docs/eix-ini.md`).
+//! (`docs/engine.md`, `docs/eix-ini.md`).
 
 /// The section of eix.ini.
 pub const SECTION: &str = "AutoPause";

@@ -1,5 +1,5 @@
 //! HeapPadding: how much larger the engine fix makes each of game.exe's heap blocks (see
-//! `docs/fixes.md`).
+//! `docs/engine.md`).
 
 /// The padding of every block.
 pub const MIN_PADDING: usize = 64;

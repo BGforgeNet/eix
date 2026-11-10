@@ -18,4 +18,6 @@ no-section-label = true
 
 [output.html.redirect]
 # Old page names, so links to the published site keep working.
-"/engine-fixes.html" = "fixes.html"
+"/engine-fixes.html" = "engine.html"
+"/fixes.html" = "engine.html#fixes"
+"/features.html" = "engine.html#features"

@@ -1,9 +1,62 @@
-# Features
+# Fixes and features
 
-eix's own additions to the game, beside the originals' features and the [fixes](fixes.md). Each is
-set in [eix.ini](eix-ini.md): AutoPause and encumbrance are off by default, FLAC music on.
+eix's own changes to game.exe RU 1.06, beside the originals' features: [fixes](#fixes) of defects that the original
+addon.dll and SpellAddon leave, and [features](#features). Each is set in [eix.ini](eix-ini.md).
 
-## Game options
+## Fixes
+
+Code: `crates/addon/src/fixes/`, one module per fix, applied in table order after the patch groups.
+
+- A fix changes nothing a player sees, except the mod setting below. The changes a player sees are
+  [game options](#game-options), switched in the same section.
+- No fix writes a place a SpellAddon feature patches, or changes what a multiplayer peer computes.
+- addon.log lists each fix under `fixes`: applied, failed with the reason, or off. With `Enabled` 0 one line says no
+  fix applied, and only the mod setting is listed.
+
+The switches are in [eix.ini](eix-ini.md#enginefixes)'s `[EngineFixes]` section.
+
+A mod's `config.reg` can set `[MOD] ShowTutorialDefault`: the "Show tutorial" option's value while the game has
+none stored, as on a first start. The game stores the option at exit, so the player's later choice wins. Without the
+key the game's default (on) stands. `Enabled` 0 does not turn it off.
+
+| Fix | Before | After |
+|---|---|---|
+| HeapPadding | heap overruns crash under Wine (lobby, shops, looting) | blocks padded (about 14 % more heap) |
+| TimerResolution | frame times snap to 15.6 ms on Windows 10 2004+ | 1 ms timer |
+| CastTargetGone | a cast whose target leaves the world crashes the server | the order ends |
+| KillScriptOutside | `KillScript` outside a script writes through null (AntiCrash on) | reported, game goes on |
+| LowercaseTable | slow per-character lower-case conversion in parsing and lookups | cached; zone loads about 30 % faster |
+| ViewDepthInit | uninitialised depth can crash the draw sort on a first zone load | depth starts at 0 |
+| MappedFileMessage | a failed-open message over 210 bytes overflows its buffer | path cut at 210 |
+| PresentFailure | a screen lock or UAC prompt in full screen ends the game | flip waits, frame skipped |
+| FullScreenFallback | a refused full-screen mode crashes | next larger mode, game in its top left corner |
+| ScreenshotRowPadding | screenshots at some widths read past their buffer | buffer sized right |
+| BriefingText | a guest joining during a briefing crashes the host | dialogue goes on |
+| UnitPanelText | the unit panel stalls the frame for its text | drawn in memory, copied on change |
+| StreamWait | a music change spins the main thread | the wait sleeps |
+| QuestSort | quests without a `#quest` entry crash or hang the journal | sorted first |
+| ExitIndex | a zone with unloaded exits crashes the briefing screen | empty exit, warning |
+| FatalErrorExit | a fatal error with AntiCrash off crashes on shutdown | clean exit, same code |
+| UnknownScreen | an unknown game state from the host crashes the client | logged, ignored |
+| DiplomacySides | a side outside 0..31 reads and writes past the tables | hostile, unchanged, warning |
+| MissingPlayerMode | a party member with cleared modes crashes the party check | skipped |
+| NoAudioDevice | no audio device: movies crash | runs silent, warning |
+| EmptyMusicTheme | an empty theme track list divides by zero | plays nothing, warning |
+| ZoneModeText | `%` in a theme name read as a format | printed as text |
+| StreamFadeLock | a fade races the stream thread | takes its lock |
+| PointLightOverflow | the 257th script light overruns the table | refused, warning |
+| EmptyItemStrip | a missing constructor record crashes a camp or shop strip | empty list, warning |
+| UnregisteredLight | a light removed twice or moved before added corrupts memory | ignored, warning |
+| FindHandleLeak | each music track leaks a file search handle | closed |
+| LoadFailureLeaks | a failed read and two failed texture loads leak | freed |
+| TruncatedScript | a script ending mid-statement crashes or hangs the game | "Unexpected end of file" |
+| VertexLighting | 3DfpFPU.dll lights vertices in slow x87 code | SSE, four at a time, same colours bit for bit, also with Universal Mod's um-engine.dll |
+
+## Features
+
+AutoPause and encumbrance are off by default, FLAC music on; the game options each have their own default.
+
+### Game options
 
 Window, display and start-up changes. Each has its own key in [eix.ini](eix-ini.md#enginefixes)'s `[EngineFixes]`;
 `UnitShadowResolution`, `KeepRunningOnFocusLoss` and `ClipCursorToWindow` are off by default, the others on. The
@@ -25,7 +78,7 @@ under `fixes`.
 so nothing pauses and nothing minimises. With `KeepRunningOnFocusLoss` 0 the second still keeps the window on the
 screen, paused. Minimising the window yourself stays the game's: it pauses, and resumes when the window is restored.
 
-## AutoPause
+### AutoPause
 
 In single player, the game pauses when a party member's health drops low, an enemy comes into view, an enemy turns on
 the party, or an enemy in view dies; each event has its own [setting](eix-ini.md#autopause). A network game never
@@ -40,7 +93,7 @@ pauses. addon.log names what paused the game.
 - `EnemySighted` and `EnemyAggro` pause once per encounter: the next pause comes after no enemy is left in view, or
   aggressive, and one appears again. Enemies already in view, or aggressive, when a game loads pause it at once.
 
-## Encumbrance
+### Encumbrance
 
 The load a hero carries slows running, and makes running cost more mana; above the hero's maximum load it slows
 walking too. Load and maximum load are the encumbrance figures of the hero panel; their ratio is the encumbrance below
@@ -61,7 +114,7 @@ walking too. Load and maximum load are the encumbrance figures of the hero panel
   `heroalwayscanrun` changes the same byte as this feature. Its run settings (`newrunsystem`, `runconst`) decide the
   drain that `RunDrain` scales.
 
-## FLAC music
+### FLAC music
 
 eix plays a music or streamed-sound track from `Stream\<name>.flac` when there is one, in place of `<name>.mp3`: the
 mod's `Stream` folder first, then the game's. The order is the mod's `.flac`, the mod's `.mp3`, the game's `.flac`,

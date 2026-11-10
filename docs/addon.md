@@ -3,7 +3,7 @@
 `dinput.dll` loads `addon.dll`, which loads the selected mod, applies fixes and extensions, and writes `addon.log`.
 For installation and supported game builds, see the [overview](index.md). SpellAddon has its own
 [option reference](spelladdon.md), and mod scripts in Lua have the [Lua reference](lua.md); additional eix fixes
-are under [fixes](fixes.md).
+are under [fixes](engine.md#fixes).
 
 The last column of each table gives eix's difference from addon.dll 0.12.4.2 and Addon Loader 1.1.0.0, with what
 the original does in parentheses. `same` means the original's behavior;
@@ -63,7 +63,7 @@ Paths under `[CONFIG]` and plugin paths are relative to the mod folder. An empty
 | `[MOD] GameSaves` (SavesPath) | 1 | Nonzero puts saves and multiplayer heroes under the mod folder | same |
 | `[MOD] PreventZone1Animation` | 0 | Nonzero skips the opening zone animation | same |
 | `[MOD] ForceShowTutorial` | 0 | Nonzero prevents saved preferences and the options window from disabling tutorials | same |
-| `[MOD] ShowTutorialDefault` | None | The "Show tutorial" option's value while none is stored; the player's later choice wins | eix's own ([fixes](fixes.md)) |
+| `[MOD] ShowTutorialDefault` | None | The "Show tutorial" option's value while none is stored; the player's later choice wins | eix's own ([fixes](engine.md#fixes)) |
 | `[MOD] AddonVersion` | Empty | Required addon version as text. The game stops with a message when it is not a dotted version of at most four numbers, or names a version newer than 0.12.4.2 | same |
 | `[CONFIG] ai.reg` (ConfigAiReg) | Empty | Replace the game's AI settings and enable the gameplay groups | fixed: a path of 260 bytes or more is refused and the game's own ai.reg loads (the original ends the process) |
 | `[CONFIG] movie.ini`, `tutorial.ini` (ConfigMovieIni, ConfigTutorialIni) | Empty | Replace the respective configuration | fixed: a path of 260 bytes or more fails the group (the original ends the process) |
@@ -91,7 +91,7 @@ Loose files in the mod folder override matching game files:
 | `Stream` folder (StreamPatch) | Streamed sound | fixed: stream paths of 260 bytes and more work (the original ends the process) |
 | `binkw32.dll` (BinkPatch) | Replace the game's movie decoder | fixed: a binkw32.dll without `BinkSetVolume`: the volume call does nothing, with a warning (the original crashes) |
 
-A `Stream` folder can also hold `.flac` tracks: [FLAC music](features.md#flac-music).
+A `Stream` folder can also hold `.flac` tracks: [FLAC music](engine.md#flac-music).
 
 ### Gameplay: ai.reg
 

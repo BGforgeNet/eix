@@ -1,4 +1,4 @@
-//! The logic of eix's engine fixes that needs no game memory (see `docs/fixes.md`).
+//! The logic of eix's engine fixes that needs no game memory (see `docs/engine.md`).
 
 use std::sync::OnceLock;
 

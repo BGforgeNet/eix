@@ -3,7 +3,7 @@
 Engine fixes and tweaks for Evil Islands: Curse of the Lost Soul.
 
 EIX is an open source reimplementation of EI [addon.dll](docs/addon.md) and [SpellAddon](docs/spelladdon.md).
-It also adds [fixes](docs/fixes.md) and [features](docs/features.md). [Lua](docs/lua.md) scripting is available.
+It also adds [fixes](docs/engine.md#fixes) and [features](docs/engine.md#features). [Lua](docs/lua.md) scripting is available.
 
 Reference pages: [eix site](https://bgforgenet.github.io/eix/).
 

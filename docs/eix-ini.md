@@ -7,7 +7,7 @@ addon.log names the file read, and each value left out with the reason.
 
 ## EngineFixes
 
-The switches of the [fixes](fixes.md) and the [game options](features.md#game-options):
+The switches of the [fixes](engine.md#fixes) and the [game options](engine.md#game-options):
 
 | Key | Value |
 |---|---|
@@ -18,7 +18,7 @@ The switches of the [fixes](fixes.md) and the [game options](features.md#game-op
 
 ## AutoPause
 
-The events that pause single player ([AutoPause](features.md#autopause)), each off by default:
+The events that pause single player ([AutoPause](engine.md#autopause)), each off by default:
 
 | Key | Value |
 |---|---|
@@ -41,7 +41,7 @@ EnemyDead=1
 
 ## Encumbrance
 
-The rates of [encumbrance](features.md#encumbrance), off by default. Encumbrance is load over maximum load (1.0 at
+The rates of [encumbrance](engine.md#encumbrance), off by default. Encumbrance is load over maximum load (1.0 at
 the maximum).
 
 | Key | Value |
@@ -67,4 +67,4 @@ RunDrain=100
 
 | Key | Value |
 |---|---|
-| `Flac` | 1 (default): a track plays from its `.flac` when there is one ([FLAC music](features.md#flac-music)); 0: only the game's own stream code runs |
+| `Flac` | 1 (default): a track plays from its `.flac` when there is one ([FLAC music](engine.md#flac-music)); 0: only the game's own stream code runs |

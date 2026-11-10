@@ -12,9 +12,9 @@ First release.
 - Built-in SpellAddon: every feature key of SpellAddon 20.6's spelladdon.ini, read from the mod folder or the game
   folder. A separate `SpellAddon*.asi` is not loaded. The package's `spelladdon.ini` has every feature off apart from
   bug fixes.
-- [Fixes](docs/fixes.md): 30 fixes of game.exe crashes, hangs, leaks and slow paths, behind eix.ini's
+- [Fixes](docs/engine.md#fixes): 30 fixes of game.exe crashes, hangs, leaks and slow paths, behind eix.ini's
   `[EngineFixes] Enabled`.
-- [Game options](docs/features.md#game-options), each with its own setting in `[EngineFixes]`:
+- [Game options](docs/engine.md#game-options), each with its own setting in `[EngineFixes]`:
   - On by default: `KeepWindowOnFocusLoss`, `SmoothCamera`, `PlayerListOnJoin`, `SkipDiscCheck` (the starter's
     game.exe starts without the game disc) and `UnitPanelSpells` (the unit panel's values page lists the spells of a
     unit outside the party, each with its icon and effect, and gets a scroll bar, the mouse wheel over the page
@@ -23,13 +23,13 @@ First release.
     `ClipCursorToWindow` (the cursor stays in the window) and `UnitShadowResolution` (128 or 256 for sharper unit
     shadows).
 - [eix.ini](docs/eix-ini.md), eix's own settings in the mod's folder: `[EngineFixes]`, the switches above, and
-  [`[AutoPause]`](docs/features.md#autopause), off by default: in single player the game pauses when a party member's health drops below `Health`
+  [`[AutoPause]`](docs/engine.md#autopause), off by default: in single player the game pauses when a party member's health drops below `Health`
   hit points or `HealthPercent` of its maximum, when an enemy comes into view (`EnemySighted`), turns on the party
   (`EnemyAggro`) or dies in view (`EnemyDead`).
-- [Encumbrance](docs/features.md#encumbrance), eix.ini's `[Encumbrance]`, off by default: the load a hero carries
+- [Encumbrance](docs/engine.md#encumbrance), eix.ini's `[Encumbrance]`, off by default: the load a hero carries
   slows running (20% per maximum load), and above the maximum load walking too, and running costs as much more
   mana as it is slower; no load stops a hero from running, and wounded legs still slow every movement.
-- [FLAC music](docs/features.md#flac-music): a track plays from `Stream\<name>.flac`, the mod's or the game's, when
+- [FLAC music](docs/engine.md#flac-music): a track plays from `Stream\<name>.flac`, the mod's or the game's, when
   there is one; eix.ini's `[Music] Flac=0` turns it off.
 - `[MOD] ShowTutorialDefault` in config.reg: a mod sets whether tutorials show until the player chooses.
 - Bug reports: addon.log records the eix build and commit, the system, the game.exe build and the loaded modules; a

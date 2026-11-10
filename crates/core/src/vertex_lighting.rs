@@ -1,5 +1,5 @@
 //! One vertex's colour as 3DfpFPU.dll's per-vertex lighting computes it (its transform pipeline's method at RVA 0xD910,
-//! x87 code), for the engine fix that replaces it (`VertexLighting`, docs/fixes.md): one directional
+//! x87 code), for the engine fix that replaces it (`VertexLighting`, docs/engine.md): one directional
 //! light, the point lights in range, each colour channel the larger of what it had and a light's share, then the
 //! ambient light, a cap of 1 and the four channels packed as ARGB bytes.
 //!
