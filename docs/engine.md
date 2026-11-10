@@ -54,7 +54,8 @@ key the game's default (on) stands. `Enabled` 0 does not turn it off.
 
 ## Features
 
-AutoPause and encumbrance are off by default, FLAC music on; the game options each have their own default.
+AutoPause and encumbrance are off by default, FLAC music and INI variables on; the game options each have their own
+default.
 
 ### Game options
 
@@ -126,3 +127,19 @@ the game's `.mp3`.
 - addon.log names each FLAC file played. A file that does not decode plays silence, with a warning.
 - Briefing speech (`speech.res`) stays MP3.
 - On by default; [eix.ini](eix-ini.md#music)'s `[Music] Flac=0` turns it off.
+
+### INI variables
+
+A script's `GSGetVar(0, "ini.<file>.<section>.<key>")` reads `key` in `[section]` of `<file>.ini` as a number, so a
+mod's map scripts can take settings from an INI file. [Mod settings for map scripts](recipe-map-script-settings.md)
+shows the use.
+
+- The file comes from the mod's folder (`Mods\<mod>`), else the game folder. `<file>` is a plain file name: a name
+  with `\`, `/` or `:` reads the game's variable.
+- Each file is read once, at the first variable that names it: a change applies at the next game start.
+- A missing file, section or key, or a value that is not a number, reads 0; addon.log notes each such name once. The
+  decimal point is `.` or `,`; names ignore case. The key is the rest of the name, dots included.
+- Nothing is stored: saves hold no INI values, and multiplayer clients are sent none. Each machine reads its own
+  file.
+- Without eix the game reads 0 for such a name, as for any variable never set.
+- Always on; other variable names keep the game's own lookup.

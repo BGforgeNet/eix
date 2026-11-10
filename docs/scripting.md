@@ -2234,6 +2234,9 @@ function GSGetVar(player: number, name: string): number
 
 Returns the value of a variable of the player. Works differently in single and multiplayer.
 
+*Differs from the original:* a name `ini.<file>.<section>.<key>` reads that value of `<file>.ini` in the mod or game
+folder, 0 when missing ([INI variables](engine.md#ini-variables))
+
 ### GSGetVar - SpellAddon `gsgetvar`
 
 ```ts

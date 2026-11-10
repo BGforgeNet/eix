@@ -23,6 +23,7 @@ mod flac_music;
 mod game;
 mod groups;
 mod ini;
+mod ini_variables;
 mod log;
 mod lua;
 mod plugins;
@@ -86,6 +87,7 @@ fn addon_main(token: &game::BeforeWinMain) {
     auto_pause::install(token, setup.options.eix.auto_pause);
     flac_music::install(token, setup.options.eix.music, &setup.mod_dir);
     encumbrance::install(token, setup.options.eix.encumbrance);
+    ini_variables::install(token, &setup.mod_dir);
     // SpellAddonXa.asi loads with the game's sound start-up, which a command with work after the patch groups ends
     // the process before.
     if !command.late {

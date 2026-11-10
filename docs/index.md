@@ -19,7 +19,7 @@ in [Lua](lua.md) ([Lua reference](lua-reference.md)).
 | [Lua](lua.md), [Lua reference](lua-reference.md) | The Lua host, and the functions and callbacks of a mod's script |
 | [Addon and loader](addon.md) | Settings of `config.reg` and `ai.reg`, console commands, start-up behavior |
 | [SpellAddon options](spelladdon.md) | Every `spelladdon.ini` option |
-| [Fixes and features](engine.md) | Fixes of game.exe defects that eix adds; its own features: game options, AutoPause, encumbrance, FLAC music |
+| [Fixes and features](engine.md) | Fixes of game.exe defects that eix adds; its own features: game options, AutoPause, encumbrance, FLAC music, INI variables |
 | [eix.ini](eix-ini.md) | eix's own settings: engine fixes, AutoPause, encumbrance, FLAC music |
 | [Development](development.md) | Building, testing, releasing and publishing this site |
 

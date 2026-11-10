@@ -35,6 +35,8 @@ First release.
   mana as it is slower; no load stops a hero from running, and wounded legs still slow every movement.
 - [FLAC music](docs/engine.md#flac-music): a track plays from `Stream\<name>.flac`, the mod's or the game's, when
   there is one; eix.ini's `[Music] Flac=0` turns it off.
+- [INI variables](docs/engine.md#ini-variables): a map script's `GSGetVar(0, "ini.<file>.<section>.<key>")` reads
+  that value of `<file>.ini` in the mod or game folder, 0 when missing; without eix it reads 0 too.
 - `[MOD] ShowTutorialDefault` in config.reg: a mod sets whether tutorials show until the player chooses.
 - Bug reports: addon.log records the eix build and commit, the system, the game.exe build and the loaded modules; a
   crash adds a record naming the patch group, fix or feature behind each address, and its box points to the issue
