@@ -4,20 +4,32 @@
 //! The alive bit goes into the stats' flags, and every attribute raise marks the unit changed. The strength raise
 //! widens the unit's figure as the game's does. A raise or an experience gain for a unit without server vitals does
 //! nothing (the game's own result) instead of crashing.
+//!
+//! Each site is hooked when the script defines a callback it reaches, the raises and the experience gain through
+//! RefreshMaxima' and the recompute too. Without `RecalcUnitStats` the game's own Recompute runs; it computes the
+//! maximum hit points, their effect scaling and the maximum mana inline, so two hooks inside it (#13, #14) put the
+//! defined formulas there.
 #![expect(
     unsafe_code,
     reason = "the replacements read and write the unit's statistics and call game.exe's unit code"
 )]
 
+use eix_core::lua_callbacks::Callback::{
+    self, CalcBaseHealth, CalcBaseMana, GetExpMultiplierOnServer, GetModifiedHealth,
+    GetSkillPriceDiff, RecalcInternalHeroStats, RecalcUnitStats,
+};
 use eix_core::stats::{Experience, narrowed_scale, widened_scale};
 use eix_engine::float::ftol;
 use eix_engine::game::unit::{self, MapObject, Unit, UnitStats, UnitVitals};
+use eix_engine::hook::{Context, Mode};
 
 use super::lua_common::{
-    has_text_key, refresh_maxima, replace, require_host, unit_effect_maxima, with_host,
+    base_health, base_mana, context, has_text_key, modified_health, refresh_maxima, replace,
+    require_host, skill_price_diff, unit_effect_maxima, wanted, with_host,
 };
 use super::{BuildError, Labelled, Setup};
-use crate::lua::addr;
+use crate::log;
+use crate::lua::{addr, defined, ptr};
 
 /// `UnitStats::HitPointCurve` 0x523E80: `CalcBaseHealth(stats)`.
 extern "thiscall" fn hit_point_curve(stats: *mut UnitStats) -> f32 {
@@ -41,17 +53,18 @@ extern "thiscall" fn recompute_hit_points(
     vitals: *mut UnitVitals,
     unit: *mut Unit,
 ) {
-    let (s, u) = (addr(stats), addr(unit));
     // SAFETY: the game passes its unit, the unit's statistics and vitals, on its thread.
     let max = if unsafe { has_text_key(unit) } {
-        with_host(0.0, |h| h.calc_base_health(s))
+        // SAFETY: as above.
+        unsafe { base_health(stats) }
     } else {
         // SAFETY: as above.
         unsafe { (*stats).fixed_max_hit_points }
     };
     // SAFETY: as above.
     unsafe { (*vitals).max_hit_points = max };
-    let hp = with_host(0.0, |h| h.get_modified_health(s, u, max));
+    // SAFETY: as above.
+    let hp = unsafe { modified_health(stats, unit, max) };
     // SAFETY: as above.
     unsafe { (*vitals).max_hit_points = hp };
     // SAFETY: as above.
@@ -95,6 +108,73 @@ extern "thiscall" fn recompute(stats: *mut UnitStats, vitals: *mut UnitVitals, u
     with_host((), |h| {
         h.recalc_unit_stats(addr(stats), addr(vitals), addr(unit), m)
     });
+}
+
+/// A word of the game's frame at `ebp + offset`, logged and `None` off the stack.
+fn frame_word(ctx: &Context, offset: isize) -> Option<u32> {
+    let at = (ctx.ebp as usize).wrapping_add_signed(offset);
+    let word = ctx.stack_at(at);
+    if word.is_none() {
+        log::error(
+            "lua",
+            "a Recompute frame word is off the stack",
+            &format!("{at:#x}"),
+        );
+    }
+    word
+}
+
+/// The game's own `UnitStats::Recompute`, where the script defines no `RecalcUnitStats`, computes a keyed unit's
+/// maxima inline. At 0x524A49, where its keyed and unkeyed paths join (EBX the statistics, ESI the vitals, the byte
+/// at EBP-0x20 whether the unit has a text key, the x87 stack empty), a keyed unit's maxima come from the script's
+/// `CalcBaseHealth` and `CalcBaseMana`, each where it is defined.
+extern "C" fn recompute_maxima(_: usize, ctx: &mut Context) {
+    let Some(keyed) = frame_word(ctx, -0x20) else {
+        return;
+    };
+    if keyed & 0xFF == 0 {
+        return;
+    }
+    let stats = ptr::<UnitStats>(ctx.ebx);
+    let vitals = ptr::<UnitVitals>(ctx.esi);
+    if defined().has(CalcBaseHealth) {
+        // SAFETY: at this site EBX is the unit's live statistics, on the game's thread.
+        let max = unsafe { base_health(stats) };
+        // SAFETY: ESI is the unit's vitals, which the game stores its maxima in.
+        unsafe { (*vitals).max_hit_points = max };
+    }
+    if defined().has(CalcBaseMana) {
+        // SAFETY: as above.
+        let max = unsafe { base_mana(stats) };
+        // SAFETY: as above.
+        unsafe { (*vitals).max_mana = max };
+    }
+}
+
+/// Recompute at 0x524AB8, before `fld [ebp-8]; fst [esi+0xc]`: [EBP-8] holds the maximum hit points scaled by the
+/// unit's effects, the vitals still the unscaled one, the unit is [EBP+0xC], and the x87 stack is empty. The scaled
+/// value becomes the script's `GetModifiedHealth`.
+extern "C" fn recompute_scaled(_: usize, ctx: &mut Context) {
+    let Some(unit) = frame_word(ctx, 0xC) else {
+        return;
+    };
+    let unit = ptr::<Unit>(unit);
+    if unit.is_null() {
+        return;
+    }
+    let stats = ptr::<UnitStats>(ctx.ebx);
+    // SAFETY: ESI is the unit's vitals, on the game's thread.
+    let max = unsafe { (*ptr::<UnitVitals>(ctx.esi)).max_hit_points };
+    // SAFETY: EBX is the unit's live statistics and the frame's unit is live.
+    let hp = unsafe { modified_health(stats, unit, max) };
+    let at = (ctx.ebp as usize).wrapping_sub(8);
+    if !ctx.set_stack_at(at, hp.to_bits()) {
+        log::error(
+            "lua",
+            "the scaled maximum is off the stack",
+            &format!("{at:#x}"),
+        );
+    }
 }
 
 /// Which attribute a raise changes, and which scale component it widens (strength) or narrows (dexterity).
@@ -219,9 +299,7 @@ unsafe fn raise_byte(
         .wrapping_offset(index as isize);
     // SAFETY: the statistics' byte the game names.
     let old = unsafe { at.read() };
-    let cost = with_host(0, |h| {
-        h.get_skill_price_diff(i32::from(old), i32::from(old) + i32::from(step))
-    });
+    let cost = skill_price_diff(i32::from(old), i32::from(old) + i32::from(step));
     // SAFETY: as above; read again after the script ran, as the original's `add BYTE PTR [esi], bl`.
     let now = unsafe { at.read() };
     // SAFETY: as above.
@@ -278,11 +356,10 @@ extern "thiscall" fn set_from_stats(unit: *mut Unit, stats: *mut UnitStats) {
     let params = unsafe { &raw mut (*unit).params };
     // SAFETY: as above.
     unsafe { UnitStats::pack(stats, unit, params) };
-    let (s, u) = (addr(stats), addr(unit));
-    let hp = with_host(0.0, |h| {
-        let base = h.calc_base_health(s);
-        h.get_modified_health(s, u, base)
-    });
+    // SAFETY: as above.
+    let base = unsafe { base_health(stats) };
+    // SAFETY: as above.
+    let hp = unsafe { modified_health(stats, unit, base) };
     // The packed fields are 16 bits: the low half of `_ftol2_sse`'s result, as the original's `mov WORD PTR`.
     // SAFETY: as above.
     unsafe { (*unit).map_object.packed_vitals.max_hit_points = ftol(f64::from(hp)) as u16 };
@@ -292,92 +369,153 @@ extern "thiscall" fn set_from_stats(unit: *mut Unit, stats: *mut UnitStats) {
     unsafe { (*unit).map_object.packed_vitals.hit_points = ftol(f64::from(left)) as u16 };
 }
 
+/// A replaced function: its label, entry, first bytes, replacement, and the callbacks the replacement reaches.
+type Site<'a> = (&'a str, usize, &'a [u8], usize, &'a [Callback]);
+
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     require_host()?;
-    let sites: [(&str, usize, &[u8], usize); 13] = [
+    // What each replacement reaches: the hit points through `base_health` and `modified_health`, RefreshMaxima' the
+    // mana too, a raise also the recompute, and the experience gain the scaled experience's entry.
+    const HIT_POINTS: &[Callback] = &[CalcBaseHealth, GetModifiedHealth];
+    const GAIN: &[Callback] = &[
+        CalcBaseHealth,
+        GetModifiedHealth,
+        CalcBaseMana,
+        GetExpMultiplierOnServer,
+    ];
+    const RAISE: &[Callback] = &[
+        CalcBaseHealth,
+        GetModifiedHealth,
+        CalcBaseMana,
+        RecalcUnitStats,
+    ];
+    const RAISE_PRICED: &[Callback] = &[
+        CalcBaseHealth,
+        GetModifiedHealth,
+        CalcBaseMana,
+        RecalcUnitStats,
+        GetSkillPriceDiff,
+    ];
+    let sites: [Site<'_>; 13] = [
         (
             "LuaRecalcUnitStats #0",
             eix_sites::UNIT_STATS_HIT_POINT_CURVE,
             &[0x83, 0xEC, 0x08, 0xD9, 0x05, 0x60, 0x54, 0x7C, 0x00],
             hit_point_curve as *const () as usize,
+            &[CalcBaseHealth],
         ),
         (
             "LuaRecalcUnitStats #1",
             eix_sites::UNIT_STATS_MANA_CURVE,
             &[0x83, 0xEC, 0x08, 0xD9, 0x05, 0x74, 0x54, 0x7C, 0x00],
             mana_curve as *const () as usize,
+            &[CalcBaseMana],
         ),
         (
             "LuaRecalcUnitStats #2",
             eix_sites::SCALE_HIT_POINTS_BY_EFFECTS,
             &[0x55, 0x8B, 0xEC, 0x51, 0x56],
             scale_hit_points as *const () as usize,
+            &[GetModifiedHealth],
         ),
         (
             "LuaRecalcUnitStats #3",
             eix_sites::UNIT_STATS_RECOMPUTE_HIT_POINTS,
             &[0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x08],
             recompute_hit_points as *const () as usize,
+            HIT_POINTS,
         ),
         (
             "LuaRecalcUnitStats #4",
             eix_sites::UNIT_STATS_GAIN_EXPERIENCE,
             &[0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C],
             gain_experience as *const () as usize,
+            GAIN,
         ),
         (
             "LuaRecalcUnitStats #5",
             eix_sites::UNIT_STATS_RECOMPUTE,
             &[0x55, 0x8B, 0xEC, 0x81, 0xEC, 0xD4, 0x00, 0x00, 0x00],
             recompute as *const () as usize,
+            &[RecalcUnitStats],
         ),
         (
             "LuaRecalcUnitStats #6",
             eix_sites::UNIT_STATS_RAISE_STRENGTH,
             &[0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x08],
             raise_strength as *const () as usize,
+            RAISE,
         ),
         (
             "LuaRecalcUnitStats #7",
             eix_sites::UNIT_STATS_RAISE_DEXTERITY,
             &[0x55, 0x8B, 0xEC, 0x51, 0x53],
             raise_dexterity as *const () as usize,
+            RAISE,
         ),
         (
             "LuaRecalcUnitStats #8",
             eix_sites::UNIT_STATS_RAISE_INTELLIGENCE,
             &[0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x14],
             raise_intelligence as *const () as usize,
+            RAISE,
         ),
         (
             "LuaRecalcUnitStats #9",
             eix_sites::UNIT_STATS_RAISE_SKILL,
             &[0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C],
             raise_skill as *const () as usize,
+            RAISE_PRICED,
         ),
         (
             "LuaRecalcUnitStats #10",
             eix_sites::UNIT_STATS_RAISE_ATTRIBUTE,
             &[0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C],
             raise_attribute as *const () as usize,
+            RAISE_PRICED,
         ),
         (
             "LuaRecalcUnitStats #11",
             eix_sites::UNIT_STATS_RESET_TO_BASE,
             &[0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x14],
             reset_to_base as *const () as usize,
+            &[RecalcInternalHeroStats],
         ),
         (
             "LuaRecalcUnitStats #12",
             eix_sites::C_UNIT_SET_FROM_STATS,
             &[0x56, 0x8B, 0xF1, 0x57, 0x8B, 0x7C, 0x24, 0x0C],
             set_from_stats as *const () as usize,
+            HIT_POINTS,
         ),
     ];
-    sites
+    let mut hooked = sites
         .into_iter()
-        .map(|(label, site, original, to)| replace(label, site, original, to))
-        .collect()
+        .filter(|&(.., reaches)| wanted(reaches))
+        .map(|(label, site, original, to, _)| replace(label, site, original, to))
+        .collect::<Result<Vec<_>, _>>()?;
+    // Without `RecalcUnitStats` the game's Recompute runs, with the three formulas inline.
+    if !defined().has(RecalcUnitStats) {
+        if wanted(&[CalcBaseHealth, CalcBaseMana]) {
+            hooked.push(context(
+                "LuaRecalcUnitStats #13",
+                eix_sites::UNIT_STATS_RECOMPUTE__4E9,
+                &[0x8B, 0x7D, 0x0C, 0x8B, 0x4E, 0x0C],
+                Mode::After,
+                recompute_maxima,
+            )?);
+        }
+        if wanted(&[GetModifiedHealth]) {
+            hooked.push(context(
+                "LuaRecalcUnitStats #14",
+                eix_sites::UNIT_STATS_RECOMPUTE__558,
+                &[0xD9, 0x45, 0xF8, 0xD9, 0x56, 0x0C],
+                Mode::After,
+                recompute_scaled,
+            )?);
+        }
+    }
+    Ok(hooked)
 }
 
 #[cfg(test)]

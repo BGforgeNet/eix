@@ -1,19 +1,80 @@
 //! What the nine `Lua*` groups share: the Lua host, the hook kinds, the effect maxima and
 //! RefreshMaxima'.
+//!
+//! A site is hooked only when the main script defines a callback the site reaches; elsewhere the game's own code runs
+//! (the original hooks every site and stops with a Lua error at the first call of a missing callback). A replacement
+//! that reaches several callbacks calls the game's own function for each one the script left out: that function's
+//! site is not hooked, so it is the game's code.
 #![expect(
     unsafe_code,
     reason = "the groups' replacements read and call game.exe's unit code"
 )]
 
+use eix_core::lua_callbacks::Callback;
 use eix_core::stats::{EFFECT_TYPES, effect_maxima};
-use eix_engine::game::unit::{Unit, UnitStats, UnitVitals};
+use eix_engine::game::unit::{self, Unit, UnitStats, UnitVitals};
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Handler, Mode};
 use eix_lua::Host;
 
 use super::{BuildError, Labelled};
 use crate::log;
-use crate::lua::{addr, host};
+use crate::lua::{addr, defined, host};
+
+/// Whether the main script defined any of `callbacks`: a site that reaches them is hooked.
+pub(super) fn wanted(callbacks: &[Callback]) -> bool {
+    defined().any(callbacks)
+}
+
+/// The base maximum hit points: the script's `CalcBaseHealth`, else the game's `UnitStats::HitPointCurve`.
+///
+/// # Safety
+/// `stats` must be a unit's live statistics, on the game's thread.
+pub(super) unsafe fn base_health(stats: *mut UnitStats) -> f32 {
+    if defined().has(Callback::CalcBaseHealth) {
+        with_host(0.0, |h| h.calc_base_health(addr(stats)))
+    } else {
+        // SAFETY: the caller guarantees the statistics and the thread.
+        unsafe { UnitStats::hit_point_curve(stats) }
+    }
+}
+
+/// The base maximum mana: the script's `CalcBaseMana`, else the game's `UnitStats::ManaCurve`.
+///
+/// # Safety
+/// As for [`base_health`].
+pub(super) unsafe fn base_mana(stats: *mut UnitStats) -> f32 {
+    if defined().has(Callback::CalcBaseMana) {
+        with_host(0.0, |h| h.calc_base_mana(addr(stats)))
+    } else {
+        // SAFETY: the caller guarantees the statistics and the thread.
+        unsafe { UnitStats::mana_curve(stats) }
+    }
+}
+
+/// `hp` after `unit`'s effects: the script's `GetModifiedHealth`, else the game's `ScaleHitPointsByEffects`.
+///
+/// # Safety
+/// As for [`base_health`]; `unit` must be the live unit the statistics belong to.
+pub(super) unsafe fn modified_health(stats: *mut UnitStats, unit: *mut Unit, hp: f32) -> f32 {
+    if defined().has(Callback::GetModifiedHealth) {
+        with_host(0.0, |h| h.get_modified_health(addr(stats), addr(unit), hp))
+    } else {
+        // SAFETY: the caller guarantees the statistics, the unit and the thread.
+        unsafe { UnitStats::scale_hit_points_by_effects(stats, unit, hp) }
+    }
+}
+
+/// The experience a step from level `from` to `to` costs: the script's `GetSkillPriceDiff`, else the game's
+/// `SchoolPrice`.
+pub(super) fn skill_price_diff(from: i32, to: i32) -> i32 {
+    if defined().has(Callback::GetSkillPriceDiff) {
+        with_host(0, |h| h.get_skill_price_diff(from, to))
+    } else {
+        // SAFETY: only the game's unit code, on its thread, raises a skill.
+        unsafe { unit::school_price(from, to) }
+    }
+}
 
 /// The Lua host for a group's preparation: a group whose callbacks have no state fails.
 pub(super) fn require_host() -> Result<(), BuildError> {
@@ -95,7 +156,7 @@ pub(super) unsafe fn has_text_key(unit: *mut Unit) -> bool {
     eix_core::stats::is_text_key(unsafe { (*unit).map_object.transform.base.id })
 }
 
-/// RefreshMaxima': the maxima from the three Lua formulas, then the slots and the hit points.
+/// RefreshMaxima': the maxima from the three formulas, then the slots and the hit points.
 ///
 /// # Safety
 /// `stats` and `vitals` must be `unit`'s live statistics and server vitals, on the game's thread.
@@ -104,14 +165,14 @@ pub(super) unsafe fn refresh_maxima(
     vitals: *mut UnitVitals,
     unit: *mut Unit,
 ) {
-    let (s, u) = (addr(stats), addr(unit));
-    let max_hp = with_host(0.0, |h| {
-        let base = h.calc_base_health(s);
-        h.get_modified_health(s, u, base)
-    });
+    // SAFETY: the caller guarantees the statistics and the thread.
+    let base = unsafe { base_health(stats) };
+    // SAFETY: as above, and the unit.
+    let max_hp = unsafe { modified_health(stats, unit, base) };
     // SAFETY: the caller guarantees the vitals.
     unsafe { (*vitals).max_hit_points = max_hp };
-    let max_mana = with_host(0.0, |h| h.calc_base_mana(s));
+    // SAFETY: as above.
+    let max_mana = unsafe { base_mana(stats) };
     // SAFETY: as above.
     unsafe { (*vitals).max_mana = max_mana };
     // SAFETY: the maximum is read back, as the original does; a script may have changed it meanwhile.

@@ -593,9 +593,9 @@ Reads the string pointer stored at `address`, then the NUL-terminated text it po
 
 ## Callbacks supplied by the mod
 
-Global functions that the main script defines, each called by the patch group named in its description. Define every
-callback that an enabled gameplay path calls. A callback that returns nothing updates the structures it receives through
-their addresses.
+Global functions that the main script defines, each called by the patch group named in its description. Every callback
+is optional: where the script defines none, the game's own code runs. A callback that returns nothing updates the
+structures it receives through their addresses.
 
 ### GetSkillPriceDiff
 

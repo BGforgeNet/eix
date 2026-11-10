@@ -303,9 +303,9 @@ function UInt32ToMem(address, value) end
 function StrFromMem(address) end
 
 -- Section: Callbacks supplied by the mod
--- Global functions that the main script defines, each called by the patch group named in its description. Define every
--- callback that an enabled gameplay path calls. A callback that returns nothing updates the structures it receives
--- through their addresses.
+-- Global functions that the main script defines, each called by the patch group named in its description. Every
+-- callback is optional: where the script defines none, the game's own code runs. A callback that returns nothing
+-- updates the structures it receives through their addresses.
 
 ---Group `LuaGetPerkPrice`. The experience cost of a skill step.
 ---@param from integer

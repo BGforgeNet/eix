@@ -8,6 +8,9 @@
     reason = "reading the game's experience frames, units and statistics"
 )]
 
+use eix_core::lua_callbacks::Callback::{
+    GetExpMultiplierOnClient, GetExpMultiplierOnServer, GetManaBonusOnClient, GetManaBonusOnServer,
+};
 use eix_core::stats::Experience;
 use eix_engine::float::ftol;
 use eix_engine::game::player::{PlayerClient, UnitMapNode};
@@ -16,7 +19,7 @@ use eix_engine::game::unit::{UnitParams, UnitStats};
 use eix_engine::game::world::{CLIENT_WORLD, World};
 use eix_engine::hook::{Context, Mode};
 
-use super::lua_common::{context, replace, require_host, with_host};
+use super::lua_common::{context, replace, require_host, wanted, with_host};
 use super::{BuildError, Labelled, Setup, applied_write};
 use crate::log;
 use crate::lua::{addr, ptr};
@@ -126,56 +129,66 @@ extern "C" fn describe_stats(_: usize, ctx: &mut Context) {
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     require_host()?;
-    let entry = match applied_write(ADD_SCALED_EXPERIENCE) {
-        Some(earlier) if earlier.len() >= ADD_SCALED_EXPERIENCE_ENTRY.len() => {
-            log::warn(
-                "lua",
-                "0x00523960 holds an earlier group's patch (ExpLimit #1); its first 5 bytes become this group's jump, as in the original",
-                "LuaGetExpModifiers #2",
-            );
-            earlier[..ADD_SCALED_EXPERIENCE_ENTRY.len()].to_vec()
-        }
-        Some(_) | None => ADD_SCALED_EXPERIENCE_ENTRY.to_vec(),
-    };
-    Ok(vec![
-        replace(
+    let mut sites = Vec::new();
+    if wanted(&[GetManaBonusOnServer]) {
+        sites.push(replace(
             "LuaGetExpModifiers #0",
             eix_sites::UNIT_STATS_PERIOD_20,
             &[0xD9, 0x05, 0x24, 0xE1, 0x73, 0x00],
             period20 as *const () as usize,
-        )?,
-        replace(
+        )?);
+    }
+    if wanted(&[GetManaBonusOnClient]) {
+        sites.push(replace(
             "LuaGetExpModifiers #1",
             eix_sites::UNIT_PARAMS_PERIOD,
             &[0x51, 0x33, 0xC0, 0x8A, 0x41, 0x0E],
             params_period as *const () as usize,
-        )?,
-        replace(
+        )?);
+    }
+    if wanted(&[GetExpMultiplierOnServer]) {
+        let entry = match applied_write(ADD_SCALED_EXPERIENCE) {
+            Some(earlier) if earlier.len() >= ADD_SCALED_EXPERIENCE_ENTRY.len() => {
+                log::warn(
+                    "lua",
+                    "0x00523960 holds an earlier group's patch (ExpLimit #1); its first 5 bytes become this group's jump, as in the original",
+                    "LuaGetExpModifiers #2",
+                );
+                earlier[..ADD_SCALED_EXPERIENCE_ENTRY.len()].to_vec()
+            }
+            Some(_) | None => ADD_SCALED_EXPERIENCE_ENTRY.to_vec(),
+        };
+        sites.push(replace(
             "LuaGetExpModifiers #2",
             ADD_SCALED_EXPERIENCE,
             &entry,
             add_scaled_experience as *const () as usize,
-        )?,
-        context(
+        )?);
+    }
+    if wanted(&[GetExpMultiplierOnClient]) {
+        sites.push(context(
             "LuaGetExpModifiers #3",
             eix_sites::C_PLAYER_CLIENT_ON_EXPERIENCE__63,
             &[0x8B, 0x45, 0xF0, 0x8B, 0x4D, 0xFC],
             Mode::Drop,
             on_experience,
-        )?,
-        context(
+        )?);
+        sites.push(context(
             "LuaGetExpModifiers #4",
             eix_sites::C_PLAYER_CLIENT_ON_EXPERIENCE_ALL__46,
             &[0x8B, 0x4D, 0xE4, 0x8B, 0x45, 0xD0],
             Mode::Drop,
             on_experience_all,
-        )?,
-        context(
+        )?);
+    }
+    if wanted(&[GetExpMultiplierOnServer]) {
+        sites.push(context(
             "LuaGetExpModifiers #5",
             eix_sites::C_ITEM_INFO_PANEL_DESCRIBE_STATS__228,
             &[0x68, 0xB8, 0x2F, 0x79, 0x00],
             Mode::Before,
             describe_stats,
-        )?,
-    ])
+        )?);
+    }
+    Ok(sites)
 }

@@ -1,8 +1,9 @@
 //! LuaRegenerateHpAndMp: `UnitVitals::Regenerate` is the script's `RegenerateHpAndMp`.
 
+use eix_core::lua_callbacks::Callback::RegenerateHpAndMp;
 use eix_engine::game::unit::{Unit, UnitStats, UnitVitals};
 
-use super::lua_common::{replace, require_host, with_host};
+use super::lua_common::{replace, require_host, wanted, with_host};
 use super::{BuildError, Labelled, Setup};
 use crate::lua::addr;
 
@@ -23,6 +24,9 @@ extern "thiscall" fn regenerate(
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     require_host()?;
+    if !wanted(&[RegenerateHpAndMp]) {
+        return Ok(Vec::new());
+    }
     Ok(vec![replace(
         "LuaRegenerateHpAndMp #0",
         eix_sites::UNIT_VITALS_REGENERATE,

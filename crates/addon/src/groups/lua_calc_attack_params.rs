@@ -10,12 +10,15 @@
     reason = "reading the attacking unit, its controller and its player"
 )]
 
+use eix_core::lua_callbacks::Callback::{CalcAttackParamsOnClient, CalcAttackParamsOnServer};
 use eix_engine::game::combat::AttackParams;
 use eix_engine::game::player::Player;
 use eix_engine::game::unit::{UnitController, UnitServer};
 use eix_engine::hook::{Context, Mode};
 
-use super::lua_common::{context, has_text_key, require_host, unit_effect_maxima, with_host};
+use super::lua_common::{
+    context, has_text_key, require_host, unit_effect_maxima, wanted, with_host,
+};
 use super::{BuildError, Labelled, Setup};
 use crate::lua::{addr, ptr};
 
@@ -90,29 +93,36 @@ extern "C" fn take_hit(_: usize, ctx: &mut Context) {
     };
 }
 
+/// The hit test (#2) calls no callback; it comes with the server's attack parameters, the server side of combat.
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     require_host()?;
-    Ok(vec![
-        context(
+    let mut sites = Vec::new();
+    if wanted(&[CalcAttackParamsOnServer]) {
+        sites.push(context(
             "CalcAttackParams #0",
             eix_sites::C_UNIT_SERVER_GET_ATTACK_PARAMS__1A8,
             &[0x8B, 0x8D, 0x58, 0x02, 0x00, 0x00],
             Mode::Drop,
             server,
-        )?,
-        context(
+        )?);
+    }
+    if wanted(&[CalcAttackParamsOnClient]) {
+        sites.push(context(
             "CalcAttackParams #1",
             eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__214,
             &[0x8B, 0x47, 0x1C, 0x8B, 0x54, 0x24, 0x0C],
             Mode::Drop,
             client,
-        )?,
-        context(
+        )?);
+    }
+    if wanted(&[CalcAttackParamsOnServer]) {
+        sites.push(context(
             "CalcAttackParams #2",
             eix_sites::C_UNIT_SERVER_TAKE_HIT__1F9,
             &[0x8B, 0x46, 0x1C, 0x8B, 0x80, 0x4C, 0x02, 0x00, 0x00],
             Mode::Drop,
             take_hit,
-        )?,
-    ])
+        )?);
+    }
+    Ok(sites)
 }

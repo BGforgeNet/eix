@@ -605,6 +605,66 @@ impl UnitStats {
         // SAFETY: the caller guarantees the statistics, vitals, unit and thread.
         unsafe { f(this, vitals, unit) }
     }
+
+    /// The base maximum hit points: `UnitStats::HitPointCurve` 0x523E80 (thiscall, the result in ST0), through
+    /// whatever patch its entry holds.
+    ///
+    /// # Safety
+    /// As for [`heal_slots`](Self::heal_slots).
+    pub unsafe fn hit_point_curve(this: *mut Self) -> f32 {
+        // SAFETY: 0x523E80 is `float __thiscall ()`.
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self) -> f32>(
+                eix_sites::UNIT_STATS_HIT_POINT_CURVE,
+            )
+        };
+        // SAFETY: the caller guarantees the statistics and the thread.
+        unsafe { f(this) }
+    }
+
+    /// The base maximum mana: `UnitStats::ManaCurve` 0x523F50 (thiscall, the result in ST0), through whatever
+    /// patch its entry holds.
+    ///
+    /// # Safety
+    /// As for [`heal_slots`](Self::heal_slots).
+    pub unsafe fn mana_curve(this: *mut Self) -> f32 {
+        // SAFETY: 0x523F50 is `float __thiscall ()`.
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self) -> f32>(eix_sites::UNIT_STATS_MANA_CURVE)
+        };
+        // SAFETY: the caller guarantees the statistics and the thread.
+        unsafe { f(this) }
+    }
+
+    /// `value` hit points scaled by `unit`'s effects: `ScaleHitPointsByEffects` 0x523E00 (`stdcall(unit, value)`,
+    /// the result in ST0), through whatever patch its entry holds. Called with the statistics in ECX, as every
+    /// caller of the game's loads them.
+    ///
+    /// # Safety
+    /// As for [`heal_slots`](Self::heal_slots); `unit` must be the live unit the statistics belong to.
+    pub unsafe fn scale_hit_points_by_effects(this: *mut Self, unit: *mut Unit, value: f32) -> f32 {
+        // SAFETY: 0x523E00 pops its two arguments as a thiscall function does.
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self, *mut Unit, f32) -> f32>(
+                eix_sites::SCALE_HIT_POINTS_BY_EFFECTS,
+            )
+        };
+        // SAFETY: the caller guarantees the statistics, the unit and the thread.
+        unsafe { f(this, unit, value) }
+    }
+}
+
+/// The experience a skill step from level `from` to `to` costs: `SchoolPrice` 0x527FF0 (fastcall: ECX `from`, EDX
+/// `to`), through whatever patch its entry holds.
+///
+/// # Safety
+/// On the game's thread, with its database loaded.
+pub unsafe fn school_price(from: i32, to: i32) -> i32 {
+    // SAFETY: 0x527FF0 is `int __fastcall (int from, int to)`.
+    let f =
+        unsafe { code::<unsafe extern "fastcall" fn(i32, i32) -> i32>(eix_sites::SCHOOL_PRICE) };
+    // SAFETY: the caller guarantees the thread.
+    unsafe { f(from, to) }
 }
 
 /// The vitals of `unit`'s server half, null without one: the unit's companion when its class id is

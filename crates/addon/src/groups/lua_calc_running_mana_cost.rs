@@ -6,10 +6,11 @@
 )]
 
 use eix_core::encumbrance::rescaled;
+use eix_core::lua_callbacks::Callback::CalcRunningManaCost;
 use eix_engine::game::unit::{UnitServer, UnitVitals};
 use eix_engine::hook::{Context, Mode};
 
-use super::lua_common::{context, require_host, with_host};
+use super::lua_common::{context, require_host, wanted, with_host};
 use super::{BuildError, Labelled, Setup};
 use crate::lua::{addr, ptr};
 
@@ -52,6 +53,10 @@ extern "C" fn handler(_: usize, ctx: &mut Context) {
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     require_host()?;
+    // Without the callback the game's drain runs, and `[Encumbrance]` scales it at its own site.
+    if !wanted(&[CalcRunningManaCost]) {
+        return Ok(Vec::new());
+    }
     Ok(vec![context(
         "CalcRunningManaCost #0",
         eix_sites::UPDATE_MOTION__A85,

@@ -9,6 +9,7 @@ use std::cell::Cell;
 use std::ffi::{CStr, CString};
 use std::rc::Rc;
 
+use eix_core::lua_callbacks::Defined;
 use eix_engine::game::console;
 use eix_engine::game::database::{self, SKILL_DATABASE, SkillDatabase};
 use eix_engine::game::item::Item;
@@ -74,6 +75,23 @@ pub(crate) fn run_main_script(setup: &Setup) {
     let script = String::from_utf8_lossy(&addon.lua_main_script_path).into_owned();
     log::info("lua", "running the main script", &script);
     host.run_main_script(addon, &setup.mod_dir);
+    let defined = Defined::from_fn(|name| host.is_function(name));
+    DEFINED.with(|d| d.set(defined));
+    log::info(
+        "lua",
+        "callbacks defined; the game's own code runs for the rest",
+        &defined.names().join(", "),
+    );
+}
+
+thread_local! {
+    /// The callbacks the main script defined, read once after it ran: the Lua groups hook only what they reach.
+    static DEFINED: Cell<Defined> = const { Cell::new(Defined::EMPTY) };
+}
+
+/// The callbacks the main script defined; none without the script.
+pub(crate) fn defined() -> Defined {
+    DEFINED.with(Cell::get)
 }
 
 /// A game address a script or hook passed, as a pointer.

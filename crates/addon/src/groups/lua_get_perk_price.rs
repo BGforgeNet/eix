@@ -1,9 +1,10 @@
 //! LuaGetPerkPrice: skill and perk prices come from the script's `GetSkillPriceDiff` and
 //! `GetPerkPrice`.
 
+use eix_core::lua_callbacks::Callback::{GetPerkPrice, GetSkillPriceDiff};
 use eix_engine::game::unit::UnitStats;
 
-use super::lua_common::{replace, require_host, with_host};
+use super::lua_common::{replace, require_host, wanted, with_host};
 use super::{BuildError, Labelled, Setup};
 use crate::lua::addr;
 
@@ -19,18 +20,22 @@ extern "thiscall" fn skill_price(stats: *mut UnitStats, record: u32) -> i32 {
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     require_host()?;
-    Ok(vec![
-        replace(
+    let mut sites = Vec::new();
+    if wanted(&[GetSkillPriceDiff]) {
+        sites.push(replace(
             "LuaGetPerkPrice #0",
             eix_sites::SCHOOL_PRICE,
             &[0x83, 0xEC, 0x08, 0xDD, 0x05, 0x40, 0xE1, 0x73, 0x00],
             school_price as *const () as usize,
-        )?,
-        replace(
+        )?);
+    }
+    if wanted(&[GetPerkPrice]) {
+        sites.push(replace(
             "LuaGetPerkPrice #1",
             eix_sites::UNIT_STATS_SKILL_PRICE,
             &[0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8],
             skill_price as *const () as usize,
-        )?,
-    ])
+        )?);
+    }
+    Ok(sites)
 }

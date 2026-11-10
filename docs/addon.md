@@ -123,7 +123,7 @@ Unless stated otherwise, these `[Addon]` keys default to 0: 0 leaves the option 
 | `AntiCrash` | Default: launcher value; override the two AntiCrash groups | same |
 | `LogErrorsInFile`, `LogErrorsInConsole`, `LogErrorsInChat` | Send game-data error reports to `errors.log`, the console, or multiplayer chat | same |
 | `EnableShowingScriptErrors` | Enable the script error display | same |
-| `EnableLuaScripts` | Load the main Lua script and enable all nine [Lua](lua.md) groups | same |
+| `EnableLuaScripts` | Load the main Lua script and enable the nine [Lua](lua.md) groups | a group hooks only where the script defines a callback; the game's own code runs for the rest (the original hooks everything and stops with a Lua error at the first call of a missing callback) |
 | `LuaMainScriptPath` | String, default `main.lua`; path relative to the mod folder | same |
 | `UsePerkLimit` | Enables and disables nothing | same |
 

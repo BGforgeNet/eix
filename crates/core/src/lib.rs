@@ -15,6 +15,7 @@ pub mod fixes;
 pub mod flac;
 pub mod groups;
 pub mod heap_padding;
+pub mod lua_callbacks;
 pub mod mod_files;
 pub mod msvc_map;
 pub mod num;

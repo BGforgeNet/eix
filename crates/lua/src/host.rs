@@ -105,6 +105,14 @@ impl Host {
         }
     }
 
+    /// Whether the global `name` is a function: a callback the script defines.
+    pub fn is_function(&self, name: &str) -> bool {
+        matches!(
+            self.lua.globals().get::<Value>(name),
+            Ok(Value::Function(_))
+        )
+    }
+
     /// Calls the global `name` with `args` as every callback does: looked up on each call, called through
     /// the protected-call helper, an error reported. Returns the first result, or the error value after an error,
     /// which the original reads the same way.

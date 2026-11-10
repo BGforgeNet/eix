@@ -9,10 +9,11 @@
     reason = "writing the game's experience share and reading the server world"
 )]
 
+use eix_core::lua_callbacks::Callback::DistributeLmpExp;
 use eix_engine::game::world::{SERVER_WORLD, World};
 use eix_engine::hook::{Context, Mode};
 
-use super::lua_common::{context, require_host, with_host};
+use super::lua_common::{context, require_host, wanted, with_host};
 use super::{BuildError, Labelled, Setup};
 use crate::log;
 use crate::lua::ptr;
@@ -43,6 +44,9 @@ extern "C" fn handler(_: usize, ctx: &mut Context) {
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     require_host()?;
+    if !wanted(&[DistributeLmpExp]) {
+        return Ok(Vec::new());
+    }
     Ok(vec![context(
         "LuaLmpExpDistribution #0",
         eix_sites::C_WORLD_SERVER_AWARD_EXPERIENCE__167,

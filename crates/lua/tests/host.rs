@@ -573,6 +573,18 @@ fn callbacks_are_looked_up_on_every_call() {
 }
 
 #[test]
+fn only_a_function_global_counts_as_a_defined_callback() {
+    let f = fixture();
+    f.exec("function CalcBaseMana() return 1 end CalcBaseHealth = 5 GetPerkPrice = {}");
+    assert!(f.host.is_function("CalcBaseMana"));
+    assert!(!f.host.is_function("CalcBaseHealth"));
+    assert!(!f.host.is_function("GetPerkPrice"));
+    assert!(!f.host.is_function("GetModifiedHealth"));
+    // A registered C function counts too: the check reads the global's type, not who made it.
+    assert!(f.host.is_function("Round"));
+}
+
+#[test]
 fn a_missing_callback_is_a_fatal_error() {
     let f = fixture();
     assert_eq!(f.host.get_perk_price(1, 2), 0);

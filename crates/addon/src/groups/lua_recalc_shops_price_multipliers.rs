@@ -5,10 +5,11 @@
     reason = "reading and writing the shops' records the game built"
 )]
 
+use eix_core::lua_callbacks::Callback::RecalcShopsPriceMultipliers;
 use eix_engine::game::database::VectorBounds;
 use eix_engine::hook::{Context, Mode};
 
-use super::lua_common::{context, require_host, with_host};
+use super::lua_common::{context, require_host, wanted, with_host};
 use super::{BuildError, Labelled, Setup};
 use crate::lua::{addr, ptr};
 
@@ -63,6 +64,9 @@ extern "C" fn handler(_: usize, ctx: &mut Context) {
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     require_host()?;
+    if !wanted(&[RecalcShopsPriceMultipliers]) {
+        return Ok(Vec::new());
+    }
     Ok(vec![context(
         "LuaRecalcShopsPriceMultipliers #0",
         eix_sites::CLASS_TEMPLATES_BUILD__84E,

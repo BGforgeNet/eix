@@ -8,7 +8,8 @@ First release.
 
 - `dinput.dll`: the addon loader, a drop-in for EI starter's Addon Loader 1.1.0.0.
 - `addon.dll`: all 87 patch groups of addon.dll 0.12.4.2, the Lua host (LuaJIT 2.1) with its script functions and
-  callbacks, the command line (`game.exe addon <command>`), plugins, addon.log and AutoRecover.
+  callbacks, the command line (`game.exe addon <command>`), plugins, addon.log and AutoRecover. A mod's Lua script
+  defines only the callbacks it changes; the game's own code runs for the rest.
 - Built-in SpellAddon: every feature key of SpellAddon 20.6's spelladdon.ini, read from the mod folder or the game
   folder. A separate `SpellAddon*.asi` is not loaded. The package's `spelladdon.ini` has every feature off apart from
   bug fixes.
