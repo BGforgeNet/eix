@@ -234,7 +234,13 @@ unsafe fn for_build<'a>(
     // SAFETY: the caller's guarantee; a site in the image has its neighbours mapped.
     let matched = unsafe { translate::matches(site, expected, &found) };
     let new = translate::written(site, expected, matched.then_some(&found[..]), new, kind);
-    let expected = if matched { found } else { expected.to_vec() };
+    // Where the bytes match only in part (an earlier write holds the rest), the fields that translate are the build's;
+    // the rest stays RU's, for the caller to judge.
+    let expected = if matched {
+        found
+    } else {
+        translate::localized(site, expected, &found)
+    };
     (Cow::Owned(expected), Cow::Owned(new))
 }
 

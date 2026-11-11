@@ -110,13 +110,18 @@ pub(crate) fn translated(site: Site, bytes: &[u8], kind: Kind) -> Vec<u8> {
     translated_with(site.ru(), bytes, is_code(site.ru(), kind), here)
 }
 
-fn equivalent_with(site: usize, bytes: &[u8], found: &[u8], map: impl Fn(usize) -> usize) -> bool {
-    if bytes.len() != found.len() {
-        return false;
-    }
+/// The 4-byte fields where `found` differs from `bytes` (written for RU address `site`) as their translation, by
+/// offset, and whether every differing byte lies in one.
+fn translated_fields(
+    site: usize,
+    bytes: &[u8],
+    found: &[u8],
+    map: impl Fn(usize) -> usize,
+) -> (Vec<usize>, bool) {
     let to = map(site);
+    let (mut fields, mut all) = (Vec::new(), bytes.len() == found.len());
     let mut i = 0;
-    while i < bytes.len() {
+    while i < bytes.len().min(found.len()) {
         if bytes[i] == found[i] {
             i += 1;
             continue;
@@ -132,11 +137,43 @@ fn equivalent_with(site: usize, bytes: &[u8], found: &[u8], map: impl Fn(usize) 
             absolute || relative
         });
         match covered {
-            Some(w) => i = w + 4,
-            None => return false,
+            Some(w) => {
+                fields.push(w);
+                i = w + 4;
+            }
+            None => {
+                all = false;
+                i += 1;
+            }
         }
     }
-    true
+    (fields, all)
+}
+
+fn equivalent_with(site: usize, bytes: &[u8], found: &[u8], map: impl Fn(usize) -> usize) -> bool {
+    translated_fields(site, bytes, found, map).1
+}
+
+fn localized_with(
+    site: usize,
+    bytes: &[u8],
+    found: &[u8],
+    map: impl Fn(usize) -> usize,
+) -> Vec<u8> {
+    let mut out = bytes.to_vec();
+    if bytes.len() == found.len() {
+        for w in translated_fields(site, bytes, found, map).0 {
+            out[w..w + 4].copy_from_slice(&found[w..w + 4]);
+        }
+    }
+    out
+}
+
+/// `bytes` (expected at RU address `site`) with each 4-byte field that `found` holds translated taken from `found`:
+/// what the running build holds where only part of the bytes match (an earlier write covers the rest), so the rest
+/// is left for the caller to judge.
+pub(crate) fn localized(site: Site, bytes: &[u8], found: &[u8]) -> Vec<u8> {
+    localized_with(site.ru(), bytes, found, here)
 }
 
 /// The bytes a 4-byte field can reach on either side of a site.
@@ -309,6 +346,23 @@ mod tests {
                 map
             ),
             (map(DATA_7AF784.ru()) as u32).to_le_bytes()
+        );
+    }
+
+    #[test]
+    fn bytes_matching_in_part_localize_what_translates() {
+        // A call into moved high code, then two bytes an earlier write changed: the call is the build's, the rest
+        // stays RU's for the caller to judge.
+        let site = LOW;
+        let rel = (HIGH as u32 + 0x93).wrapping_sub(site as u32 + 5);
+        let [r0, r1, r2, r3] = rel.to_le_bytes();
+        let [e0, e1, e2, e3] = rel.wrapping_sub(0x40).to_le_bytes();
+        let expected = [0xE8, r0, r1, r2, r3, 0x33, 0xC0];
+        let found = [0xE8, e0, e1, e2, e3, 0xEB, 0x10];
+        assert!(!equivalent_with(site, &expected, &found, map));
+        assert_eq!(
+            localized_with(site, &expected, &found, map),
+            [0xE8, e0, e1, e2, e3, 0x33, 0xC0]
         );
     }
 

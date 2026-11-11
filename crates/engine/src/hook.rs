@@ -709,7 +709,8 @@ pub fn trampoline(site: Site, original: &[u8]) -> Result<usize, HookError> {
 /// The code at RU 1.06 address `site` whose bytes are `original`, as the running build holds it: the bytes found
 /// there when they are `original` translated, else `original` (the site's write then fails its check).
 fn for_build(site: Site, original: &[u8]) -> alloc::borrow::Cow<'_, [u8]> {
-    if !eix_sites::translating() || original.is_empty() {
+    // Code from outside game.exe (a stub's own tail, origin 0) is ours: nothing in the build to read it against.
+    if !eix_sites::translating() || original.is_empty() || !eix_sites::in_image(site.ru()) {
         return alloc::borrow::Cow::Borrowed(original);
     }
     // SAFETY: a hook site lies in game.exe's mapped code, which the build check placed; nothing writes it while the
