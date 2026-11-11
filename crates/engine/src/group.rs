@@ -8,7 +8,7 @@ use core::fmt;
 use eix_sites::Site;
 
 use crate::hook::HookError;
-use crate::patch::{self, PatchError};
+use crate::patch::{self, Kind, PatchError};
 
 /// One write to game memory: the bytes a site must hold and what replaces them.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,8 +16,16 @@ pub struct SiteWrite {
     site: Site,
     expected: Vec<u8>,
     new: Vec<u8>,
-    /// The bytes are the running build's already ([`patch::localize`]); only the site is translated.
-    native: bool,
+    bytes: Space,
+}
+
+/// Whose bytes a write holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Space {
+    /// RU 1.06's, of this kind, which another build translates.
+    Ru(Kind),
+    /// The running build's already ([`patch::localize`]); only the site is translated.
+    Native,
 }
 
 impl SiteWrite {
@@ -34,14 +42,14 @@ impl SiteWrite {
             site,
             expected: expected.to_vec(),
             new: new.to_vec(),
-            native: false,
+            bytes: Space::Ru(Kind::Section),
         })
     }
 
     /// [`bytes`](Self::bytes) whose bytes are the running build's already, as [`patch::localize`] gives them.
     pub fn native(site: Site, expected: &[u8], new: &[u8]) -> Result<Self, PatchError> {
         Ok(Self {
-            native: true,
+            bytes: Space::Native,
             ..Self::bytes(site, expected, new)?
         })
     }
@@ -52,7 +60,7 @@ impl SiteWrite {
             site,
             expected: expected.to_vec(),
             new: vec![0x90; expected.len()],
-            native: false,
+            bytes: Space::Ru(Kind::Section),
         }
     }
 
@@ -79,7 +87,8 @@ impl SiteWrite {
             site,
             expected: expected.to_vec(),
             new,
-            native: false,
+            // A branch is code wherever it lies: the original put some into `.data`.
+            bytes: Space::Ru(Kind::Code),
         })
     }
 
@@ -90,7 +99,7 @@ impl SiteWrite {
             site,
             expected: (expected as u32).to_le_bytes().to_vec(),
             new: (new as u32).to_le_bytes().to_vec(),
-            native: false,
+            bytes: Space::Ru(Kind::Section),
         }
     }
 
@@ -123,15 +132,22 @@ impl SiteWrite {
         &self.new
     }
 
+    /// What the bytes are, for another build's translation (native bytes count as their section's).
+    pub fn kind(&self) -> Kind {
+        match self.bytes {
+            Space::Ru(kind) => kind,
+            Space::Native => Kind::Section,
+        }
+    }
+
     /// # Safety
     /// As for [`patch::verify`].
     unsafe fn verify(&self) -> Result<(), PatchError> {
-        if self.native {
+        match self.bytes {
             // SAFETY: the caller's guarantee.
-            unsafe { patch::verify_native(self.site, &self.expected) }
-        } else {
+            Space::Native => unsafe { patch::verify_native(self.site, &self.expected) },
             // SAFETY: the caller's guarantee.
-            unsafe { patch::verify(self.site, &self.expected) }
+            Space::Ru(_) => unsafe { patch::verify(self.site, &self.expected) },
         }
     }
 
@@ -140,12 +156,11 @@ impl SiteWrite {
     /// # Safety
     /// As for [`patch::write`].
     unsafe fn write(&self, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
-        if self.native {
+        match self.bytes {
             // SAFETY: the caller's guarantee.
-            unsafe { patch::write_native(self.site, expected, new) }
-        } else {
+            Space::Native => unsafe { patch::write_native(self.site, expected, new) },
             // SAFETY: the caller's guarantee.
-            unsafe { patch::write(self.site, expected, new) }
+            Space::Ru(kind) => unsafe { patch::write_as(self.site, kind, expected, new) },
         }
     }
 }
@@ -337,5 +352,20 @@ mod tests {
             SiteWrite::call(site, &[0; 6], 0x1000).map(|w| w.new),
             Ok(vec![0xE8, 0xFB, 0xFF, 0xFF, 0xFF, 0x90])
         );
+    }
+
+    #[test]
+    fn a_branch_is_code_wherever_it_lies() {
+        let site = eix_sites::DATA_79A5E0;
+        assert_eq!(
+            SiteWrite::jmp(site, &[0; 5], 0x1000).map(|w| w.kind()),
+            Ok(Kind::Code)
+        );
+        assert_eq!(
+            SiteWrite::call(site, &[0; 5], 0x1000).map(|w| w.kind()),
+            Ok(Kind::Code)
+        );
+        assert_eq!(SiteWrite::pointer(site, 0, 1).kind(), Kind::Section);
+        assert_eq!(SiteWrite::nop(site, &[0]).kind(), Kind::Section);
     }
 }

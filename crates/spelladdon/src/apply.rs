@@ -13,7 +13,8 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_engine::group::{self, Outcome, Report, SiteWrite};
-use eix_engine::{hook, imports, patch};
+use eix_engine::patch::{self, Kind};
+use eix_engine::{hook, imports};
 use eix_sites::Site;
 
 use crate::{Level, Log};
@@ -65,7 +66,10 @@ fn addon_writes_covered(
     let end = site + base.len();
     let (mut taken, mut shared) = (Vec::new(), Vec::new());
     for at in site.saturating_sub(ADDON_WRITE_REACH)..end {
-        let Some(written) = addon(Site::new(at)).map(|w| patch::as_built(Site::new(at), &w)) else {
+        // addon.dll's writes the merge weighs lie in `.text`, where the section says code.
+        let Some(written) =
+            addon(Site::new(at)).map(|w| patch::as_built(Site::new(at), Kind::Section, &w))
+        else {
             continue;
         };
         if at + written.len() <= site {
@@ -91,18 +95,29 @@ fn addon_writes_covered(
     Ok((taken, shared))
 }
 
-/// `(site, expected, new)` of each run of back-to-back writes: a feature that NOPs the first bytes of a replaced
-/// instruction and jumps from the rest writes two pieces, and addon.dll's write over the same instruction must be
-/// weighed against both together.
-fn contiguous_runs(writes: &[SiteWrite]) -> Vec<(usize, Vec<u8>, Vec<u8>)> {
-    let mut runs: Vec<(usize, Vec<u8>, Vec<u8>)> = Vec::new();
+/// One run of back-to-back writes: its RU 1.06 site, expected and new bytes, and their kind (code when a piece of it
+/// is).
+type Run = (usize, Vec<u8>, Vec<u8>, Kind);
+
+/// The runs of back-to-back writes: a feature that NOPs the first bytes of a replaced instruction and jumps from the
+/// rest writes two pieces, and addon.dll's write over the same instruction must be weighed against both together.
+fn contiguous_runs(writes: &[SiteWrite]) -> Vec<Run> {
+    let mut runs: Vec<Run> = Vec::new();
     for w in writes {
         match runs.last_mut() {
-            Some((site, expected, new)) if *site + expected.len() == w.site().ru() => {
+            Some((site, expected, new, kind)) if *site + expected.len() == w.site().ru() => {
                 expected.extend_from_slice(w.expected());
                 new.extend_from_slice(w.new_bytes());
+                if w.kind() == Kind::Code {
+                    *kind = Kind::Code;
+                }
             }
-            _ => runs.push((w.site().ru(), w.expected().to_vec(), w.new_bytes().to_vec())),
+            _ => runs.push((
+                w.site().ru(),
+                w.expected().to_vec(),
+                w.new_bytes().to_vec(),
+                w.kind(),
+            )),
         }
     }
     runs
@@ -125,7 +140,7 @@ impl Merge {
     pub(crate) fn add(&mut self, writes: &[SiteWrite]) -> Result<Vec<Site>, String> {
         let mut bytes = self.bytes.clone();
         let mut taken = Vec::new();
-        for (site, expected_run, new_run) in contiguous_runs(writes) {
+        for (site, expected_run, new_run, kind) in contiguous_runs(writes) {
             if site < IMAGE.start || site + expected_run.len() > IMAGE.end {
                 return Err(format!(
                     "{site:#x}+{} is outside game.exe's patchable image",
@@ -138,7 +153,7 @@ impl Merge {
             // The merge compares and keeps the running build's bytes; each address stays RU 1.06's.
             // SAFETY: as above.
             let (expected_run, new_run) =
-                unsafe { patch::localize(Site::new(site), &expected_run, &new_run) };
+                unsafe { patch::localize(Site::new(site), kind, &expected_run, &new_run) };
             let mismatch = expected_run
                 .iter()
                 .enumerate()

@@ -89,12 +89,35 @@ fn hex(bytes: &[u8]) -> String {
         .join(" ")
 }
 
+/// What bytes written at a site are, for another build: the bytes there translate as their kind says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// What the site's section holds: code in `.text`, data elsewhere (a data site's 4-byte address translates).
+    Section,
+    /// Code wherever it lies: a branch the original put into `.data` is rebased as code.
+    Code,
+}
+
 /// Replaces `expected` at `site` with `new`, only if `expected` is what is there.
 ///
 /// # Safety
 /// `site..site + expected.len()` must be mapped memory of this process that no other thread runs or writes while
 /// the call lasts.
 pub unsafe fn write(site: Site, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
+    // SAFETY: the caller's guarantee.
+    unsafe { write_as(site, Kind::Section, expected, new) }
+}
+
+/// [`write()`] of bytes of `kind`.
+///
+/// # Safety
+/// As for [`write()`].
+pub unsafe fn write_as(
+    site: Site,
+    kind: Kind,
+    expected: &[u8],
+    new: &[u8],
+) -> Result<(), PatchError> {
     if expected.len() != new.len() {
         return Err(PatchError::Length {
             site,
@@ -103,7 +126,7 @@ pub unsafe fn write(site: Site, expected: &[u8], new: &[u8]) -> Result<(), Patch
         });
     }
     // SAFETY: the caller's guarantee, for the site in the running build.
-    let (expected, new) = unsafe { for_build(site, expected, new) };
+    let (expected, new) = unsafe { for_build(site, kind, expected, new) };
     // SAFETY: as above.
     unsafe { write_at(site, &expected, &new) }
 }
@@ -125,22 +148,22 @@ pub unsafe fn write_native(site: Site, expected: &[u8], new: &[u8]) -> Result<()
     unsafe { write_at(site, expected, new) }
 }
 
-/// The bytes `expected` and `new` for RU 1.06 address `site` as the running build has them: what the site holds when
-/// it is `expected` translated (else `expected`), and `new` translated. Both unchanged on RU 1.06.
+/// The bytes `expected` and `new` (of `kind`) for RU 1.06 address `site` as the running build has them: what the site
+/// holds when it is `expected` translated (else `expected`), and `new` translated. Both unchanged on RU 1.06.
 ///
 /// # Safety
 /// As for [`verify`].
-pub unsafe fn localize(site: Site, expected: &[u8], new: &[u8]) -> (Vec<u8>, Vec<u8>) {
+pub unsafe fn localize(site: Site, kind: Kind, expected: &[u8], new: &[u8]) -> (Vec<u8>, Vec<u8>) {
     // SAFETY: the caller's guarantee.
-    let (expected, new) = unsafe { for_build(site, expected, new) };
+    let (expected, new) = unsafe { for_build(site, kind, expected, new) };
     (expected.into_owned(), new.into_owned())
 }
 
-/// `bytes` written at RU 1.06 address `site`, as the running build holds them once written (code rebased, a data
-/// address translated); reads nothing.
-pub fn as_built(site: Site, bytes: &[u8]) -> Vec<u8> {
+/// `bytes` of `kind` written at RU 1.06 address `site`, as the running build holds them once written (code rebased,
+/// a data address translated); reads nothing.
+pub fn as_built(site: Site, kind: Kind, bytes: &[u8]) -> Vec<u8> {
     if eix_sites::translating() {
-        translate::translated(site, bytes)
+        translate::translated(site, bytes, kind)
     } else {
         bytes.to_vec()
     }
@@ -197,6 +220,7 @@ static PROTECT: SpinLock<()> = SpinLock::new(());
 /// The translated range must be mapped, readable memory that no other thread writes meanwhile.
 unsafe fn for_build<'a>(
     site: Site,
+    kind: Kind,
     expected: &'a [u8],
     new: &'a [u8],
 ) -> (Cow<'a, [u8]>, Cow<'a, [u8]>) {
@@ -207,7 +231,7 @@ unsafe fn for_build<'a>(
     let found = unsafe { core::slice::from_raw_parts(site.ptr::<u8>(), expected.len()) }.to_vec();
     // SAFETY: the caller's guarantee; a site in the image has its neighbours mapped.
     let matched = unsafe { translate::matches(site, expected, &found) };
-    let new = translate::written(site, expected, matched.then_some(&found[..]), new);
+    let new = translate::written(site, expected, matched.then_some(&found[..]), new, kind);
     let expected = if matched { found } else { expected.to_vec() };
     (Cow::Owned(expected), Cow::Owned(new))
 }
@@ -219,7 +243,8 @@ unsafe fn for_build<'a>(
 /// the call lasts.
 pub unsafe fn verify(site: Site, expected: &[u8]) -> Result<(), PatchError> {
     // SAFETY: the caller's guarantee, for the site in the running build.
-    let (expected, _) = unsafe { for_build(site, expected, expected) };
+    // The expected bytes are matched without decoding, so their kind does not matter.
+    let (expected, _) = unsafe { for_build(site, Kind::Section, expected, expected) };
     // SAFETY: as above.
     unsafe { verify_at(site, &expected) }
 }
