@@ -238,20 +238,23 @@ fn info_window_remake(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
     }
     let tail = PushTail::new(3, INFO_HEADER_BACK)?;
     // The first format, in padding of `CSceneRenderer::SetSunAndAmbient`.
-    let mut writes = vec![SiteWrite::plain(
-        eix_sites::C_SCENE_RENDERER_SET_SUN_AND_AMBIENT__91,
-        &[0x90; 15],
-        b"%s %d  %s %d%s\0",
-    )?];
+    let mut writes = vec![
+        SiteWrite::plain(
+            eix_sites::C_SCENE_RENDERER_SET_SUN_AND_AMBIENT__91,
+            &[0x90; 15],
+            b"%s %d  %s %d%s\0",
+        )?,
+        // The push of the game's format becomes that of the first.
+        SiteWrite::pointer(
+            eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__252,
+            eix_sites::DATA_792F48.ru(),
+            eix_sites::C_SCENE_RENDERER_SET_SUN_AND_AMBIENT__91.ru(),
+        ),
+    ];
     writes.extend(fixed(&[
         // CHudUnitPanel::SetupVanilla: cmp ebx, 0x14.
         (eix_sites::C_HUD_UNIT_PANEL_SETUP__7C3, &[0x12], &[0x14]),
-        // push 0x500891 instead of 0x792f48, and two more arguments popped.
-        (
-            eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__252,
-            &[0x48, 0x2F, 0x79],
-            &[0x91, 0x08, 0x50],
-        ),
+        // Two more arguments popped after the format's push below.
         (
             eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__261,
             &[0x14],
@@ -488,7 +491,7 @@ fn change_font(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
             .text("fonts", &format!("newfont{}", i + 1))?
             .to_vec();
         name.resize(0x30, 0);
-        writes.push(SiteWrite::bytes(slot, &[0; 0x30], &name)?);
+        writes.push(SiteWrite::plain(slot, &[0; 0x30], &name)?);
         let mut new = [0x68, 0, 0, 0, 0];
         new[1..].copy_from_slice(&slot.ru32().to_le_bytes());
         writes.push(SiteWrite::bytes(push, &TIMES_PUSH, &new)?);
@@ -560,24 +563,30 @@ fn new_loading_screens(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 
 // --- Sound and music ---------------------------------------------------------------------------------------------
 
-/// `notrash` = 1: a `.data` pointer (0x78bbd4) points at 0x792564, and `AdvanceTime` tests motion mode 1.
+/// `notrash` = 1: `AdvanceTime` tests motion mode 1, and the briefing's table of its two speech folders (`t` at
+/// 0x793378, `s` at 0x79337C, of which the briefing picks one at random) names `t` twice. The English and German
+/// briefing has one folder and no such table.
 fn no_trash(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
-    when_on(
+    let mut writes = when_on(
         value,
-        &[
-            (
-                eix_sites::C_UNIT_CLIENT_SPECIFIC_ADVANCE_TIME__143,
-                &[0x02, 0x75],
-                &[0x01, 0x74],
-            ),
-            (
-                eix_sites::DATA_79337C,
-                &[0xD4, 0xBB, 0x78],
-                &[0x64, 0x25, 0x79],
-            ),
-        ],
-    )
+        &[(
+            eix_sites::C_UNIT_CLIENT_SPECIFIC_ADVANCE_TIME__143,
+            &[0x02, 0x75],
+            &[0x01, 0x74],
+        )],
+    )?;
+    if !writes.is_empty() && SECOND_SPEECH_FOLDER.exists_here() {
+        writes.push(SiteWrite::pointer(
+            SECOND_SPEECH_FOLDER,
+            eix_sites::DATA_78BBD4.ru(),
+            eix_sites::DATA_792564.ru(),
+        ));
+    }
+    Ok(writes)
 }
+
+/// The second speech folder's name in the briefing's table.
+const SECOND_SPEECH_FOLDER: Site = eix_sites::DATA_79337C;
 
 /// `musictimings` = 1: `CMusicSystem::UpdateMusic`'s pause between tracks is `minmusictime` plus a random number
 /// modulo `maxmusictime - minmusictime`, at its three draws. With `maxmusictime` not above `minmusictime` the modulus

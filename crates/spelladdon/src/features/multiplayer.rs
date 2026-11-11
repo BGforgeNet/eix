@@ -327,11 +327,16 @@ fn no_exp_penalty(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
         return Ok(Vec::new());
     }
     fixed(&[
-        // UnitStats::AddExperience: fadd [ecx + 4]; fstp [ecx + 4]; ret 4.
+        // UnitStats::AddExperience: fadd [ecx + 4]; fstp [ecx + 4]; ret 4. The write takes in the rest of the `fcom`
+        // whose address the `ret` starts on, so another build checks that address whole.
         (
             eix_sites::UNIT_STATS_ADD_EXPERIENCE__5,
-            &[0x81, 0x00, 0x07, 0x00, 0x00, 0xD8, 0x15, 0x58],
-            &[0x41, 0x04, 0xD9, 0x59, 0x04, 0xC2, 0x04, 0x00],
+            &[
+                0x81, 0x00, 0x07, 0x00, 0x00, 0xD8, 0x15, 0x58, 0xB8, 0x73, 0x00,
+            ],
+            &[
+                0x41, 0x04, 0xD9, 0x59, 0x04, 0xC2, 0x04, 0x00, 0xB8, 0x73, 0x00,
+            ],
         ),
         (
             eix_sites::UNIT_STATS_RAISE_SKILL__A7,
@@ -358,8 +363,12 @@ fn no_exp_penalty(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
         (eix_sites::WORLD_SERVER_RESPAWN__1A7, &[0x51], &[0x90]),
         (
             eix_sites::WORLD_SERVER_RESPAWN__1AF,
-            &[0xE8, 0xAC, 0x45, 0xEB, 0xFF, 0x8B, 0xCE, 0xE8, 0x05, 0xF9],
-            &[0x90; 10],
+            &[
+                0xE8, 0xAC, 0x45, 0xEB, 0xFF, 0x8B, 0xCE, 0xE8, 0x05, 0xF9, 0xFF, 0xFF,
+            ],
+            &[
+                0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xFF, 0xFF,
+            ],
         ),
     ])
 }
@@ -399,17 +408,50 @@ fn shown_at(site: Site, expected: &[u8], ret: &[u8]) -> Result<SiteWrite, BuildE
     Ok(SiteWrite::jmp(site, expected, stub)?)
 }
 
-/// The calls the stubs serve: each call's displacement byte that moves it from `CWorldServer::NewZone` (0x595480)
-/// to its stub 0x595474, or from `LoadSave` (0x596e70) to 0x596e67.
+/// The calls the stubs serve: each call, whose displacement's low byte moves it from `CWorldServer::NewZone`
+/// (0x595480) to its stub 0x595474, or from `LoadSave` (0x596e70) to 0x596e67. The whole call is written, so another
+/// build gets the whole displacement.
 const TIMER_CALLS: [Bytes; 8] = [
-    (eix_sites::START_FIRST_MAP__B1, &[0x8B], &[0x7F]),
-    (eix_sites::LOAD_MISSION__10F, &[0xFD], &[0xF4]),
-    (eix_sites::ENTER_ZONE__3FC, &[0x10], &[0x07]),
-    (eix_sites::ENTER_ZONE__5B7, &[0x65], &[0x59]),
-    (eix_sites::START_NETWORK_ZONE__1C7, &[0xB5], &[0xAC]),
-    (eix_sites::START_NETWORK_ZONE__2AF, &[0xDD], &[0xD1]),
-    (eix_sites::GAME_FLOW_START_ZONE__1F9, &[0x23], &[0x17]),
-    (eix_sites::C_WORLD_SERVER_ENSURE_ZONE__3C, &[0xF0], &[0xE4]),
+    (
+        eix_sites::START_FIRST_MAP__B1.back(1),
+        &[0xE8, 0x8B, 0xF2, 0x13, 0x00],
+        &[0xE8, 0x7F, 0xF2, 0x13, 0x00],
+    ),
+    (
+        eix_sites::LOAD_MISSION__10F.back(1),
+        &[0xE8, 0xFD, 0xCE, 0x01, 0x00],
+        &[0xE8, 0xF4, 0xCE, 0x01, 0x00],
+    ),
+    (
+        eix_sites::ENTER_ZONE__3FC.back(1),
+        &[0xE8, 0x10, 0xCA, 0x01, 0x00],
+        &[0xE8, 0x07, 0xCA, 0x01, 0x00],
+    ),
+    (
+        eix_sites::ENTER_ZONE__5B7.back(1),
+        &[0xE8, 0x65, 0xAE, 0x01, 0x00],
+        &[0xE8, 0x59, 0xAE, 0x01, 0x00],
+    ),
+    (
+        eix_sites::START_NETWORK_ZONE__1C7.back(1),
+        &[0xE8, 0xB5, 0xAE, 0x01, 0x00],
+        &[0xE8, 0xAC, 0xAE, 0x01, 0x00],
+    ),
+    (
+        eix_sites::START_NETWORK_ZONE__2AF.back(1),
+        &[0xE8, 0xDD, 0x93, 0x01, 0x00],
+        &[0xE8, 0xD1, 0x93, 0x01, 0x00],
+    ),
+    (
+        eix_sites::GAME_FLOW_START_ZONE__1F9.back(1),
+        &[0xE8, 0x23, 0x8E, 0x01, 0x00],
+        &[0xE8, 0x17, 0x8E, 0x01, 0x00],
+    ),
+    (
+        eix_sites::C_WORLD_SERVER_ENSURE_ZONE__3C.back(1),
+        &[0xE8, 0xF0, 0xF8, 0xFF, 0xFF],
+        &[0xE8, 0xE4, 0xF8, 0xFF, 0xFF],
+    ),
 ];
 /// `CGlobalMap::Create`'s `ret; nop x4`, which becomes `jmp 0x635c73`.
 const GLOBAL_MAP_RET: Bytes = (
@@ -637,7 +679,11 @@ mod tests {
         for value in 1..=3 {
             let w = plain(&timer_vars(&ctx, value).unwrap());
             // The redirected calls and jumps keep the original's bytes; the stubs hold our jumps.
-            assert!(w.contains(&(eix_sites::START_FIRST_MAP__B1, vec![0x8B], vec![0x7F])));
+            assert!(w.contains(&(
+                eix_sites::START_FIRST_MAP__B1.back(1),
+                vec![0xE8, 0x8B, 0xF2, 0x13, 0x00],
+                vec![0xE8, 0x7F, 0xF2, 0x13, 0x00]
+            )));
             let stub = w
                 .iter()
                 .find(|s| s.0 == eix_sites::C_WORLD_SERVER_SEND_FRESH_OBJECTS__2D4)

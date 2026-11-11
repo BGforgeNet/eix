@@ -1,9 +1,10 @@
 //! A length decoder for the 32-bit x86 instructions found at hook sites, and relocation of copied instructions.
 //!
-//! Supported forms (32-bit operand and address size; the only prefix is FS, 64, in front of a form below that is not
-//! a branch, for the SEH frame's `mov fs:[0], r32` in function epilogues):
-//! - one byte: `inc`/`dec`/`push`/`pop` r32 (40-5F), `nop` (90), `cdq` (99), `pushfd`/`popfd` (9C, 9D), `ret`
-//!   (C3), `leave` (C9), `int3` (CC);
+//! Supported forms (32-bit address size; one prefix at most, in front of a form below that is not a branch: FS, 64, for
+//! the SEH frame's `mov fs:[0], r32` in function epilogues, or the operand size, 66, which makes an immediate 16-bit):
+//! - one byte: `inc`/`dec`/`push`/`pop` r32 (40-5F), `pushad`/`popad` (60, 61), `nop` and `xchg eax, r32`
+//!   (90-97), `cwde`/`cdq` (98, 99), `pushfd`/`popfd`/`sahf`/`lahf` (9C-9F), `ret` (C3), `leave` (C9), `int3` (CC),
+//!   the flag setters `cmc`/`clc`/`stc`/`cld`/`std` (F5, F8, F9, FC, FD);
 //! - immediates: `push imm8`/`imm32` (6A, 68), `mov r8, imm8` (B0-B7), `mov r32, imm32` (B8-BF), `ret imm16` (C2),
 //!   ALU on AL/EAX with an immediate (04 0C 14 1C 24 2C 34 3C A8; 05 0D 15 1D 25 2D 35 3D A9), `mov` with a 32-bit
 //!   absolute address (A0-A3);
@@ -108,7 +109,19 @@ fn one_byte(op: u8, modrm: Option<u8>) -> Option<Operands> {
     use Operands::{Imm, ModRm, None, Rel32};
     let reg = modrm.map(|m| (m >> 3) & 7);
     Some(match op {
-        0x40..=0x5F | 0x90 | 0x99 | 0x9C | 0x9D | 0xC3 | 0xC9 | 0xCC => None,
+        0x40..=0x5F
+        | 0x60
+        | 0x61
+        | 0x90..=0x99
+        | 0x9C..=0x9F
+        | 0xC3
+        | 0xC9
+        | 0xCC
+        | 0xF5
+        | 0xF8
+        | 0xF9
+        | 0xFC
+        | 0xFD => None,
         0x04 | 0x0C | 0x14 | 0x1C | 0x24 | 0x2C | 0x34 | 0x3C | 0xA8 | 0x6A | 0xB0..=0xB7 => Imm(1),
         0x05
         | 0x0D
@@ -213,19 +226,22 @@ pub fn decode_in_place(code: &[u8], offset: usize) -> Result<Insn, CodeError> {
 }
 
 fn decode_with(code: &[u8], offset: usize, short_ok: bool) -> Result<Insn, CodeError> {
-    let truncated = CodeError::Truncated { offset };
-    let first = *code.first().ok_or(truncated.clone())?;
-    if first == 0x64 {
-        // The segment changes no address a relocation touches; a prefixed branch is left out, as nothing needs one.
+    let first = *code.first().ok_or(CodeError::Truncated { offset })?;
+    if matches!(first, 0x64 | 0x66) {
+        // The segment changes no address a relocation touches, the operand size only how long an immediate is; a
+        // prefixed branch is left out, as nothing needs one (and 66 would cut the target to 16 bits).
         let unsupported = CodeError::Unsupported {
             offset,
             opcode: first,
             two_byte: false,
         };
-        if code.get(1) == Some(&0x64) {
+        if matches!(
+            code.get(1),
+            Some(0x64 | 0x66 | 0x70..=0x7F | 0xEB | 0xE0..=0xE3)
+        ) {
             return Err(unsupported);
         }
-        let insn = decode_with(&code[1..], offset, short_ok)?;
+        let insn = decode_body(&code[1..], offset, short_ok, first == 0x66)?;
         if insn.rel32.is_some() {
             return Err(unsupported);
         }
@@ -237,6 +253,13 @@ fn decode_with(code: &[u8], offset: usize, short_ok: bool) -> Result<Insn, CodeE
             imm32: after_prefix(insn.imm32),
         });
     }
+    decode_body(code, offset, short_ok, false)
+}
+
+/// An instruction with no prefix; `word`: its operands are 16-bit (a 66 prefix came before it).
+fn decode_body(code: &[u8], offset: usize, short_ok: bool, word: bool) -> Result<Insn, CodeError> {
+    let truncated = CodeError::Truncated { offset };
+    let first = *code.first().ok_or(truncated.clone())?;
     if matches!(first, 0x70..=0x7F | 0xEB | 0xE0..=0xE3) {
         if short_ok && code.len() >= 2 {
             return Ok(Insn {
@@ -262,6 +285,12 @@ fn decode_with(code: &[u8], offset: usize, short_ok: bool) -> Result<Insn, CodeE
             opcode: first,
             two_byte: false,
         })?;
+        // A 32-bit immediate is 16-bit then; `mov` with an absolute address (A0-A3) keeps its 32-bit address.
+        let operands = match operands {
+            Operands::Imm(4) if word && !matches!(first, 0xA0..=0xA3) => Operands::Imm(2),
+            Operands::ModRm(4) if word => Operands::ModRm(2),
+            o @ (Operands::None | Operands::Imm(_) | Operands::ModRm(_) | Operands::Rel32) => o,
+        };
         (1, operands)
     };
     let insn = match operands {
@@ -392,18 +421,56 @@ mod tests {
             ]),
             [7, 3, 3]
         );
+        // pushad; xchg eax, esi; lahf; cld; popad
+        assert_eq!(lengths(&[0x60, 0x96, 0x9F, 0xFC, 0x61]), [1, 1, 1, 1, 1]);
     }
 
     #[test]
-    fn the_fs_prefix_takes_no_branch_and_no_second_prefix() {
-        let refused = CodeError::Unsupported {
-            offset: 0,
-            opcode: 0x64,
-            two_byte: false,
-        };
-        assert_eq!(decode(&[0x64, 0xE8, 0, 0, 0, 0], 0), Err(refused.clone()));
-        assert_eq!(decode(&[0x64, 0x64, 0x90], 0), Err(refused));
-        assert_eq!(decode(&[0x64], 0), Err(CodeError::Truncated { offset: 0 }));
+    fn the_operand_size_prefix_shortens_immediates_only() {
+        // mov ax, 0x1234; mov word [0x7AF5B8], 7; cmp word [esi+4], 0x10; mov ax, [0x7AF5B8]; movzx eax, word [ecx]
+        assert_eq!(
+            lengths(&[
+                0x66, 0xB8, 0x34, 0x12, 0x66, 0xC7, 0x05, 0xB8, 0xF5, 0x7A, 0, 7, 0, 0x66, 0x83,
+                0x7E, 0x04, 0x10, 0x66, 0xA1, 0xB8, 0xF5, 0x7A, 0, 0x66, 0x0F, 0xB7, 0x01
+            ]),
+            [4, 9, 5, 6, 4]
+        );
+        // The address of `mov word [0x7AF5B8], 7` is found after the prefix; a 16-bit immediate is no address.
+        assert_eq!(
+            decode(&[0x66, 0xC7, 0x05, 0xB8, 0xF5, 0x7A, 0, 7, 0], 0),
+            Ok(Insn {
+                len: 9,
+                rel32: None,
+                disp32: Some(3),
+                imm32: None
+            })
+        );
+        assert_eq!(
+            decode(&[0x66, 0xA1, 0xB8, 0xF5, 0x7A, 0], 0).map(|i| i.imm32),
+            Ok(Some(2))
+        );
+    }
+
+    #[test]
+    fn a_prefix_takes_no_branch_and_no_second_prefix() {
+        for prefix in [0x64, 0x66] {
+            let refused = CodeError::Unsupported {
+                offset: 0,
+                opcode: prefix,
+                two_byte: false,
+            };
+            assert_eq!(decode(&[prefix, 0xE8, 0, 0, 0, 0], 0), Err(refused.clone()));
+            assert_eq!(
+                decode_in_place(&[prefix, 0x74, 0x02], 0),
+                Err(refused.clone())
+            );
+            assert_eq!(decode(&[prefix, 0x64, 0x90], 0), Err(refused.clone()));
+            assert_eq!(decode(&[prefix, 0x66, 0x90], 0), Err(refused));
+            assert_eq!(
+                decode(&[prefix], 0),
+                Err(CodeError::Truncated { offset: 0 })
+            );
+        }
     }
 
     #[test]
@@ -417,10 +484,10 @@ mod tests {
             Err(CodeError::ShortBranch { offset: 0 })
         );
         assert_eq!(
-            decode(&[0x66, 0x90], 0),
+            decode(&[0xCD, 0x2E], 0),
             Err(CodeError::Unsupported {
                 offset: 0,
-                opcode: 0x66,
+                opcode: 0xCD,
                 two_byte: false
             })
         );

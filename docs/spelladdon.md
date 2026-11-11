@@ -221,7 +221,7 @@ between multiplayer peers. `bigmapspatch` and `cleveranimationsspeedup` change n
 | `mainmenuweather` | 1: set weather type 2 at strength 40. 2: skip menu weather. 0 leaves the game's weather unchanged. | same |
 | `drawvisiblepatch` | 1: zone entry no longer resets the draw-visible setting. | same |
 | `playingnewloadingscreens` | 1: name loading movies after the zone. 2: also use `gz1g` in the special initial-zone movie selection. Requires matching movie assets. | same |
-| `notrash` | 1: share the speech resource path instead of requiring separate `s` and `t` folders; also change the client animation-mode timing test. | same |
+| `notrash` | 1: share the speech resource path instead of requiring separate `s` and `t` folders; also change the client animation-mode timing test. The English/German build's briefing has one speech folder: there only the timing test changes. | same |
 | `musictimings` | 1: wait `minmusictime + random % (maxmusictime - minmusictime)` between music tracks. | fixed: with `maxmusictime` not above `minmusictime`, the pause is `minmusictime` (the original divides by zero at the first track change, or waits far too long) |
 | `newzonescpecificmusic` | 1: zone `gz12d2` uses music named `gz12d2`. 2: use the alternative music-name field in zones, briefings and camp and shorten music-mode setup. 3: as 2, but retain camp's original field. | same |
 | `disabledragon` | 1: disable the quest-variable dragon response and the related flying-insect effect updates. | same |

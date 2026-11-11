@@ -16,3 +16,7 @@ pub(crate) const RUNS: &[(usize, isize)] = &[
     (0x79_69D0, -16),
     (0x7C_AF20, -32),
 ];
+
+/// RU ranges `[start, end)` this build has no counterpart of: RU's briefing picks one of two speech folders through a
+/// table of their names, where this build's briefing has one folder and no table.
+pub(crate) const MISSING: &[(usize, usize)] = &[(0x79_3378, 0x79_3380)];

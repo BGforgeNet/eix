@@ -78,6 +78,16 @@ impl Site {
         in_build(build, self.0)
     }
 
+    /// Whether the running build has this site: not where RU 1.06 holds something the other build lacks.
+    pub fn exists_here(self) -> bool {
+        match selected() {
+            Build::Ru106 => true,
+            Build::En106 => !en106::MISSING
+                .iter()
+                .any(|&(start, end)| (start..end).contains(&self.0)),
+        }
+    }
+
     /// The running build's `address` as a pointer to `T`.
     pub fn ptr<T>(self) -> *mut T {
         core::ptr::with_exposed_provenance_mut(self.here())
@@ -193,5 +203,17 @@ mod tests {
         assert_eq!(shift(runs, 0x45_6440, false), 0x45_6440);
         assert_eq!(shift(runs, 0x7C_D000, false), 0x7C_D000);
         assert_eq!(shift(runs, 0x10_0000, false), 0x10_0000);
+    }
+
+    #[test]
+    fn en106_lacks_the_speech_folder_table() {
+        assert!(DATA_79337C.exists_here());
+        select(Build::En106);
+        let (gone, kept) = (
+            [DATA_793378, DATA_79337C, DATA_79337C.offset(3)].map(Site::exists_here),
+            [DATA_793378.back(1), DATA_79337C.offset(4)].map(Site::exists_here),
+        );
+        select(Build::Ru106);
+        assert_eq!((gone, kept), ([false; 3], [true; 2]));
     }
 }

@@ -48,8 +48,10 @@ pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
 const SPELL_KIND_BOUND: Site = eix_sites::AI_ATTENTION_SPELL_KIND__13;
 /// The number of entries the caster table gets: `[aicastertable] 0` to `53`.
 const CASTER_ENTRIES: u8 = 0x36;
-/// The low byte of the table address in `mov cl, [eax + 0x5CEE4C]` at 0x5CEDD8.
-const SPELL_KIND_TABLE_LOW: Site = eix_sites::AI_ATTENTION_SPELL_KIND__1A;
+/// `mov cl, [eax + 0x5CEE4C]` at 0x5CEDD8, whose table address's low byte the feature changes (written whole, so
+/// another build gets the whole address).
+const SPELL_KIND_LOOKUP: Site = eix_sites::AI_ATTENTION_SPELL_KIND__1A.back(2);
+const SPELL_KIND_LOOKUP_WAS: [u8; 6] = [0x8A, 0x88, 0x4C, 0xEE, 0x5C, 0x00];
 /// Where the caster table is written: from the last entry of the jump table before the game's byte table, over that
 /// table, into the padding after it.
 const SPELL_KIND_TABLE: Site = eix_sites::AI_ATTENTION_SPELL_KIND__88;
@@ -93,9 +95,11 @@ fn caster_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
     } else {
         SPELL_KIND_TABLE.ru() as u8
     };
+    let mut lookup = SPELL_KIND_LOOKUP_WAS;
+    lookup[2] = low;
     Ok(vec![
         SiteWrite::bytes(SPELL_KIND_BOUND, &[0x29], &[CASTER_ENTRIES])?,
-        SiteWrite::bytes(SPELL_KIND_TABLE_LOW, &[0x4C], &[low])?,
+        SiteWrite::bytes(SPELL_KIND_LOOKUP, &SPELL_KIND_LOOKUP_WAS, &lookup)?,
         SiteWrite::bytes(
             SPELL_KIND_TABLE,
             &SPELL_KIND_TABLE_BYTES,
@@ -410,11 +414,12 @@ fn allies_see_each_other(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
                 &MOV_EAX_1,
             )?];
             if value >= 2 {
-                // `je 0x5CAD02` -> `je 0x5CAC76`, and the `jmp 0x5CAD02` after it goes.
+                // `je 0x5CAD02` -> `je 0x5CAC76` (whole, for another build's displacement), and the `jmp 0x5CAD02`
+                // after it goes.
                 writes.push(SiteWrite::bytes(
-                    eix_sites::AI_VIEWER_UPDATE__264,
-                    &[0x9A],
-                    &[0x0E],
+                    eix_sites::AI_VIEWER_UPDATE__264.back(2),
+                    &[0x0F, 0x84, 0x9A, 0x00, 0x00, 0x00],
+                    &[0x0F, 0x84, 0x0E, 0x00, 0x00, 0x00],
                 )?);
                 writes.push(SiteWrite::nop(
                     eix_sites::AI_VIEWER_UPDATE__271,
@@ -847,7 +852,8 @@ fn aggrmod(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
             } else {
                 (&COUNTER_TESTS_NOW, COUNTER_JUMP)
             };
-            // Value 7's block writes two bytes less, which only reach dead code.
+            // Value 7's block writes two bytes less, which only reach dead code. Those two end the displacement of a
+            // `je` the block cuts: they stay out of the write, as the addon's fix may hold NOPs there.
             let len = if value == 6 { 54 } else { 52 };
             let mut w = if fast {
                 common::fixed(&[FAST_PUSH])?
@@ -1329,9 +1335,9 @@ mod tests {
                     vec![0x36]
                 ),
                 (
-                    eix_sites::AI_ATTENTION_SPELL_KIND__1A,
-                    vec![0x4C],
-                    vec![0x48]
+                    eix_sites::AI_ATTENTION_SPELL_KIND__1A.back(2),
+                    SPELL_KIND_LOOKUP_WAS.to_vec(),
+                    vec![0x8A, 0x88, 0x48, 0xEE, 0x5C, 0x00]
                 ),
                 (
                     eix_sites::AI_ATTENTION_SPELL_KIND__88,
@@ -1351,7 +1357,7 @@ mod tests {
             ("aioffendtable", "1", "1"),
         ]);
         let ctx = Ctx::new(&v, no_log);
-        assert_eq!(plain(&caster_table(&ctx, 1).unwrap())[1].2, [0x57]);
+        assert_eq!(plain(&caster_table(&ctx, 1).unwrap())[1].2[2], 0x57);
         let mut table = vec![8u8; 38];
         table[1] = 1;
         assert_eq!(

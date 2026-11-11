@@ -608,11 +608,11 @@ fn new_attack_defence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
             stub,
         )?);
         if value == 4 {
-            // The constant's address alone, as the original writes it.
+            // The original changes the constant's address alone; the whole `fld` gives another build all of it.
             writes.push(SiteWrite::bytes(
-                RESOLVE_HIT_MARK.offset(2),
-                &RESOLVE_HIT_MARK_WAS[2..4],
-                &resolve_hit_mark(value)[2..4],
+                RESOLVE_HIT_MARK,
+                &RESOLVE_HIT_MARK_WAS,
+                &resolve_hit_mark(value),
             )?);
         }
     }
@@ -1073,17 +1073,18 @@ fn weight_range_bonuses(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Buil
 const STRENGTH_HP: Site = eix_sites::RDATA_73E130;
 const STRENGTH_DAMAGE: Site = eix_sites::RDATA_73E134;
 const STRENGTH_WEIGHT: Site = eix_sites::RDATA_73E138;
-/// `CFlyingHitPoints::Draw`'s two `fadd [0x73E138]`: their operands' low bytes, which point them at 0x73E0FC.
+/// `CFlyingHitPoints::Draw`'s two `fadd [0x73E138]`, which the original points at 0x73E0FC through their operands'
+/// low bytes: whole, so another build gets the whole address.
 const FLYING_NUMBERS: &[Bytes] = &[
     (
-        eix_sites::C_FLYING_HIT_POINTS_DRAW__6BB,
-        &[0x38, 0xE1],
-        &[0xFC, 0xE0],
+        eix_sites::C_FLYING_HIT_POINTS_DRAW__6BB.back(2),
+        &[0xD8, 0x05, 0x38, 0xE1, 0x73, 0x00],
+        &[0xD8, 0x05, 0xFC, 0xE0, 0x73, 0x00],
     ),
     (
-        eix_sites::C_FLYING_HIT_POINTS_DRAW__7FD,
-        &[0x38, 0xE1],
-        &[0xFC, 0xE0],
+        eix_sites::C_FLYING_HIT_POINTS_DRAW__7FD.back(2),
+        &[0xD8, 0x05, 0x38, 0xE1, 0x73, 0x00],
+        &[0xD8, 0x05, 0xFC, 0xE0, 0x73, 0x00],
     ),
 ];
 
@@ -1165,17 +1166,18 @@ const REACH_TEST: Bytes = (
         0x5F, 0xB0, 0x01, 0x5E, 0x83, 0xC4, 0x18, 0xC3,
     ],
 );
-/// The two early exits' `je 0x549EA9`, which go to the moved returns (0x549EB8) instead.
+/// The two early exits' `je 0x549EA9`, which go to the moved returns (0x549EB8) instead: whole, so another build
+/// gets the whole displacement.
 const REACH_EXITS: &[Bytes] = &[
     (
-        eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__31,
-        &[0x34],
-        &[0x43],
+        eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__31.back(2),
+        &[0x0F, 0x84, 0x34, 0x01, 0x00, 0x00],
+        &[0x0F, 0x84, 0x43, 0x01, 0x00, 0x00],
     ),
     (
-        eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__3A,
-        &[0x2B],
-        &[0x3A],
+        eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__3A.back(2),
+        &[0x0F, 0x84, 0x2B, 0x01, 0x00, 0x00],
+        &[0x0F, 0x84, 0x3A, 0x01, 0x00, 0x00],
     ),
 ];
 /// The function padding that holds `hitdistmul` and `hitdistadd`.
@@ -2129,7 +2131,7 @@ mod tests {
                 (eix_sites::DATA_79A7FC, 4),
                 (eix_sites::DATA_79A7F8, 4),
                 (eix_sites::TEXT_5251E0, 5),
-                (eix_sites::C_UNIT_SERVER_RESOLVE_HIT__11F, 2)
+                (eix_sites::C_UNIT_SERVER_RESOLVE_HIT__11D, 6)
             ]
         );
         assert_eq!(
@@ -2276,8 +2278,8 @@ mod tests {
             sites(&run_away_distance(&ctx, 1).unwrap()),
             [
                 (eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__140, 64),
-                (eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__31, 1),
-                (eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__3A, 1),
+                (eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__31.back(2), 6),
+                (eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__3A.back(2), 6),
                 (eix_sites::C_UNIT_SERVER_FINISH_ACTION__1D4, 4),
                 (eix_sites::C_UNIT_SERVER_FINISH_ACTION__1D8, 4)
             ]

@@ -196,10 +196,11 @@ fn shrink_enlarge(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
         ),
     ])?;
     if value == 1 {
+        // `fmul [0x73B868]` becomes `fmul [0x73B850]`: the whole instruction, so another build gets its address.
         writes.push(SiteWrite::bytes(
-            eix_sites::RECOMPUTE_SCALE_HOOK__220,
-            &[0x68],
-            &[0x50],
+            eix_sites::RECOMPUTE_SCALE_HOOK__220.back(2),
+            &[0xD8, 0x0D, 0x68, 0xB8, 0x73, 0x00],
+            &[0xD8, 0x0D, 0x50, 0xB8, 0x73, 0x00],
         )?);
     }
     writes.push(SiteWrite::nop(
