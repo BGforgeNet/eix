@@ -6,6 +6,10 @@ First release.
 
 ### Added
 
+- Game builds: game.exe 1.06, Russian (EI starter's and GOG's) or English and German (GOG's, one file). eix finds the
+  build at start and puts each patch at its place in that build; every patch group, fix and SpellAddon feature
+  applies on both. Russian and English/German players play together in multiplayer. A Lua script that reads
+  game.exe at fixed addresses works on the build it was written for ([Lua](docs/lua.md#host)).
 - `dinput.dll`: the addon loader, a drop-in for EI starter's Addon Loader 1.1.0.0.
 - `addon.dll`: all 87 patch groups of addon.dll 0.12.4.2, the Lua host (LuaJIT 2.1) with its script functions and
   callbacks, the command line (`game.exe addon <command>`), plugins, addon.log and AutoRecover. A mod's Lua script
@@ -55,4 +59,5 @@ First release.
   and visibility stops at 0; SpellAddon's hero tests all take IDs from one billion up; byte parameters outside
   0..255 warn; anonymous objects of one mob file each get their own ID; `ChargeMethod=2` gives every hero the whole
   experience; with Lua attack scripts players hurt each other only with `enablekillsinmulti`, which keeps god mode;
-  `normalkey` defaults to the game's 55; a cast of no time plays at normal speed.
+  `normalkey` defaults to the game's 55; a cast of no time plays at normal speed; with `disableexppenalty` a
+  multiplayer game goes on when a leader dies.

@@ -13,7 +13,10 @@ with `bit` and `jit` loaded as globals; load `ffi` with `require("ffi")`. Module
 and its `lua` folder. Define only the callbacks the mod changes: once the main script has run, each group hooks the
 game where the script defines a callback, and the game's own code runs for the rest. A callback defined later is
 not hooked. addon.log lists the callbacks found. A reported Lua error shows a message, logs its traceback, and exits.
-Pointers are passed as signed 32-bit integers; raw memory operations require valid game memory.
+Pointers are passed as signed 32-bit integers; raw memory operations require valid game memory. An address is the
+running game's own: on the English/German game.exe much of game.exe's code and data lies at other addresses than on
+the Russian one, so a script that reads or writes game.exe at fixed addresses works on the build it was written for.
+Pointers the game hands to the script, such as units, work on both.
 
 | Behaviour | eix |
 |---|---|
