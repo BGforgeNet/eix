@@ -60,6 +60,31 @@ fn rebase(site: usize, bytes: &[u8], map: impl Fn(usize) -> usize) -> Option<Vec
     Some(out)
 }
 
+/// Where `bytes`, written at RU address `site`, hold 4-byte fields of their own (a branch displacement, an address
+/// operand or immediate, a data pointer), which their translation sets; `None` for code that does not decode.
+fn own_fields(site: usize, bytes: &[u8]) -> Option<Vec<usize>> {
+    if !in_code(site) {
+        return Some(if bytes.len() == 4 {
+            Vec::from([0])
+        } else {
+            Vec::new()
+        });
+    }
+    let mut fields = Vec::new();
+    let mut at = 0;
+    while at < bytes.len() {
+        let insn = x86::decode_in_place(&bytes[at..], at).ok()?;
+        fields.extend(
+            [insn.rel32, insn.disp32, insn.imm32]
+                .into_iter()
+                .flatten()
+                .map(|f| at + f),
+        );
+        at += insn.len;
+    }
+    Some(fields)
+}
+
 fn translated_with(site: usize, bytes: &[u8], map: impl Fn(usize) -> usize) -> Vec<u8> {
     if in_code(site) {
         return rebase(site, bytes, map).unwrap_or_else(|| bytes.to_vec());
@@ -160,8 +185,11 @@ fn written_with(
 ) -> Vec<u8> {
     let mut out = translated_with(site, new, map);
     if let Some(found) = found.filter(|f| f.len() == new.len() && expected.len() == new.len()) {
+        // A field `new` holds itself is its own, translated above, even where a byte of it equals `expected`'s.
+        let own = own_fields(site, new).unwrap_or_default();
+        let owned = |i: usize| own.iter().any(|&f| (f..f + 4).contains(&i));
         for (i, b) in out.iter_mut().enumerate() {
-            if new[i] == expected[i] {
+            if new[i] == expected[i] && !owned(i) {
                 *b = found[i];
             }
         }
@@ -170,8 +198,8 @@ fn written_with(
 }
 
 /// `new`, to be written over `expected` at RU address `site`, for the running build: translated (code rebased, a
-/// data address translated), and where `new` keeps a byte of `expected`, the byte `found` there, when what the site
-/// holds [`matches`] `expected`.
+/// data address translated), and where `new` keeps a byte of `expected` outside a field of its own, the byte `found`
+/// there, when what the site holds [`matches`] `expected`.
 pub(crate) fn written(site: Site, expected: &[u8], found: Option<&[u8]>, new: &[u8]) -> Vec<u8> {
     written_with(site.ru(), expected, found, new, here)
 }
@@ -262,5 +290,28 @@ mod tests {
             translated_with(MOVED_DATA + 0x1000, &DATA_7AF784.ru32().to_le_bytes(), map),
             (map(DATA_7AF784.ru()) as u32).to_le_bytes()
         );
+    }
+
+    #[test]
+    fn a_written_field_keeps_its_own_bytes_where_they_match_the_expected_ones() {
+        // The game's `call` into high code, which the build moved down, becomes a call to a stub whose displacement
+        // shares its low three bytes with the game's.
+        let site = LOW;
+        let call = |rel: u32| {
+            let [r0, r1, r2, r3] = rel.to_le_bytes();
+            [0xE8, r0, r1, r2, r3]
+        };
+        let rel = (HIGH as u32 + 0x93).wrapping_sub(site as u32 + 5);
+        let expected = call(rel);
+        let found = call(rel.wrapping_sub(0x40));
+        let new = call(rel.wrapping_add(0x1000_0000));
+        assert!(equivalent_with(site, &expected, &found, map));
+        assert_eq!(written_with(site, &expected, Some(&found), &new, map), new);
+        // A data pointer that shares bytes with the one it replaces is written whole.
+        let slot = MOVED_DATA + 0x1000;
+        let was = (HIGH as u32 + 0x10).to_le_bytes();
+        let moved = (map(HIGH + 0x10) as u32).to_le_bytes();
+        let ours = (HIGH as u32 + 0x10 + 0x1000_0000).to_le_bytes();
+        assert_eq!(written_with(slot, &was, Some(&moved), &ours, map), ours);
     }
 }
