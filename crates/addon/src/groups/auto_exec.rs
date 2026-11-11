@@ -10,11 +10,12 @@ use std::sync::OnceLock;
 
 use eix_engine::game::console;
 use eix_engine::hook::{self, Context};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 /// The three calls of `Execute` with `exec autoexec.cfg`.
-const SITES: [(&str, usize, [u8; 5]); 3] = [
+const SITES: [(&str, Site, [u8; 5]); 3] = [
     (
         "AutoExec #1",
         eix_sites::GAME_FLOW_LOAD_GAME__41,

@@ -3,11 +3,13 @@
 
 use core::ffi::c_void;
 
+use eix_sites::Site;
+
 use super::{Global, code};
 
 /// `int __cdecl _tolower_lk(int)`: `tolower` without the locale guard, which its callers (`tolower`, `_stricmp`,
 /// `_strnicmp`, `_memicmp`) hold. Under a set LC_CTYPE locale it lowers a byte through `__crtLCMapStringA`.
-pub const TOLOWER_LK: usize = eix_sites::TEXT_6EBAC2;
+pub const TOLOWER_LK: Site = eix_sites::TEXT_6EBAC2;
 
 /// The C runtime's LC_CTYPE locale, which `setlocale` 0x6EA234 alone sets. The rest of the state [`TOLOWER_LK`]
 /// reads derives from these two: `__init_ctype` 0x6F47F0 builds `_pctype` 0x797DD8 and `__mb_cur_max` 0x797FE4
@@ -23,7 +25,7 @@ pub struct CtypeLocale {
 /// The LC_CTYPE state now.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on a thread inside the CRT's locale guard (as a caller of `_tolower_lk`
+/// The process must be a supported game.exe, on a thread inside the CRT's locale guard (as a caller of `_tolower_lk`
 /// is), so that no `setlocale` changes the state meanwhile.
 pub unsafe fn ctype_locale() -> CtypeLocale {
     CtypeLocale {
@@ -57,7 +59,7 @@ pub const SYSTEM_HEAP: u32 = 1;
 /// The game's `rand` 0x6E77F7 (cdecl): the next number of the CRT generator the game draws from, 0..=0x7FFF.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread.
+/// The process must be a supported game.exe, on the game's thread.
 pub unsafe fn rand() -> i32 {
     // SAFETY: 0x6E77F7 is `int __cdecl rand(void)`: it steps the generator and returns bits 16..30.
     let f = unsafe { code::<unsafe extern "C" fn() -> i32>(eix_sites::TEXT_6E77F7) };
@@ -69,7 +71,7 @@ pub unsafe fn rand() -> i32 {
 /// effect; the result as an `f64` (exact unless the precision is 64 bits).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, with at most five x87 registers in use.
+/// The process must be a supported game.exe, with at most five x87 registers in use.
 pub unsafe fn ci_pow(base: f64, exponent: f64) -> f64 {
     let mut out = 0f64;
     // SAFETY: `_CIpow` pops its two operands and leaves the power in ST0; it keeps EDI (the CRT's callee-saved
@@ -82,7 +84,7 @@ pub unsafe fn ci_pow(base: f64, exponent: f64) -> f64 {
             "fstp qword ptr [edi]",
             b = in(reg) &base,
             e = in(reg) &exponent,
-            pow = in(reg) eix_sites::here(eix_sites::TEXT_6E81A0),
+            pow = in(reg) eix_sites::TEXT_6E81A0.here(),
             in("edi") &mut out,
             clobber_abi("C"),
         );
@@ -93,7 +95,7 @@ pub unsafe fn ci_pow(base: f64, exponent: f64) -> f64 {
 /// The game's `atof` 0x6E911A (cdecl): the longest leading number of `text`, 0 when there is none.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread.
+/// The process must be a supported game.exe, on the game's thread.
 pub unsafe fn atof(text: &core::ffi::CStr) -> f64 {
     // SAFETY: 0x6E911A is `double __cdecl atof(const char*)`, the result in ST0.
     let f = unsafe { code::<unsafe extern "C" fn(*const u8) -> f64>(eix_sites::LIBCRT_ATOF) };

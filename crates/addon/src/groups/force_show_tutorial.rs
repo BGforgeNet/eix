@@ -4,12 +4,13 @@
 
 use eix_engine::exec;
 use eix_engine::group::SiteWrite;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let ret = exec::place(1, |_| Ok::<_, String>(vec![0xC3]))?;
-    let call = |label: &str, site: usize, original: &[u8]| -> Result<Labelled, BuildError> {
+    let call = |label: &str, site: Site, original: &[u8]| -> Result<Labelled, BuildError> {
         Ok(Labelled {
             label: label.to_owned(),
             write: SiteWrite::call(site, original, ret)?,

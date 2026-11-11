@@ -12,12 +12,13 @@ use eix_core::fixes::move_allowed;
 use eix_engine::game::object::Vector3;
 use eix_engine::game::unit::MapObject;
 use eix_engine::hook;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 use crate::log;
 
 /// `push ebp; mov ebp, esp; sub esp, 0x20`.
-const SITE: usize = eix_sites::C_SECTOR_MAP_MOVE;
+const SITE: Site = eix_sites::C_SECTOR_MAP_MOVE;
 const ORIGINAL: [u8; 6] = [0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x20];
 
 /// `bool __thiscall CSectorMap::Move(CMapObject*, const Vector3*)`, `ret 8`.
@@ -35,7 +36,7 @@ extern "thiscall" fn sector_map_move(
     let at = unsafe { *to };
     if move_allowed(at.x, at.y) {
         // SAFETY: the trampoline runs the original, which has this type.
-        let original: Move = unsafe { hook::as_fn(ORIGINAL_MOVE.load(Ordering::SeqCst)) };
+        let original: Move = unsafe { hook::as_fn_at(ORIGINAL_MOVE.load(Ordering::SeqCst)) };
         // SAFETY: the game's arguments, passed on.
         if unsafe { original(this, object, to) } {
             return true;

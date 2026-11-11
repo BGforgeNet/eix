@@ -40,23 +40,19 @@ extern "system" fn bink_open(name: *const u8, flags: u32) -> *mut c_void {
     }
     let opened = replacement.as_ref().map_or(name, |r| r.as_ptr().cast());
     // SAFETY: REAL holds the game's `_BinkOpen@8`, read from its import slot before the slot pointed here.
-    let real: BinkOpen = unsafe { eix_engine::hook::as_fn(REAL.load(Ordering::SeqCst)) };
+    let real: BinkOpen = unsafe { eix_engine::hook::as_fn_at(REAL.load(Ordering::SeqCst)) };
     // SAFETY: the game's arguments, with a live NUL-terminated name in place of the first.
     unsafe { real(opened, flags) }
 }
 
 pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let _ = MOD_DIR.set(setup.mod_dir.clone());
-    // SAFETY: the build is RU 1.06, whose import slot is initialised by the Windows loader before the entry point;
+    // SAFETY: the build is a supported one, whose import slot is initialised by the Windows loader before the entry point;
     // this runs on the game's thread before WinMain.
     let real = unsafe { BINK_OPEN_SLOT.read() };
     REAL.store(real, Ordering::SeqCst);
     Ok(vec![Labelled {
         label: "Movies".to_owned(),
-        write: SiteWrite::pointer(
-            BINK_OPEN_SLOT.address(),
-            real,
-            bink_open as *const () as usize,
-        ),
+        write: SiteWrite::pointer(BINK_OPEN_SLOT.site(), real, bink_open as *const () as usize),
     }])
 }

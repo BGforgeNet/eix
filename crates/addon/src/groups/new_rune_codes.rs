@@ -9,11 +9,12 @@ use eix_core::rules::{cast_time_with_rune, is_cast_time_rune};
 use eix_engine::float::ftol;
 use eix_engine::game::spell::{ModifierRecord, SpellContainer};
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 /// `Build`'s common tail after the switch, which counts the modifier (complexity and skill needed).
-const TAIL: usize = eix_sites::C_SPELL_CONTAINER_BUILD__2BC;
+const TAIL: Site = eix_sites::C_SPELL_CONTAINER_BUILD__2BC;
 
 /// At 0x68C049 (the switch on the code letter): EDI is the modifier record, ESI the container.
 extern "C" fn rune(_: usize, ctx: &mut Context) {

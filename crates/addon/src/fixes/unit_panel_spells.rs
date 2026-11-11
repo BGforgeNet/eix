@@ -39,38 +39,39 @@ use eix_engine::game::unit::Unit;
 use eix_engine::game::world::{SERVER_WORLD, World};
 use eix_engine::gdi;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `CBattleScreen::Create` has made all its windows and frees its locals, the screen still in ESI:
 /// `lea ecx, [esp+0x18]; mov [esp+0x5C], edi`.
-const CREATE: usize = eix_sites::C_BATTLE_SCREEN_CREATE__A04;
+const CREATE: Site = eix_sites::C_BATTLE_SCREEN_CREATE__A04;
 const CREATE_BYTES: [u8; 8] = [0x8D, 0x4C, 0x24, 0x18, 0x89, 0x7C, 0x24, 0x5C];
 /// `CHudUnitPanel_OnMouseDownVerify` found a region of the panel under the cursor and marks the click handled next:
 /// `lea eax, [esi-0x94]`; its unhandled way out, `pop esi; ret 0xC`, is [`MOUSE_DOWN_UNHANDLED`].
-const MOUSE_DOWN: usize = eix_sites::C_HUD_UNIT_PANEL_ON_MOUSE_DOWN_VERIFY__1C;
+const MOUSE_DOWN: Site = eix_sites::C_HUD_UNIT_PANEL_ON_MOUSE_DOWN_VERIFY__1C;
 const MOUSE_DOWN_BYTES: [u8; 6] = [0x8D, 0x86, 0x6C, 0xFF, 0xFF, 0xFF];
-const MOUSE_DOWN_UNHANDLED: usize = eix_sites::C_HUD_UNIT_PANEL_ON_MOUSE_DOWN_VERIFY__32;
+const MOUSE_DOWN_UNHANDLED: Site = eix_sites::C_HUD_UNIT_PANEL_ON_MOUSE_DOWN_VERIFY__32;
 /// `CHudUnitPanel_OnWheelVerify` has the panel's region under the cursor in EAX (negative: none): `test eax, eax;
 /// mov eax, 1`; its unhandled way out, `pop esi; ret 0x10`, is [`WHEEL_UNHANDLED`].
-const WHEEL: usize = eix_sites::C_HUD_UNIT_PANEL_ON_WHEEL_VERIFY__18;
+const WHEEL: Site = eix_sites::C_HUD_UNIT_PANEL_ON_WHEEL_VERIFY__18;
 const WHEEL_BYTES: [u8; 7] = [0x85, 0xC0, 0xB8, 0x01, 0x00, 0x00, 0x00];
-const WHEEL_UNHANDLED: usize = eix_sites::C_HUD_UNIT_PANEL_ON_WHEEL_VERIFY__24;
+const WHEEL_UNHANDLED: Site = eix_sites::C_HUD_UNIT_PANEL_ON_WHEEL_VERIFY__24;
 /// The handlers' input part is 0x94 into the panel (`lea ecx, [esi-0x94]`, 0x64833D).
 const INPUT_PART: u32 = 0x94;
 /// `DrawUnitInfo` has stored its first line's rectangle: `mov [ebp-0x30], 0x9B; mov [ebp-0x2C], 0x32`.
-const START: usize = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__6B;
+const START: Site = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__6B;
 const START_BYTES: [u8; 14] = [
     0xC7, 0x45, 0xD0, 0x9B, 0x00, 0x00, 0x00, 0xC7, 0x45, 0xD4, 0x32, 0x00, 0x00, 0x00,
 ];
 /// `DrawUnitInfo`'s last line is drawn; every path meets here before the frame's strings go: `lea ecx, [ebp-0x4C];
 /// mov byte [ebp-4], 1`.
-const END: usize = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__74C;
+const END: Site = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__74C;
 const END_BYTES: [u8; 7] = [0x8D, 0x4D, 0xB4, 0xC6, 0x45, 0xFC, 0x01];
 /// `CHudUnitPanel::DrawVanilla` has drawn its page, or found no unit to draw, with the panel in EBX:
 /// `mov edx, [ebx+0x118]; mov ecx, [edx]`.
-const FRAME: usize = eix_sites::C_HUD_UNIT_PANEL_DRAW_VANILLA__870;
+const FRAME: Site = eix_sites::C_HUD_UNIT_PANEL_DRAW_VANILLA__870;
 const FRAME_BYTES: [u8; 8] = [0x8B, 0x93, 0x18, 0x01, 0x00, 0x00, 0x8B, 0x0A];
 
 /// `DrawUnitInfo`'s line rectangle in its frame: left, top, right, bottom at EBP-0x38 .. EBP-0x2C.
@@ -600,7 +601,7 @@ extern "C" fn wheel(_: usize, ctx: &mut Context) {
 }
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
-    let hooks: [(usize, &[u8], Mode, hook::Handler); 6] = [
+    let hooks: [(Site, &[u8], Mode, hook::Handler); 6] = [
         (CREATE, &CREATE_BYTES, Mode::Before, create),
         (START, &START_BYTES, Mode::Before, start),
         (END, &END_BYTES, Mode::Before, end),

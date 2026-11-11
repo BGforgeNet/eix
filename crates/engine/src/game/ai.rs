@@ -6,6 +6,8 @@
 use core::ffi::c_void;
 use core::mem::offset_of;
 
+use eix_sites::Site;
+
 use super::mfc::PtrList;
 use super::{Global, code};
 
@@ -57,7 +59,7 @@ pub const REGION_MAP: Global<RegionMap> = Global::at(eix_sites::DATA_7B23C8);
 
 /// The `call` in `CRegionMap::UpdateBlocks` 0x5AFC70 that measures each block's edges (0x5AFD25), and its callee
 /// `CRegionMap::MeasureBlockEdges` 0x5AFAE0 (thiscall: an AI map, the block's x and y; `ret 0xC`).
-pub const MEASURE_BLOCK_EDGES_CALL: usize = eix_sites::C_REGION_MAP_UPDATE_BLOCKS__B5;
+pub const MEASURE_BLOCK_EDGES_CALL: Site = eix_sites::C_REGION_MAP_UPDATE_BLOCKS__B5;
 
 /// The type of `CRegionMap::MeasureBlockEdges` and of a function standing in for it at
 /// [`MEASURE_BLOCK_EDGES_CALL`].
@@ -68,7 +70,7 @@ impl RegionMap {
     /// addon's `aigraph` does.
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread, with a zone loaded into `map`.
+    /// The process must be a supported game.exe, on the game's thread, with a zone loaded into `map`.
     pub unsafe fn build(this: *mut Self, map: *mut AiMap) {
         // SAFETY: 0x5AFDA0 is `void __thiscall (CAIMap*)`.
         let f = unsafe {

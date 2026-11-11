@@ -211,7 +211,7 @@ Only the differences; everything else behaves as the original.
 | Behaviour | eix |
 |---|---|
 | `DirectInputCreateA`, `DirectInputCreateW`, `DirectInputCreateEx` | fixed: a missing system dinput.dll or export: a message box and `E_FAIL` (the original returns success with no interface and the game crashes) |
-| Game build check | checks image base, size, time stamp and entry point (the original: the entry point alone); the box names the build found. The patches fit RU 1.06 byte for byte and would corrupt another build |
+| Game build check | checks image base, size, time stamp and entry point (the original: the entry point alone); the box names the build found. RU 1.06 and EN/DE 1.06 pass: each patch goes to its place in the build found, its bytes checked there. The original runs on RU 1.06 only |
 | Old-loader mode | not supported: an old loader reaching addon.dll gets an error box and the game exits. eix ships both DLLs, so the mode is never reached |
 | Unknown game.exe in addon.dll | addon.dll checks the build again, logs it and stops with a box (the original addon.dll checks none) |
 | Patch writes are verified | a site that does not hold the expected bytes skips the whole group, logged with site, expected and found bytes (the original logs and writes anyway) |

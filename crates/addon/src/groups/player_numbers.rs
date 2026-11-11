@@ -24,7 +24,7 @@ fn next_number(asked: i32, others: impl IntoIterator<Item = i32>) -> i32 {
 
 /// Stands in for `Player::SetPlayerId` (thiscall, `ret 4`) at the one call site.
 extern "thiscall" fn set_player_id(player: *mut Player, asked: i32) {
-    // SAFETY: the build is RU 1.06 and the call comes from the game's thread; the server world is static.
+    // SAFETY: the build is a supported one and the call comes from the game's thread; the server world is static.
     let list = unsafe { World::players(SERVER_WORLD.as_ptr()) };
     let number = if list.is_null() {
         asked

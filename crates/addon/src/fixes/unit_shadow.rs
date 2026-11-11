@@ -14,6 +14,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use eix_core::engine_fixes::unit_shadow_size;
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::log;
@@ -21,7 +22,7 @@ use crate::setup::Setup;
 
 /// `mov eax, 0x40`: the side, in the four texture creators.
 const SIDE: [u8; 5] = [0xB8, 0x40, 0x00, 0x00, 0x00];
-const SIDE_SITES: [usize; 4] = [
+const SIDE_SITES: [Site; 4] = [
     eix_sites::TEXTURE_MANAGER_CREATE_FORMAT25__21,
     eix_sites::TEXTURE_MANAGER_CREATE_FORMAT25__71,
     eix_sites::TEXTURE_MANAGER_GET_OR_CREATE_FORMAT25__2F,
@@ -29,18 +30,18 @@ const SIDE_SITES: [usize; 4] = [
 ];
 /// `fdivr dword [0x73D044]`: 63.0 over the extent, in the two places that scale the silhouette.
 const SCALE: [u8; 6] = [0xD8, 0x3D, 0x44, 0xD0, 0x73, 0x00];
-const SCALE_SITES: [usize; 2] = [
+const SCALE_SITES: [Site; 2] = [
     eix_sites::C_OBJECT_3D_CLIENT_SPECIFIC_RENDER__A18,
     eix_sites::C_OBJECT_3D_CLIENT_SPECIFIC_RENDER__A2D,
 ];
 /// `mov ecx, 0x800`: the scratch's clear, in dwords (the side squared, 16 bits a pixel).
-const CLEAR: usize = eix_sites::C_OBJECT_3D_CLIENT_SPECIFIC_RENDER__C3C;
+const CLEAR: Site = eix_sites::C_OBJECT_3D_CLIENT_SPECIFIC_RENDER__C3C;
 const CLEAR_BYTES: [u8; 5] = [0xB9, 0x00, 0x08, 0x00, 0x00];
 /// `push 0x40; push 0x40; mov edx, [esi]`: the blur's width and height, then the rest of the call's setup.
-const BLUR_A: usize = eix_sites::C_OBJECT_3D_CLIENT_SPECIFIC_RENDER__D9B;
+const BLUR_A: Site = eix_sites::C_OBJECT_3D_CLIENT_SPECIFIC_RENDER__D9B;
 const BLUR_A_BYTES: [u8; 6] = [0x6A, 0x40, 0x6A, 0x40, 0x8B, 0x16];
 /// `push 0x40; push 0x40; push eax`.
-const BLUR_B: usize = eix_sites::C_OBJECT_3D_CLIENT_SPECIFIC_RENDER__DAF;
+const BLUR_B: Site = eix_sites::C_OBJECT_3D_CLIENT_SPECIFIC_RENDER__DAF;
 const BLUR_B_BYTES: [u8; 5] = [0x6A, 0x40, 0x6A, 0x40, 0x50];
 
 /// The side less one as `f32` bits, which the scale operands address.
@@ -150,11 +151,11 @@ mod tests {
     #[test]
     fn the_group_covers_every_site_with_the_games_bytes() {
         let writes = build(&setup(128)).unwrap();
-        let sites: Vec<(usize, usize)> = writes
+        let sites: Vec<(Site, usize)> = writes
             .iter()
             .map(|l| (l.write.site(), l.write.expected().len()))
             .collect();
-        let want: Vec<(usize, usize)> = SIDE_SITES
+        let want: Vec<(Site, usize)> = SIDE_SITES
             .iter()
             .map(|&s| (s, SIDE.len()))
             .chain(SCALE_SITES.iter().map(|&s| (s, SCALE.len())))

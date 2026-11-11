@@ -7,22 +7,23 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use eix_core::fixes::repair_wear;
 use eix_engine::game::item::Item;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 /// `fld dword ptr [esi + 0x20]; fdiv dword ptr [esi + 0x24]`, the start of the wear `1 - condition / maximum` that
 /// 0x60FAEC stores at ESP + 0x14; ESI is the item.
-const WEAR: usize = eix_sites::C_CAMP_PAGES_PRICE__2C;
+const WEAR: Site = eix_sites::C_CAMP_PAGES_PRICE__2C;
 const WEAR_ORIGINAL: [u8; 6] = [0xD9, 0x46, 0x20, 0xD8, 0x76, 0x24];
 /// After the wear: `call [eax + 0x40]` (the item's price) with EAX the vtable and ECX the item.
-const WEAR_RESUME: usize = eix_sites::C_CAMP_PAGES_PRICE__40;
+const WEAR_RESUME: Site = eix_sites::C_CAMP_PAGES_PRICE__40;
 /// Stack word 5, ESP + 0x14: the wear.
 const WEAR_WORD: usize = 5;
 
 /// `fmul dword ptr [edi + ebx*4 + 0x21C]` (the price times the deal's rate), then `fsub dword ptr [esp + 0xC]` at
 /// 0x60FB8E takes the repair cost off; EBX is the deal kind. The hook covers the multiply's first five bytes, as the
 /// original's jump does.
-const COST: usize = eix_sites::C_CAMP_PAGES_PRICE__D7;
+const COST: Site = eix_sites::C_CAMP_PAGES_PRICE__D7;
 const COST_MULTIPLY: [u8; 7] = [0xD8, 0x8C, 0x9F, 0x1C, 0x02, 0x00, 0x00];
 /// Stack word 3, ESP + 0xC: the repair cost.
 const COST_WORD: usize = 3;
@@ -54,7 +55,7 @@ extern "C" fn cost(_: usize, ctx: &mut Context) {
     {
         ctx.set_stack_word(COST_WORD, cost ^ 0x8000_0000);
     }
-    ctx.resume = MULTIPLY.load(Ordering::SeqCst);
+    ctx.resume = Site::of(MULTIPLY.load(Ordering::SeqCst));
 }
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {

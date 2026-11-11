@@ -50,7 +50,7 @@ impl AttackParams {
     /// 0x52E0D0 (thiscall, `ret 4`; the flag is a whole stack word).
     ///
     /// # Safety
-    /// `this` must point at attack parameters, on the game's thread of game.exe RU 1.06.
+    /// `this` must point at attack parameters, on the game's thread of a supported game.exe.
     pub unsafe fn scale_for_difficulty(this: *mut Self, keyed: bool) {
         // SAFETY: 0x52E0D0 is `void __thiscall (int keyed)`.
         let f = unsafe {

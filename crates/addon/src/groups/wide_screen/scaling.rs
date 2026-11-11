@@ -13,13 +13,14 @@ use eix_engine::game::ui::{Point, Rect};
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
 use eix_engine::patch;
+use eix_sites::Site;
 
 use super::{Numbered, bytes, layout, word};
 use crate::groups::BuildError;
 
 /// `CInterface3D::ScaleRectToScreen` 0x5F7CA0, `ScalePointToScreen` 0x5F7D20 and its unused copy 0x5F7D60: each
 /// starts `push esi; mov esi, [esp + 8]`.
-const TO_SCREEN: [(usize, usize, bool); 3] = [
+const TO_SCREEN: [(usize, Site, bool); 3] = [
     (7, eix_sites::C_INTERFACE_3D_SCALE_RECT_TO_SCREEN, true),
     (8, eix_sites::C_INTERFACE_3D_SCALE_POINT_TO_SCREEN, false),
     (
@@ -33,7 +34,7 @@ const TO_SCREEN_START: [u8; 5] = [0x56, 0x8B, 0x74, 0x24, 0x08];
 /// The screen-to-layout scalings, from 0x5F7D9E to 0x5F7E60: `ScaleRectFromScreen` 0x5F7DA0, `ScalePointFromScreen`
 /// 0x5F7E00 and its copy 0x5F7E30, with the padding in front of each, become the three entries and, two bytes
 /// before each, an entry that clears ECX (no margin).
-const FROM_SCREEN: usize = eix_sites::C_INTERFACE_3D_SCALE_POINT_TO_SCREEN__7E;
+const FROM_SCREEN: Site = eix_sites::C_INTERFACE_3D_SCALE_POINT_TO_SCREEN__7E;
 const FROM_SCREEN_ORIGINAL: [u8; 194] = [
     0x90, 0x90, 0x56, 0x8B, 0x74, 0x24, 0x08, 0x8B, 0x06, 0x8D, 0x04, 0x80, 0x8D, 0x04, 0x80, 0xC1,
     0xE0, 0x05, 0x99, 0xF7, 0x39, 0x89, 0x06, 0x8B, 0x46, 0x04, 0x8D, 0x04, 0x40, 0x8D, 0x04, 0x80,
@@ -50,14 +51,14 @@ const FROM_SCREEN_ORIGINAL: [u8; 194] = [
     0x00, 0x90,
 ];
 /// The point entry's offset in that range; the rect entry's is 2, the copy's 0x92.
-const POINT_FROM_SCREEN: usize = eix_sites::SCALE_POINT_FROM_SCREEN_ENTRY;
+const POINT_FROM_SCREEN: Site = eix_sites::SCALE_POINT_FROM_SCREEN_ENTRY;
 /// `xor ecx, ecx`: the entry in front of each.
 const NO_MARGIN: [u8; 2] = [0x31, 0xC9];
 
 /// `mov ecx, [reg + 0x98]` (the window's interface) before a call that scales a size or an offset: the edit field
 /// (#10, #11), the connection list (#12, #13), the save / load list (#14, #15), the chat line (#16, #17), the
 /// tooltip (#18) with ESI, the unit panel's depth clears (#32 .. #34) with EBX. Four NOPs and `xor ecx, ecx` pass 0.
-const NO_INTERFACE: [(usize, usize, u8); 12] = [
+const NO_INTERFACE: [(usize, Site, u8); 12] = [
     (
         10,
         eix_sites::C_UI_EDIT_FIELD_DRAW_CONTENTS_VANILLA__23F,
@@ -98,18 +99,18 @@ const NO_INTERFACE: [(usize, usize, u8); 12] = [
 const NO_INTERFACE_NEW: [u8; 6] = [0x90, 0x90, 0x90, 0x90, 0x31, 0xC9];
 
 /// `mov ecx, [edi + 4]` before `CUiSurface::DrawTextIn` 0x5FDE20's call of ScaleRectToScreen (#92).
-const DRAW_TEXT: (usize, [u8; 3]) = (eix_sites::C_UI_SURFACE_DRAW_TEXT_IN__74, [0x8B, 0x4F, 0x04]);
+const DRAW_TEXT: (Site, [u8; 3]) = (eix_sites::C_UI_SURFACE_DRAW_TEXT_IN__74, [0x8B, 0x4F, 0x04]);
 
 /// The camera's and the global map's mouse moves call ScalePointFromScreen with a drag offset (#94, #95): they go
 /// to the entry without the margin.
-const DRAGS: [(usize, usize); 2] = [
+const DRAGS: [(usize, Site); 2] = [
     (94, eix_sites::C_CAMERA_INPUT_ON_MOUSE_MOVE__39),
     (95, eix_sites::GLOBAL_MAP_MOUSE_MOVE__7C),
 ];
 
 /// `CInterface3D::TextExtent` 0x5F8340 from 0x5F83CF: the drawn text's extent (EBX, EBP) divided by the screen's
 /// size into the SIZE at ESP + 0x30, then `call 0x700970` at 0x5F8403 (the string's destructor) and the epilogue.
-const TEXT_EXTENT: usize = eix_sites::C_INTERFACE_3D_TEXT_EXTENT__8F;
+const TEXT_EXTENT: Site = eix_sites::C_INTERFACE_3D_TEXT_EXTENT__8F;
 const TEXT_EXTENT_ORIGINAL: [u8; 80] = [
     0x8D, 0x04, 0x9B, 0x8B, 0x74, 0x24, 0x30, 0xC7, 0x44, 0x24, 0x28, 0xFF, 0xFF, 0xFF, 0xFF, 0x8D,
     0x04, 0x80, 0xC1, 0xE0, 0x05, 0x99, 0xF7, 0x3F, 0x8B, 0xC8, 0x8D, 0x44, 0x6D, 0x00, 0x8D, 0x04,
@@ -128,9 +129,9 @@ const TEXT_EXTENT_STRING: usize = 0x34;
 /// The global map's pick picture `CUiSurface::Pixel` 0x5FD240 is read at (x / 2, y / 2); its callers in the map's
 /// mouse move (#80, the call's operand at 0x63023C) and click (#81, 0x62FB20) push x / 2 last, with it in EAX. They
 /// call 9 bytes early instead (#79, the padding in front of it), where half the margin comes off.
-const PICK_ENTRY: usize = eix_sites::C_UI_SURFACE_RELEASE_CONTENTS__117;
-const PICK: usize = eix_sites::C_UI_SURFACE_PIXEL;
-const PICK_CALLERS: [(usize, usize); 2] = [
+const PICK_ENTRY: Site = eix_sites::C_UI_SURFACE_RELEASE_CONTENTS__117;
+const PICK: Site = eix_sites::C_UI_SURFACE_PIXEL;
+const PICK_CALLERS: [(usize, Site); 2] = [
     (80, eix_sites::GLOBAL_MAP_MOUSE_MOVE__22C),
     (81, eix_sites::GLOBAL_MAP_LEFT_DOWN__1D0),
 ];
@@ -199,7 +200,7 @@ extern "C" fn text_extent(_: usize, ctx: &mut Context) {
     ctx.esi = out;
     ctx.eax = cy as u32;
     ctx.ecx = (ctx.stack() + TEXT_EXTENT_STRING) as u32;
-    ctx.resume = TEXT_EXTENT_RESUME.load(Ordering::SeqCst);
+    ctx.resume = Site::of(TEXT_EXTENT_RESUME.load(Ordering::SeqCst));
 }
 
 /// Half the margin off the picture's x (EAX and the argument just pushed).
@@ -215,14 +216,14 @@ fn from_screen_code() -> Vec<u8> {
     let entries = [
         (2, rect_from_screen as *const () as usize),
         (
-            POINT_FROM_SCREEN - FROM_SCREEN,
+            POINT_FROM_SCREEN.since(FROM_SCREEN),
             point_from_screen as *const () as usize,
         ),
         (0x92, point_from_screen as *const () as usize),
     ];
     for (at, target) in entries {
         code[at - 2..at].copy_from_slice(&NO_MARGIN);
-        code[at..at + 5].copy_from_slice(&patch::jmp_rel32(FROM_SCREEN + at, target));
+        code[at..at + 5].copy_from_slice(&patch::jmp_rel32(FROM_SCREEN.offset(at), target));
     }
     code
 }
@@ -257,13 +258,13 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
             n,
             bytes(
                 site,
-                &patch::call_rel32(site, POINT_FROM_SCREEN),
-                &patch::call_rel32(site, POINT_FROM_SCREEN - NO_MARGIN.len()),
+                &patch::call_rel32(site, POINT_FROM_SCREEN.ru()),
+                &patch::call_rel32(site, POINT_FROM_SCREEN.back(NO_MARGIN.len()).ru()),
             )?,
         ));
     }
 
-    let tail = TEXT_EXTENT + TEXT_EXTENT_TAIL;
+    let tail = TEXT_EXTENT.offset(TEXT_EXTENT_TAIL);
     TEXT_EXTENT_RESUME.store(
         hook::trampoline(tail, &TEXT_EXTENT_ORIGINAL[TEXT_EXTENT_TAIL..])?,
         Ordering::SeqCst,
@@ -286,8 +287,8 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
         hook::context_hook(PICK_ENTRY, &[0x90; 9], Mode::Drop, pick, shift)?.padded(0xCC),
     ));
     for (n, operand) in PICK_CALLERS {
-        let end = operand + 4;
-        let rel = |to: usize| (to as u32).wrapping_sub(end as u32).to_le_bytes();
+        let end = operand.offset(4);
+        let rel = |to: Site| to.ru32().wrapping_sub(end.ru32()).to_le_bytes();
         sites.push((n, word(operand, rel(PICK), rel(PICK_ENTRY))?));
     }
     Ok(sites)
@@ -301,7 +302,7 @@ mod tests {
     fn target(code: &[u8], at: usize) -> usize {
         let mut rel = [0u8; 4];
         rel.copy_from_slice(&code[at + 1..at + 5]);
-        (FROM_SCREEN as u32 + at as u32 + 5).wrapping_add(u32::from_le_bytes(rel)) as usize
+        (FROM_SCREEN.ru32() + at as u32 + 5).wrapping_add(u32::from_le_bytes(rel)) as usize
     }
 
     #[test]

@@ -370,7 +370,7 @@ extern "thiscall" fn set_from_stats(unit: *mut Unit, stats: *mut UnitStats) {
 }
 
 /// A replaced function: its label, entry, first bytes, replacement, and the callbacks the replacement reaches.
-type Site<'a> = (&'a str, usize, &'a [u8], usize, &'a [Callback]);
+type Replaced<'a> = (&'a str, eix_sites::Site, &'a [u8], usize, &'a [Callback]);
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     require_host()?;
@@ -396,7 +396,7 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
         RecalcUnitStats,
         GetSkillPriceDiff,
     ];
-    let sites: [Site<'_>; 13] = [
+    let sites: [Replaced<'_>; 13] = [
         (
             "LuaRecalcUnitStats #0",
             eix_sites::UNIT_STATS_HIT_POINT_CURVE,

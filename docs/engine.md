@@ -1,6 +1,6 @@
 # Fixes and features
 
-eix's own changes to game.exe RU 1.06, beside the originals' features: [fixes](#fixes) of defects that the original
+eix's own changes to game.exe, beside the originals' features: [fixes](#fixes) of defects that the original
 addon.dll and SpellAddon leave, and [features](#features). Each is set in [eix.ini](eix-ini.md).
 
 ## Fixes

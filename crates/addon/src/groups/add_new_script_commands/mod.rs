@@ -30,6 +30,7 @@ use eix_engine::game::script::{
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
 use eix_engine::patch;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 use crate::{log, report};
@@ -247,7 +248,7 @@ fn word_at(ctx: &Context, address: usize) -> usize {
 }
 
 /// The hook's call for an evaluator: the command in ESI, the result slot at the given stack address.
-fn evaluate(ctx: &mut Context, result: usize, done: usize) {
+fn evaluate(ctx: &mut Context, result: usize, done: Site) {
     let call = Call {
         cmd: ctx.esi as *mut ScriptCommand,
         result: word_at(ctx, result) as *mut c_void,
@@ -477,7 +478,7 @@ fn error_lines(line: i32, message: &str, lines: &[Vec<u8>]) -> Vec<String> {
 
 /// `SSCCmd::CalcParameters` 0x4B4030's string case (from +0x36, 115 bytes), which the original fills with a call of
 /// the string evaluator 0x4B5650 for the argument's slot.
-const CALC_PARAMETERS: usize = eix_sites::SSC_CMD_CALC_PARAMETERS__36;
+const CALC_PARAMETERS: Site = eix_sites::SSC_CMD_CALC_PARAMETERS__36;
 const CALC_PARAMETERS_BYTES: [u8; 115] = [
     0x55, 0x8B, 0x6C, 0x24, 0x0C, 0x56, 0x8B, 0x70, 0x08, 0x57, 0x55, 0x8D, 0x46, 0x54, 0x8B, 0xCE,
     0x50, 0xE8, 0xE4, 0xFE, 0xFF, 0xFF, 0x8B, 0x4C, 0x24, 0x10, 0x8D, 0x56, 0x68, 0x81, 0xC1, 0xA0,
@@ -489,7 +490,7 @@ const CALC_PARAMETERS_BYTES: [u8; 115] = [
     0xC2, 0x0C, 0x00,
 ];
 /// The string evaluator the rewritten case calls.
-const CALC_STRING: usize = eix_sites::SSC_CMD_CALC_FLOAT__1470;
+const CALC_STRING: Site = eix_sites::SSC_CMD_CALC_FLOAT__1470;
 
 /// The rewritten case: `mov edx, [eax+4]; mov ecx, [ecx+0x1C]; lea edx, [ecx+edx*4]` (the argument's string slot),
 /// `mov ecx, [esp+8]; push edx; mov edx, [esp+8]; push ecx; mov ecx, [eax+8]; push edx` (vars, script, the nested
@@ -501,13 +502,16 @@ fn calc_parameters_code() -> [u8; 115] {
     ];
     let mut code = [0x90u8; 115];
     code[..23].copy_from_slice(&HEAD);
-    code[23..28].copy_from_slice(&patch::call_rel32(CALC_PARAMETERS + 23, CALC_STRING));
+    code[23..28].copy_from_slice(&patch::call_rel32(
+        CALC_PARAMETERS.offset(23),
+        CALC_STRING.ru(),
+    ));
     code[28..31].copy_from_slice(&[0xC2, 0x0C, 0x00]);
     code
 }
 
 /// The table's references in the parser (and the script dumper): each operand holds 0x78BCA0.
-const TABLE_REFERENCES: [usize; 15] = [
+const TABLE_REFERENCES: [Site; 15] = [
     eix_sites::CLASSIFY_TOKEN__9B,
     eix_sites::CLASSIFY_TOKEN__B4,
     eix_sites::C_SCRIPT_LOAD_FUNCTION__658,
@@ -526,7 +530,7 @@ const TABLE_REFERENCES: [usize; 15] = [
 ];
 
 /// The hooks after the table: label number, site, replaced bytes, mode, handler.
-type HookSite = (usize, usize, &'static [u8], Mode, hook::Handler);
+type HookSite = (usize, Site, &'static [u8], Mode, hook::Handler);
 const HOOKS: [HookSite; 8] = [
     (
         1,
@@ -586,12 +590,12 @@ const HOOKS: [HookSite; 8] = [
     ),
 ];
 /// `ScriptError`'s `lea ecx, [esi+0x1EC]`, after the message is formatted.
-const SCRIPT_ERROR: (usize, [u8; 6]) = (
+const SCRIPT_ERROR: (Site, [u8; 6]) = (
     eix_sites::SCRIPT_ERROR__32,
     [0x8D, 0x8E, 0xEC, 0x01, 0x00, 0x00],
 );
 /// `CScript::Load`'s `mov eax, fs:[0]`, at its start.
-const LOAD: (usize, [u8; 6]) = (
+const LOAD: (Site, [u8; 6]) = (
     eix_sites::C_SCRIPT_LOAD__7,
     [0x64, 0xA1, 0x00, 0x00, 0x00, 0x00],
 );
@@ -599,7 +603,7 @@ const LOAD: (usize, [u8; 6]) = (
 /// The game's keywords, then the records, as the original builds the table; and each id's handler.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 before WinMain: the game's keyword table is read in place.
+/// The process must be a supported game.exe before WinMain: the game's keyword table is read in place.
 unsafe fn build_table() -> Result<(Vec<ScriptKeyword>, Vec<Option<Handler>>), String> {
     let mut table = Vec::with_capacity(300);
     let mut at = SCRIPT_KEYWORDS.as_ptr();
@@ -692,7 +696,7 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     for (i, site) in TABLE_REFERENCES.iter().enumerate() {
         out.push(Labelled {
             label: label(9 + i),
-            write: SiteWrite::pointer(*site, SCRIPT_KEYWORDS.address(), address),
+            write: SiteWrite::pointer(*site, SCRIPT_KEYWORDS.site().ru(), address),
         });
     }
     out.push(Labelled {
@@ -761,7 +765,7 @@ mod tests {
         assert_eq!(code[23], 0xE8);
         let rel = i32::from_le_bytes([code[24], code[25], code[26], code[27]]);
         assert_eq!(
-            (CALC_PARAMETERS as i64 + 28 + i64::from(rel)) as usize,
+            Site::new((CALC_PARAMETERS.ru() as i64 + 28 + i64::from(rel)) as usize),
             CALC_STRING
         );
         assert_eq!(&code[28..31], &[0xC2, 0x0C, 0x00]);

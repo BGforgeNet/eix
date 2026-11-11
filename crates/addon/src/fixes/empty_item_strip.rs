@@ -12,13 +12,14 @@ use core::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_engine::hook;
+use eix_sites::Site;
 
 use super::Warnings;
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `mov eax, fs:[0]`: the start of its exception frame.
-const SETUP: usize = eix_sites::C_UI_ITEM_STRIP_SETUP;
+const SETUP: Site = eix_sites::C_UI_ITEM_STRIP_SETUP;
 const PROLOGUE: [u8; 6] = [0x64, 0xA1, 0x00, 0x00, 0x00, 0x00];
 /// Windows maps nothing in the first 64 KiB, so a list below is a missing record's.
 const NULL_PAGES: usize = 0x1_0000;
@@ -40,7 +41,7 @@ extern "thiscall" fn setup(strip: *mut c_void, list: *const c_void, flag: u32) {
     };
     // SAFETY: ORIGINAL holds the trampoline `build` made, of this type; the arguments are the game's, or the empty
     // list, which outlives every strip.
-    let original = unsafe { hook::as_fn::<StripSetup>(ORIGINAL.load(Ordering::Relaxed)) };
+    let original = unsafe { hook::as_fn_at::<StripSetup>(ORIGINAL.load(Ordering::Relaxed)) };
     // SAFETY: as above.
     unsafe { original(strip, list, flag) };
 }

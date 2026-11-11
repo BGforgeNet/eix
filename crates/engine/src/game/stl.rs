@@ -35,7 +35,7 @@ impl<N: HashNode> HashTable<N> {
     /// addon.dll 0.12.4.2's walk.
     ///
     /// # Safety
-    /// `this` must be a live table of game.exe RU 1.06, on the game's thread; `f` must not change it.
+    /// `this` must be a live table of a supported game.exe, on the game's thread; `f` must not change it.
     pub unsafe fn for_each(this: *const Self, mut f: impl FnMut(*mut N)) {
         // SAFETY: the caller guarantees a live table.
         let table = unsafe { &*this };

@@ -120,7 +120,7 @@ impl MapObject {
     /// (thiscall, `ret 4`).
     ///
     /// # Safety
-    /// `this` must be a live map object of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live map object of a supported game.exe, on the game's thread.
     pub unsafe fn effect_value(this: *mut Self, kind: i32) -> f32 {
         // SAFETY: 0x50F690 is `float __thiscall (int type)`.
         let f = unsafe {
@@ -294,7 +294,7 @@ impl Unit {
     /// others from [`weapons`](Self::weapons).
     ///
     /// # Safety
-    /// `this` must be a live unit of game.exe RU 1.06 with a controller, on the game's thread.
+    /// `this` must be a live unit of a supported game.exe with a controller, on the game's thread.
     pub unsafe fn weapon(this: *mut Self, slot: u32) -> *mut Item {
         // SAFETY: 0x5318B0 is `CItem* __thiscall (unsigned slot)`, `ret 4`.
         let f = unsafe { code::<SlotGetter<Item>>(eix_sites::C_UNIT_GET_WEAPON) };
@@ -484,7 +484,7 @@ impl UnitStats {
     /// `UnitStats::HealSlots` 0x525800 (thiscall, `ret 8`).
     ///
     /// # Safety
-    /// `this` must be a live unit's statistics of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live unit's statistics of a supported game.exe, on the game's thread.
     pub unsafe fn heal_slots(this: *mut Self, max_hit_points: f32, amount: f32) -> bool {
         // SAFETY: 0x525800 is `bool __thiscall (float max, float amount)`.
         let f = unsafe {
@@ -672,7 +672,7 @@ pub unsafe fn school_price(from: i32, to: i32) -> i32 {
 /// find them.
 ///
 /// # Safety
-/// `unit` must be a live unit of game.exe RU 1.06, on the game's thread.
+/// `unit` must be a live unit of a supported game.exe, on the game's thread.
 pub unsafe fn server_vitals(unit: *mut Unit) -> *mut UnitVitals {
     // SAFETY: the caller guarantees a live unit.
     let companion = unsafe { (*unit).map_object.companion };
@@ -784,7 +784,7 @@ impl AiBrain {
     /// the record and the index on the stack, `ret 8`).
     ///
     /// # Safety
-    /// `this` must be a live unit's brain of game.exe RU 1.06 and `record` its record `index`, on the game's thread.
+    /// `this` must be a live unit's brain of a supported game.exe and `record` its record `index`, on the game's thread.
     pub unsafe fn apply_behaviour(this: *mut Self, record: *mut [u8; 0x4C], index: i32) {
         // SAFETY: 0x5D6630 is `void __thiscall (const BehaviourRecord*, int)`.
         let f = unsafe {
@@ -801,7 +801,7 @@ impl AiBrain {
     /// calls it for its danger state (0x66E666).
     ///
     /// # Safety
-    /// `this` must be a live unit's brain of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live unit's brain of a supported game.exe, on the game's thread.
     pub unsafe fn aggression_enemy(this: *mut Self) -> *mut EngineObject {
         // SAFETY: 0x5D5F20 is `CEngineObject* __thiscall ()`; it reads the mode list only.
         let f = unsafe {
@@ -818,7 +818,7 @@ impl AiMemory {
     /// Forgets what was perceived: `AIMemory::Reset` 0x5CB0F0 (thiscall, plain `ret`).
     ///
     /// # Safety
-    /// `this` must be a live brain's memory of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live brain's memory of a supported game.exe, on the game's thread.
     pub unsafe fn reset(this: *mut Self) {
         // SAFETY: 0x5CB0F0 is `void __thiscall ()`.
         let f =
@@ -855,7 +855,7 @@ impl Unit {
     /// The unit's prototype record: `CUnit::GetPrototype` 0x530930 (thiscall, plain `ret`).
     ///
     /// # Safety
-    /// `this` must be a live unit of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live unit of a supported game.exe, on the game's thread.
     pub unsafe fn prototype(this: *mut Self) -> *mut UnitPrototype {
         // SAFETY: 0x530930 is `const UnitPrototypeRecord* __thiscall ()`.
         let f = unsafe {
@@ -950,7 +950,7 @@ impl UnitStats {
     /// constants 0x73E128 (1.04) and 0x73E124 (25.0), the game's `_CIpow` 0x6E81A0, the result stored as an `f32`.
     ///
     /// # Safety
-    /// `this` must be a live statistics block of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live statistics block of a supported game.exe, on the game's thread.
     pub unsafe fn experience_factor(this: *const Self) -> f32 {
         // SAFETY: the caller guarantees a live block.
         let intelligence = unsafe { (*this).intelligence };
@@ -964,10 +964,10 @@ impl UnitStats {
                 "fsub dword ptr [{k}]",
                 "call {pow}",
                 "fstp dword ptr [edi]",
-                base = in(reg) eix_sites::here(eix_sites::RDATA_73E128),
+                base = in(reg) eix_sites::RDATA_73E128.here(),
                 i = in(reg) &intelligence,
-                k = in(reg) eix_sites::here(eix_sites::RDATA_73E124),
-                pow = in(reg) eix_sites::here(eix_sites::TEXT_6E81A0),
+                k = in(reg) eix_sites::RDATA_73E124.here(),
+                pow = in(reg) eix_sites::TEXT_6E81A0.here(),
                 in("edi") &mut out,
                 clobber_abi("C"),
             );
@@ -1034,7 +1034,7 @@ impl UnitServer {
     /// the function answers.
     ///
     /// # Safety
-    /// `this` must be a live unit controller of game.exe RU 1.06 and `weapon` null or a live item, on the game's
+    /// `this` must be a live unit controller of a supported game.exe and `weapon` null or a live item, on the game's
     /// thread.
     pub unsafe fn scaled_attack_value(this: *mut Self, kind: i32, weapon: *mut Item) -> i32 {
         // SAFETY: 0x54B9C0 is `int __thiscall (int kind, CItem* weapon)`, `ret 8`.
@@ -1049,7 +1049,7 @@ impl UnitServer {
     /// The unit's level from its experience: `CUnitServer::Level` 0x556760 (thiscall, no arguments).
     ///
     /// # Safety
-    /// `this` must be a live unit controller of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live unit controller of a supported game.exe, on the game's thread.
     pub unsafe fn level(this: *mut Self) -> i32 {
         // SAFETY: 0x556760 is `int __thiscall ()` with a plain `ret`.
         let f = unsafe {
@@ -1116,7 +1116,7 @@ impl UnitServer {
         // SAFETY: the caller guarantees the vtable has the slot.
         let address = unsafe { *vtable.wrapping_add(slot) };
         // SAFETY: the slot is `void __thiscall ()`, as the caller guarantees.
-        let f = unsafe { code::<unsafe extern "thiscall" fn(*mut Self)>(address) };
+        let f = unsafe { crate::hook::as_fn_at::<unsafe extern "thiscall" fn(*mut Self)>(address) };
         // SAFETY: as for `level`.
         unsafe { f(this) }
     }

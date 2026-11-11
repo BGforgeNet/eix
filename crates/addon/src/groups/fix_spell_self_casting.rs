@@ -7,14 +7,15 @@ use eix_core::fixes::is_offensive;
 use eix_engine::game::spell::Spell;
 use eix_engine::group::SiteWrite;
 use eix_engine::hook;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 /// `IsOffensive`'s first instructions: `mov eax, [ecx + 0x18]; shr eax, 0x10`.
-const IS_OFFENSIVE: usize = eix_sites::C_SPELL_IS_OFFENSIVE;
+const IS_OFFENSIVE: Site = eix_sites::C_SPELL_IS_OFFENSIVE;
 const IS_OFFENSIVE_START: [u8; 6] = [0x8B, 0x41, 0x18, 0xC1, 0xE8, 0x10];
 /// `mov cl, [eax + 0x7F]`: the selected spell's flag, which the cast call 0x637500 takes; it becomes `mov cl, 0`.
-const SELECT_FLAG: usize = eix_sites::C_BATTLE_SCREEN_SELECT_UNIT__557;
+const SELECT_FLAG: Site = eix_sites::C_BATTLE_SCREEN_SELECT_UNIT__557;
 
 /// `bool __thiscall CSpell::IsOffensive()`; the callers read AL only.
 extern "thiscall" fn spell_is_offensive(this: *const Spell) -> bool {

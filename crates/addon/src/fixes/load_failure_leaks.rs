@@ -13,12 +13,13 @@ use core::ffi::c_void;
 
 use eix_engine::game::mfc;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// GetFile: `mov ecx, esi; mov [esp+0x3c], 0xa` before the node's destruction, ESI the node.
-const GET_FILE_FAILED: usize = eix_sites::MAPPED_RESOURCE_GET_FILE__28B;
+const GET_FILE_FAILED: Site = eix_sites::MAPPED_RESOURCE_GET_FILE__28B;
 const GET_FILE_FAILED_BYTES: [u8; 10] =
     [0x8B, 0xCE, 0xC7, 0x44, 0x24, 0x3C, 0x0A, 0x00, 0x00, 0x00];
 /// The node's data buffer.
@@ -26,8 +27,8 @@ const NODE_DATA: usize = 0x0C;
 /// LoadTexture and LoadTextureFrom: `mov eax, [ebp]; mov ecx, ebp` before the message, EBX the manager; ESI the
 /// resource in LoadTexture, EBX the buffer in LoadTextureFrom.
 const TEXTURE_FAILED_BYTES: [u8; 5] = [0x8B, 0x45, 0x00, 0x8B, 0xCD];
-const LOAD_TEXTURE_FAILED: usize = eix_sites::TEXTURE_MANAGER_LOAD_TEXTURE__296;
-const LOAD_TEXTURE_FROM_FAILED: usize = eix_sites::TEXTURE_MANAGER_LOAD_TEXTURE_FROM__173;
+const LOAD_TEXTURE_FAILED: Site = eix_sites::TEXTURE_MANAGER_LOAD_TEXTURE__296;
+const LOAD_TEXTURE_FROM_FAILED: Site = eix_sites::TEXTURE_MANAGER_LOAD_TEXTURE_FROM__173;
 /// The manager's virtual slot that gives a resource back, as the success path calls it (`call [edx+0x50]`).
 const RELEASE_SLOT: usize = 0x50;
 
@@ -53,7 +54,7 @@ extern "C" fn load_texture_failed(_: usize, ctx: &mut Context) {
     // SAFETY: its slot +0x50, which the success path calls.
     let slot = unsafe { vtable.wrapping_byte_add(RELEASE_SLOT).read() };
     // SAFETY: that slot is thiscall with the resource, as the success path calls it.
-    let release = unsafe { hook::as_fn::<Release>(slot) };
+    let release = unsafe { hook::as_fn_at::<Release>(slot) };
     let resource = core::ptr::with_exposed_provenance_mut(ctx.esi as usize);
     // SAFETY: ESI is the resource the manager's slot +0x4C opened, given back once.
     unsafe { release(manager.cast(), resource) };
@@ -65,7 +66,7 @@ extern "C" fn load_texture_from_failed(_: usize, ctx: &mut Context) {
 }
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
-    let sites: [(usize, &[u8], hook::Handler); 3] = [
+    let sites: [(Site, &[u8], hook::Handler); 3] = [
         (GET_FILE_FAILED, &GET_FILE_FAILED_BYTES, get_file_failed),
         (
             LOAD_TEXTURE_FAILED,

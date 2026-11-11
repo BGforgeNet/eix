@@ -72,8 +72,11 @@ impl World {
         // SAFETY: the world's vtable has slot 20.
         let slot = unsafe { vtable.wrapping_add(20).read() };
         // SAFETY: slot 20 is `CPlayerManager* __thiscall ()` (0x402CE0 for the server's world).
-        let f =
-            unsafe { code::<unsafe extern "thiscall" fn(*mut Self) -> *mut PlayerManager>(slot) };
+        let f = unsafe {
+            crate::hook::as_fn_at::<unsafe extern "thiscall" fn(*mut Self) -> *mut PlayerManager>(
+                slot,
+            )
+        };
         // SAFETY: the caller guarantees the world and the thread.
         unsafe { f(this) }
     }
@@ -194,7 +197,7 @@ impl SectorMap {
     /// the point, the list and the radius on the stack, `ret 0xC`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread, with a zone loaded; `list` must be a constructed
+    /// The process must be a supported game.exe, on the game's thread, with a zone loaded; `list` must be a constructed
     /// list.
     pub unsafe fn find_in_radius(
         this: *mut Self,
@@ -501,7 +504,7 @@ const _: () = {
 };
 
 /// The server world's map objects (`CWorldServer` +0x12DA0: `UpdateUnits` 0x58D76B walks it).
-pub const SERVER_OBJECTS: Global<ObjectMap> = Global::at(eix_sites::DATA_7AFF60 + 0x1_2DA0);
+pub const SERVER_OBJECTS: Global<ObjectMap> = Global::at(eix_sites::DATA_7AFF60.offset(0x1_2DA0));
 
 impl ObjectMap {
     /// The nodes in bucket order, each bucket's chain in turn, as the game's iterator (0x59C020, 0x59B7D0) visits
@@ -579,11 +582,11 @@ mod tests {
     #[test]
     fn the_client_worlds_fields_are_the_known_globals() {
         assert_eq!(
-            CLIENT_WORLD.address() + offset_of!(World, tick),
+            CLIENT_WORLD.site().offset(offset_of!(World, tick)),
             eix_sites::DATA_7AF61C
         );
         assert_eq!(
-            CLIENT_WORLD.address() + offset_of!(World, paused),
+            CLIENT_WORLD.site().offset(offset_of!(World, paused)),
             eix_sites::DATA_7AF624
         );
     }

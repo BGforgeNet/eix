@@ -41,7 +41,7 @@ pub const TEXTS: Global<*mut TextManager> = Global::at(eix_sites::DATA_7AF788);
 /// non-empty text by that key; the cursor is then at its start.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread, and `this` a live text manager.
+/// The process must be a supported game.exe, on the game's thread, and `this` a live text manager.
 pub unsafe fn open(this: *mut TextManager, key: &CStr) -> bool {
     // SAFETY: 0x4DEFC0 takes `this` in ECX and the key on the stack, which it cleans (`ret 4`); it returns 0 or 1 in
     // EAX.
@@ -59,7 +59,7 @@ pub unsafe fn open(this: *mut TextManager, key: &CStr) -> bool {
 /// manager's open text and cursor change.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live text manager and `out` a
+/// The process must be a supported game.exe, on the game's thread; `this` must be a live text manager and `out` a
 /// constructed string.
 pub unsafe fn get_string(this: *mut TextManager, key: &CStr, out: *mut GameString) {
     // SAFETY: 0x4E0020 takes `this` in ECX and the key and the string on the stack, which it cleans (`ret 8`).

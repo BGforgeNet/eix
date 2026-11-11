@@ -13,16 +13,17 @@ use core::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_engine::hook;
+use eix_sites::Site;
 
 use super::Warnings;
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `mov eax, ecx; mov edx, 1`.
-const GET_RELATION: usize = eix_sites::C_DIPLOMACY_GET_RELATION;
+const GET_RELATION: Site = eix_sites::C_DIPLOMACY_GET_RELATION;
 const GET_PROLOGUE: [u8; 7] = [0x8B, 0xC1, 0xBA, 0x01, 0x00, 0x00, 0x00];
 /// `push -1; push 0x713C58`: its exception frame.
-const SET_RELATION: usize = eix_sites::C_DIPLOMACY_SET_RELATION;
+const SET_RELATION: Site = eix_sites::C_DIPLOMACY_SET_RELATION;
 const SET_PROLOGUE: [u8; 7] = [0x6A, 0xFF, 0x68, 0x58, 0x3C, 0x71, 0x00];
 /// The sides the tables have.
 const SIDES: core::ops::Range<i32> = 0..32;
@@ -41,7 +42,7 @@ extern "thiscall" fn get_relation(diplomacy: *mut c_void, side: i32, other: i32)
         return HOSTILE;
     }
     // SAFETY: GET holds the trampoline `build` made, of this type; the arguments are the game's.
-    let original = unsafe { hook::as_fn::<Get>(GET.load(Ordering::Relaxed)) };
+    let original = unsafe { hook::as_fn_at::<Get>(GET.load(Ordering::Relaxed)) };
     // SAFETY: as above.
     unsafe { original(diplomacy, side, other) }
 }
@@ -58,7 +59,7 @@ extern "thiscall" fn set_relation(
         return;
     }
     // SAFETY: SET holds the trampoline `build` made, of this type; the arguments are the game's.
-    let original = unsafe { hook::as_fn::<Set>(SET.load(Ordering::Relaxed)) };
+    let original = unsafe { hook::as_fn_at::<Set>(SET.load(Ordering::Relaxed)) };
     // SAFETY: as above.
     unsafe { original(diplomacy, side, other, relation, notify) }
 }

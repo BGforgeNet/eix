@@ -53,7 +53,7 @@ extern "thiscall" fn cast_spell(
     // SAFETY: as above.
     unsafe { (*spell).damage = scaled(saved, r, factor) };
     // SAFETY: CAST_SPELL holds the call's old target, 0x58E850, of this type, stored before the site was written.
-    let original: CastSpell = unsafe { hook::as_fn(CAST_SPELL.load(Ordering::Relaxed)) };
+    let original: CastSpell = unsafe { hook::as_fn_at(CAST_SPELL.load(Ordering::Relaxed)) };
     // SAFETY: the arguments are FinishCast's, passed on unchanged.
     let result = unsafe { original(world, spell, a, b, c, d, e) };
     // SAFETY: the spell outlives the cast: FinishCast still holds it.
@@ -71,7 +71,7 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
         [0xE8, 0x92, 0xF8, 0x03, 0x00],
         cast_spell as *const () as usize,
     )?;
-    CAST_SPELL.store(old, Ordering::Relaxed);
+    CAST_SPELL.store(old.here(), Ordering::Relaxed);
     Ok(vec![Labelled {
         label: "RandomMagicDamage #0".to_owned(),
         write,

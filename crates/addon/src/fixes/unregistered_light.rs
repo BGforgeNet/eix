@@ -8,24 +8,25 @@
 #![expect(unsafe_code, reason = "moves the light the game passes")]
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::Warnings;
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// RemoveLight: `jne 0x6CA767; mov [esp+0x20], eax` after the lookup, EAX the node or 0.
-const REMOVE_FOUND: usize = eix_sites::TERRAIN_REMOVE_LIGHT__3F;
+const REMOVE_FOUND: Site = eix_sites::TERRAIN_REMOVE_LIGHT__3F;
 const REMOVE_FOUND_BYTES: [u8; 6] = [0x75, 0x06, 0x89, 0x44, 0x24, 0x20];
-const REMOVE_GO_ON: usize = eix_sites::TERRAIN_REMOVE_LIGHT__47;
+const REMOVE_GO_ON: Site = eix_sites::TERRAIN_REMOVE_LIGHT__47;
 /// Its epilogue, past the release.
-const REMOVE_RETURN: usize = eix_sites::TERRAIN_REMOVE_LIGHT__103;
+const REMOVE_RETURN: Site = eix_sites::TERRAIN_REMOVE_LIGHT__103;
 /// MoveLight: `cmp eax, ecx; jne 0x6CA885; xor edi, edi; jmp 0x6CA888` after the lookup, EAX the found position and
 /// ECX the registry's end.
-const MOVE_FOUND: usize = eix_sites::TERRAIN_MOVE_LIGHT__4D;
+const MOVE_FOUND: Site = eix_sites::TERRAIN_MOVE_LIGHT__4D;
 const MOVE_FOUND_BYTES: [u8; 8] = [0x3B, 0xC1, 0x75, 0x04, 0x33, 0xFF, 0xEB, 0x03];
-const MOVE_GO_ON: usize = eix_sites::TERRAIN_MOVE_LIGHT__55;
+const MOVE_GO_ON: Site = eix_sites::TERRAIN_MOVE_LIGHT__55;
 /// Its epilogue (`pop edi`).
-const MOVE_RETURN: usize = eix_sites::TERRAIN_MOVE_LIGHT__177;
+const MOVE_RETURN: Site = eix_sites::TERRAIN_MOVE_LIGHT__177;
 /// MoveLight's arguments as the site's stack holds them: the light, then the offset (three floats).
 const MOVE_LIGHT_ARG: usize = 0x34;
 const MOVE_OFFSET_ARG: usize = 0x38;
@@ -94,8 +95,10 @@ mod tests {
     fn the_found_branches_go_where_the_jumps_went() {
         assert_eq!(
             REMOVE_GO_ON,
-            REMOVE_FOUND + 2 + usize::from(REMOVE_FOUND_BYTES[1])
+            REMOVE_FOUND
+                .offset(2)
+                .offset(usize::from(REMOVE_FOUND_BYTES[1]))
         );
-        assert_eq!(MOVE_GO_ON, MOVE_FOUND + MOVE_FOUND_BYTES.len());
+        assert_eq!(MOVE_GO_ON, MOVE_FOUND.offset(MOVE_FOUND_BYTES.len()));
     }
 }

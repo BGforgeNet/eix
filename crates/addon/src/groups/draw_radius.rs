@@ -5,20 +5,21 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use eix_engine::group::SiteWrite;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 /// The float 100.0 the object pass reads.
-const OBJECTS_RADIUS: usize = eix_sites::RDATA_73BAB0;
+const OBJECTS_RADIUS: Site = eix_sites::RDATA_73BAB0;
 /// The `fadd`/`fsub dword ptr [0x73BAB0]` operands.
-const OBJECTS_SITES: [usize; 4] = [
+const OBJECTS_SITES: [Site; 4] = [
     eix_sites::C_WORLD_CLIENT_DRAW_PASS__10A,
     eix_sites::C_WORLD_CLIENT_DRAW_PASS__15C,
     eix_sites::C_WORLD_CLIENT_DRAW_PASS__19A,
     eix_sites::C_WORLD_CLIENT_DRAW_PASS__201,
 ];
 /// The `push 100.0` operands.
-const LANDSCAPE_SITES: [usize; 2] = [
+const LANDSCAPE_SITES: [Site; 2] = [
     eix_sites::C_WORLD_CLIENT_RENDER__1ED,
     eix_sites::C_WORLD_CLIENT_RENDER__279,
 ];
@@ -40,7 +41,7 @@ pub(super) fn build_objects(setup: &Setup) -> Result<Vec<Labelled>, BuildError> 
         .enumerate()
         .map(|(i, &site)| Labelled {
             label: format!("ObjectsDrawRadius #{}", i + 1),
-            write: SiteWrite::pointer(site, OBJECTS_RADIUS, to),
+            write: SiteWrite::pointer(site, OBJECTS_RADIUS.ru(), to),
         })
         .collect())
 }

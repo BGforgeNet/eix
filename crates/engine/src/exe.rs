@@ -91,7 +91,7 @@ mod tests {
             time_date_stamp: 0x3ABF_0DB3,
         };
         assert_eq!(identify(&id), Some(Build::Ru106));
-        assert_eq!(id.entry(), eix_sites::ENTRY);
+        assert_eq!(id.entry(), eix_sites::ENTRY.ru());
         let gog_en = ExeId {
             entry_rva: 0x2E_C1E6,
             time_date_stamp: 0x3ABB_4A08,

@@ -145,7 +145,7 @@ impl PtrList {
     /// An empty list as the game's constructors make one: the `CList` vtable 0x73D454 and a block size of 10.
     pub fn new() -> Self {
         Self {
-            vtable: eix_sites::PTR_LIST_CLASS_VTABLE,
+            vtable: eix_sites::PTR_LIST_CLASS_VTABLE.here(),
             head: core::ptr::null_mut(),
             tail: core::ptr::null_mut(),
             count: 0,
@@ -175,7 +175,7 @@ impl PtrList {
     /// 0x556D10 (thiscall, `ret 4`), which stores the vtable 0x73EDB0 and the block size at +0x18.
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06; `this` must be writable and hold no constructed list.
+    /// The process must be a supported game.exe; `this` must be writable and hold no constructed list.
     pub unsafe fn construct(this: *mut Self, block_size: i32) {
         // SAFETY: 0x556D10 is `CList* __thiscall (int)`.
         let f = unsafe {
@@ -188,7 +188,7 @@ impl PtrList {
     /// Empties the list and frees its node blocks: `PtrList::RemoveAll` 0x556D40 (thiscall, plain `ret`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06 and `this` a constructed list.
+    /// The process must be a supported game.exe and `this` a constructed list.
     pub unsafe fn remove_all(this: *mut Self) {
         // SAFETY: 0x556D40 is `void __thiscall ()`.
         let f = unsafe {
@@ -201,7 +201,7 @@ impl PtrList {
     /// Frees the nodes: `CList::~CList` 0x427830 (thiscall, plain `ret`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06; the list must not be used afterwards.
+    /// The process must be a supported game.exe; the list must not be used afterwards.
     pub unsafe fn destroy(this: *mut Self) {
         // SAFETY: 0x427830 is `void __thiscall ()`.
         let f = unsafe { code::<unsafe extern "thiscall" fn(*mut Self)>(eix_sites::C_LIST_C_LIST) };
@@ -219,7 +219,7 @@ impl Default for PtrList {
 /// `operator new` 0x7005AF: cdecl, `malloc` with the new-handler retry; null when out of memory.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06. The block is freed only by [`delete`].
+/// The process must be a supported game.exe. The block is freed only by [`delete`].
 pub unsafe fn new(size: usize) -> *mut c_void {
     // SAFETY: 0x7005AF is `void* __cdecl operator new(size_t)` (one stack argument, plain `ret`).
     let f = unsafe { code::<unsafe extern "C" fn(usize) -> *mut c_void>(eix_sites::OPERATOR_NEW) };
@@ -230,7 +230,7 @@ pub unsafe fn new(size: usize) -> *mut c_void {
 /// `operator delete` 0x7005D8: cdecl, `free`.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 and `block` null or from the game's allocator, not freed yet.
+/// The process must be a supported game.exe and `block` null or from the game's allocator, not freed yet.
 pub unsafe fn delete(block: *mut c_void) {
     // SAFETY: 0x7005D8 is `void __cdecl operator delete(void*)` (one stack argument, plain `ret`).
     let f = unsafe { code::<unsafe extern "C" fn(*mut c_void)>(eix_sites::OPERATOR_DELETE) };
@@ -242,7 +242,7 @@ pub unsafe fn delete(block: *mut c_void) {
 /// thread's handle map; null for a null `dc`.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread.
+/// The process must be a supported game.exe, on the game's thread.
 pub unsafe fn cdc_from_handle(dc: *mut c_void) -> *mut c_void {
     // SAFETY: 0x708D79 is `CDC* PASCAL CDC::FromHandle(HDC)`.
     let f = unsafe {
@@ -255,7 +255,7 @@ pub unsafe fn cdc_from_handle(dc: *mut c_void) -> *mut c_void {
 /// Constructs a game string at `this` from `text`: `CString::CString(LPCTSTR)` 0x7009DE (thiscall, `ret 4`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06; `this` must be writable and hold no constructed string.
+/// The process must be a supported game.exe; `this` must be writable and hold no constructed string.
 pub unsafe fn construct(this: *mut GameString, text: &CStr) {
     // SAFETY: 0x7009DE takes `this` in ECX and the text on the stack, and cleans it (`ret 4`).
     let f = unsafe {
@@ -271,7 +271,7 @@ pub unsafe fn construct(this: *mut GameString, text: &CStr) {
 /// shared empty string (the characters pointer at 0x796E48).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06; `this` must be writable and hold no constructed string.
+/// The process must be a supported game.exe; `this` must be writable and hold no constructed string.
 pub unsafe fn construct_empty(this: *mut GameString) {
     // SAFETY: 0x6E7195 takes `this` in ECX and nothing on the stack.
     let f = unsafe {
@@ -286,7 +286,7 @@ pub unsafe fn construct_empty(this: *mut GameString) {
 /// Assigns `text` to the game string at `this`: `CString::operator=(LPCTSTR)` 0x700AF9 (thiscall, `ret 4`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 and `this` a constructed string.
+/// The process must be a supported game.exe and `this` a constructed string.
 pub unsafe fn assign(this: *mut GameString, text: &CStr) {
     // SAFETY: 0x700AF9 takes `this` in ECX and the text on the stack, and cleans it (`ret 4`).
     let f = unsafe {
@@ -302,7 +302,7 @@ pub unsafe fn assign(this: *mut GameString, text: &CStr) {
 /// `CWorldServer::CreateUnits` 0x58FA27 adds a line to the zone's start script.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 and `this` a constructed string.
+/// The process must be a supported game.exe and `this` a constructed string.
 pub unsafe fn append(this: *mut GameString, text: &CStr) {
     // SAFETY: 0x700D4C takes `this` in ECX and the text on the stack, and cleans it (`ret 4`).
     let f = unsafe {
@@ -317,7 +317,7 @@ pub unsafe fn append(this: *mut GameString, text: &CStr) {
 /// Destroys the game string at `this`: `CString::~CString` 0x700970 (thiscall, plain `ret`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 and `this` a constructed string, not used afterwards.
+/// The process must be a supported game.exe and `this` a constructed string, not used afterwards.
 pub unsafe fn destroy(this: *mut GameString) {
     // SAFETY: 0x700970 takes `this` in ECX and nothing on the stack.
     let f = unsafe {
@@ -359,7 +359,7 @@ fn va_words(args: &[FormatArg]) -> alloc::vec::Vec<u32> {
 /// 0x6FDC12 (thiscall: the format and a `va_list`, `ret 8`), which `CString::Format` 0x6FDF5F calls.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, `this` a constructed string, and `args` what `format` asks for (each `Str`
+/// The process must be a supported game.exe, `this` a constructed string, and `args` what `format` asks for (each `Str`
 /// a live string), on the game's thread.
 pub unsafe fn format(this: *mut GameString, format: &CStr, args: &[FormatArg]) {
     let words = va_words(args);

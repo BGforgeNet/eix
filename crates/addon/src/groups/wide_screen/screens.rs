@@ -11,23 +11,24 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use eix_core::widescreen::{Layout, tutorial_frame_shift};
 use eix_engine::game::ui::{HelpWindow, UiMesh, UiWindow};
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{Numbered, bytes, layout, word};
 use crate::groups::BuildError;
 use crate::log;
 
 /// `CCampPages::Create` 0x60C870 (`push ebp; mov ebp, esp; push -1`, thiscall, no arguments).
-const CAMP_CREATE: (usize, [u8; 5]) = (
+const CAMP_CREATE: (Site, [u8; 5]) = (
     eix_sites::C_CAMP_PAGES_CREATE,
     [0x55, 0x8B, 0xEC, 0x6A, 0xFF],
 );
 /// `CMpHeroScreen::Create` 0x613EA0 (`push -1; push 0x72BCBC`, thiscall, no arguments).
-const HERO_CREATE: (usize, [u8; 7]) = (
+const HERO_CREATE: (Site, [u8; 7]) = (
     eix_sites::C_MP_HERO_SCREEN_CREATE,
     [0x6A, 0xFF, 0x68, 0xBC, 0xBC, 0x72, 0x00],
 );
 /// `CMpHeroScreen::SetMode` 0x615D30 (`push ebx; push ebp; push esi; mov esi, ecx`, thiscall, the mode, `ret 4`).
-const HERO_SET_MODE: (usize, [u8; 5]) = (
+const HERO_SET_MODE: (Site, [u8; 5]) = (
     eix_sites::C_MP_HERO_SCREEN_SET_MODE,
     [0x53, 0x55, 0x56, 0x8B, 0xF1],
 );
@@ -42,20 +43,20 @@ static SET_MODE_ORIGINAL: AtomicUsize = AtomicUsize::new(0);
 
 /// `CHelpWindow::ShowPage` 0x659420 at 0x659994: `push 0; call AddSprite`, the first sprite of a `#rectangle` line,
 /// with ESI the window and the line's left and right x in stack words 25 (ESP + 0x64) and 22 (ESP + 0x58).
-const HELP_FRAME: usize = eix_sites::C_HELP_WINDOW_SHOW_PAGE__574;
+const HELP_FRAME: Site = eix_sites::C_HELP_WINDOW_SHOW_PAGE__574;
 const HELP_FRAME_ORIGINAL: [u8; 7] = [0x6A, 0x00, 0xE8, 0x25, 0x5A, 0xFA, 0xFF];
 const HELP_LEFT_WORD: usize = 25;
 const HELP_RIGHT_WORD: usize = 22;
 
 /// `CInterface3D::Create` 0x5F4990 at 0x5F4A4F: `fmul dword ptr [0x73D09C]`, a 75-point font's height times 0.01;
 /// the operand points at the font scale instead, written into the padding at 0x5F4F81 after the function.
-const FONT_SCALE: usize = eix_sites::C_INTERFACE_3D_CREATE__BF;
-const FONT_SCALE_AT: usize = eix_sites::C_INTERFACE_3D_CREATE__5F1;
-const FONT_SCALE_DEFAULT: usize = eix_sites::RDATA_73D09C;
+const FONT_SCALE: Site = eix_sites::C_INTERFACE_3D_CREATE__BF;
+const FONT_SCALE_AT: Site = eix_sites::C_INTERFACE_3D_CREATE__5F1;
+const FONT_SCALE_DEFAULT: Site = eix_sites::RDATA_73D09C;
 
 /// The axis swap 0x4F1330 from 0x4F135A: `mov [eax], ecx` (m[0] = 1.0), then `mov dword [eax + 0x14], -1.0` and the
 /// epilogue (`mov esp, ebp; pop ebp; ret 4`) and four NOPs of padding.
-const AXIS_SWAP: usize = eix_sites::AXIS_SWAP_MATRIX__2A;
+const AXIS_SWAP: Site = eix_sites::AXIS_SWAP_MATRIX__2A;
 const AXIS_SWAP_ORIGINAL: [u8; 19] = [
     0x89, 0x08, 0xC7, 0x40, 0x14, 0x00, 0x00, 0x80, 0xBF, 0x8B, 0xE5, 0x5D, 0xC2, 0x04, 0x00, 0x90,
     0x90, 0x90, 0x90,
@@ -110,7 +111,7 @@ fn add_curtains(window: *mut UiWindow, visible: u32) {
 /// The camp's Create, then the curtains, shown.
 extern "thiscall" fn camp_create(this: *mut UiWindow) {
     // SAFETY: the trampoline runs the original Create, of this type.
-    let original: Create = unsafe { hook::as_fn(CAMP_ORIGINAL.load(Ordering::SeqCst)) };
+    let original: Create = unsafe { hook::as_fn_at(CAMP_ORIGINAL.load(Ordering::SeqCst)) };
     // SAFETY: the game called Create on this window, on its thread.
     unsafe { original(this) };
     add_curtains(this, 1);
@@ -119,7 +120,7 @@ extern "thiscall" fn camp_create(this: *mut UiWindow) {
 /// The hero screen's Create, then the curtains, hidden.
 extern "thiscall" fn hero_create(this: *mut UiWindow) {
     // SAFETY: as in `camp_create`.
-    let original: Create = unsafe { hook::as_fn(HERO_ORIGINAL.load(Ordering::SeqCst)) };
+    let original: Create = unsafe { hook::as_fn_at(HERO_ORIGINAL.load(Ordering::SeqCst)) };
     // SAFETY: as in `camp_create`.
     unsafe { original(this) };
     add_curtains(this, 0);
@@ -129,7 +130,7 @@ extern "thiscall" fn hero_create(this: *mut UiWindow) {
 /// mode but the hero list.
 extern "thiscall" fn hero_set_mode(this: *mut UiWindow, mode: i32) {
     // SAFETY: the trampoline runs the original SetMode, of this type.
-    let original: SetMode = unsafe { hook::as_fn(SET_MODE_ORIGINAL.load(Ordering::SeqCst)) };
+    let original: SetMode = unsafe { hook::as_fn_at(SET_MODE_ORIGINAL.load(Ordering::SeqCst)) };
     // SAFETY: the game called SetMode on this window, on its thread.
     unsafe { original(this, mode) };
     // SAFETY: as above.
@@ -174,7 +175,7 @@ extern "C" fn axis_swap(scale: usize, ctx: &mut Context) {
     let m = std::ptr::with_exposed_provenance_mut::<u32>(ctx.eax as usize);
     // SAFETY: EAX is the matrix the axis swap fills, live on the game's thread.
     unsafe { m.write(scale as u32) };
-    ctx.resume = AXIS_SWAP_RESUME.load(Ordering::SeqCst);
+    ctx.resume = Site::of(AXIS_SWAP_RESUME.load(Ordering::SeqCst));
 }
 
 pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
@@ -199,7 +200,7 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
 
     AXIS_SWAP_RESUME.store(
         hook::trampoline(
-            AXIS_SWAP + AXIS_SWAP_REST,
+            AXIS_SWAP.offset(AXIS_SWAP_REST),
             &AXIS_SWAP_ORIGINAL[AXIS_SWAP_REST..AXIS_SWAP_END],
         )?,
         Ordering::SeqCst,
@@ -207,9 +208,9 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
     let axis = l.axis_scale().to_bits() as usize;
 
     let mut font = vec![0xD8, 0x0D];
-    font.extend_from_slice(&(FONT_SCALE_AT as u32).to_le_bytes());
+    font.extend_from_slice(&FONT_SCALE_AT.ru32().to_le_bytes());
     let mut font_original = vec![0xD8, 0x0D];
-    font_original.extend_from_slice(&(FONT_SCALE_DEFAULT as u32).to_le_bytes());
+    font_original.extend_from_slice(&FONT_SCALE_DEFAULT.ru32().to_le_bytes());
 
     Ok(vec![
         (96, camp),

@@ -6,21 +6,22 @@
 //! goes on with the next unit (0x5D4988).
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `test ecx, ecx; mov [esp+0x40], ecx; je 0x5D493A`: ECX the first node of the unit's mode list.
-const LIST_START: usize = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__AD;
+const LIST_START: Site = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__AD;
 const LIST_START_BYTES: [u8; 8] = [0x85, 0xC9, 0x89, 0x4C, 0x24, 0x40, 0x74, 0x25];
 /// The search's body, from the list's first node on.
-const SEARCH: usize = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__B5;
+const SEARCH: Site = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__B5;
 /// `mov eax, [esp+0x40]; test eax, eax; jne 0x5D4918`: the next node after a mode of another type.
-const LIST_NEXT: usize = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__D2;
+const LIST_NEXT: Site = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__D2;
 const LIST_NEXT_BYTES: [u8; 8] = [0x8B, 0x44, 0x24, 0x40, 0x85, 0xC0, 0x75, 0xDE];
-const SEARCH_NEXT: usize = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__B8;
+const SEARCH_NEXT: Site = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__B8;
 /// The step to the party's next unit, where a unit following another leader goes.
-const NEXT_UNIT: usize = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__128;
+const NEXT_UNIT: Site = eix_sites::PLAYER_MODE_STAYS_WITH_PARTY__128;
 /// The search's position, a local at `[esp+0x40]` at both sites.
 const POSITION: usize = 0x40;
 
@@ -56,7 +57,10 @@ mod tests {
     #[test]
     fn the_sites_branch_where_the_replaced_jumps_went() {
         // `je 0x5D493A` (+0x25 after the site's end) and `jne 0x5D4918` (-0x22).
-        assert_eq!(LIST_START + LIST_START_BYTES.len(), SEARCH);
-        assert_eq!(LIST_NEXT + LIST_NEXT_BYTES.len() - 0x22, SEARCH_NEXT);
+        assert_eq!(LIST_START.offset(LIST_START_BYTES.len()), SEARCH);
+        assert_eq!(
+            LIST_NEXT.offset(LIST_NEXT_BYTES.len()).back(0x22),
+            SEARCH_NEXT
+        );
     }
 }

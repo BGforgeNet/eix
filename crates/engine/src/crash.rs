@@ -236,7 +236,7 @@ unsafe extern "system" fn filter(pointers: *const EXCEPTION_POINTERS) -> i32 {
             return CONTINUE_SEARCH;
         }
         // SAFETY: PREVIOUS holds the replaced filter, a filter function of the process.
-        let previous: Filter = unsafe { crate::hook::as_fn(previous) };
+        let previous: Filter = unsafe { crate::hook::as_fn_at(previous) };
         // SAFETY: the pointers Windows passed to this filter.
         return unsafe { previous(pointers) };
     }
@@ -257,7 +257,7 @@ unsafe extern "system" fn filter(pointers: *const EXCEPTION_POINTERS) -> i32 {
             continue;
         }
         // SAFETY: CHAINED holds filter functions of the process, stored by `keep_first`.
-        let chained: Filter = unsafe { crate::hook::as_fn(chained) };
+        let chained: Filter = unsafe { crate::hook::as_fn_at(chained) };
         // SAFETY: the pointers Windows passed to this filter.
         if unsafe { chained(pointers) } == CONTINUE_EXECUTION {
             IN_CHAINED.store(false, Ordering::SeqCst);
@@ -300,7 +300,7 @@ unsafe fn run_handler(pointers: *const EXCEPTION_POINTERS, chained_fault: Option
     // SAFETY: as the caller guarantees.
     let (code, address) = unsafe { code_and_address(pointers) };
     // SAFETY: HANDLER holds a `Handler`, stored by `install`.
-    let handler: Handler = unsafe { crate::hook::as_fn(handler) };
+    let handler: Handler = unsafe { crate::hook::as_fn_at(handler) };
     handler(&Crash {
         code,
         address,
@@ -431,7 +431,7 @@ unsafe fn write_minidump(
         return Err(os_error("dbghelp.dll has no MiniDumpWriteDump"));
     };
     // SAFETY: dbghelp's `MiniDumpWriteDump` has this signature.
-    let write: MiniDumpWriteDump = unsafe { crate::hook::as_fn(f as usize) };
+    let write: MiniDumpWriteDump = unsafe { crate::hook::as_fn_at(f as usize) };
     let name: Vec<u16> = path.iter().copied().chain([0]).collect();
     // SAFETY: a NUL-terminated path; a failure returns INVALID_HANDLE_VALUE.
     let file = unsafe {

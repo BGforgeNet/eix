@@ -9,13 +9,13 @@ use super::{Global, code};
 
 /// The object the game passes to its game-flow calls (`ScriptRun::Execute` 0x4B9A36 loads it into ECX).
 fn game_flow() -> *mut c_void {
-    core::ptr::with_exposed_provenance_mut(eix_sites::here(eix_sites::DATA_7AFEA5))
+    eix_sites::DATA_7AFEA5.ptr()
 }
 
 /// Stops the sounds playing: `GameStopSounds` 0x578920 (thiscall, one flag on the stack, `ret 4`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread.
+/// The process must be a supported game.exe, on the game's thread.
 pub unsafe fn stop_sounds(all: bool) {
     // SAFETY: 0x578920 is `void __thiscall (int)`.
     let f = unsafe {
@@ -68,7 +68,7 @@ pub unsafe fn stop_camera_recording() {
 /// The game's random generator (`IsaacRandom`), constructed by its static initialiser; `HooverCollectLoot` 0x461E06
 /// draws from it.
 fn random() -> *mut c_void {
-    core::ptr::with_exposed_provenance_mut(eix_sites::here(eix_sites::G_RANDOM))
+    eix_sites::G_RANDOM.ptr()
 }
 
 /// The generator's next value: `IsaacRandom::Next` 0x4667F0 (thiscall, plain `ret`).

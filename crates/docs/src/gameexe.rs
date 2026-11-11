@@ -66,7 +66,7 @@ fn text(file: &[u8], address: usize) -> String {
 fn keywords(file: &[u8]) -> BTreeMap<String, Keyword> {
     let mut table = BTreeMap::new();
     // Records of four dwords (name, id, function signature, command signature) up to the first without a name.
-    let mut at = offset(file, K_SCRIPT_KEYWORDS);
+    let mut at = offset(file, K_SCRIPT_KEYWORDS.ru());
     while u32_at(file, at) != 0 {
         let name = text(file, u32_at(file, at));
         let (function, command) = (u32_at(file, at + 8), u32_at(file, at + 12));

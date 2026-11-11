@@ -9,6 +9,8 @@
 
 use core::ffi::{CStr, c_void};
 
+use eix_sites::Site;
+
 use super::{Global, code};
 
 /// The game client (`g_gameClient`), a counted pointer, null when there is none: `IsMultiplayerClient` 0x57F440
@@ -21,7 +23,7 @@ pub const GAME_SERVER: Global<*mut c_void> = Global::at(eix_sites::G_GAME_SERVER
 /// of its +4 word is clear. It reads no register, so the caller's `ecx` does not matter.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread.
+/// The process must be a supported game.exe, on the game's thread.
 pub unsafe fn is_multiplayer_client() -> bool {
     // SAFETY: 0x57F440 takes no arguments and returns 0 or 1 in eax (plain `ret`).
     let f = unsafe { code::<unsafe extern "C" fn() -> u32>(eix_sites::TEXT_57F440) };
@@ -33,7 +35,7 @@ pub unsafe fn is_multiplayer_client() -> bool {
 /// word is clear (a set bit marks a detached session).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06.
+/// The process must be a supported game.exe.
 pub unsafe fn live_server() -> Option<*mut c_void> {
     // SAFETY: the caller guarantees the build; the global holds the server session or null.
     let server = unsafe { GAME_SERVER.read() };
@@ -44,7 +46,7 @@ pub unsafe fn live_server() -> Option<*mut c_void> {
 /// The +4 word of the session at `session`; [`is_multiplayer_client`] ignores a client whose bit 31 is set.
 ///
 /// # Safety
-/// `session` must be a live session object of game.exe RU 1.06, on the game's thread.
+/// `session` must be a live session object of a supported game.exe, on the game's thread.
 pub unsafe fn session_word(session: *const c_void) -> u32 {
     let word = session.cast::<u32>().wrapping_add(1);
     // SAFETY: the caller guarantees a live session, whose second word 0x57F440 reads the same way.
@@ -79,7 +81,7 @@ type FieldCall = unsafe extern "thiscall" fn(*mut DeltaStream, *mut c_void, u32)
 /// # Safety
 /// `address` must be one of the functions below, `stream` a live stream of the kind it takes, `field` `size` bytes
 /// of live memory, on the game's thread.
-unsafe fn field_call(address: usize, stream: *mut DeltaStream, field: *mut c_void, size: u32) {
+unsafe fn field_call(address: Site, stream: *mut DeltaStream, field: *mut c_void, size: u32) {
     // SAFETY: the caller names one of the `FieldCall` functions.
     let f = unsafe { code::<FieldCall>(address) };
     // SAFETY: the caller guarantees the stream, the field and the thread.
@@ -91,7 +93,7 @@ impl DeltaStream {
     /// `DeltaField::WriteDelta` 0x47DCA0 (`CUnit::WriteNetState` writes the animation entries with it, 0x52EE71).
     ///
     /// # Safety
-    /// `this` must be a live writing stream of game.exe RU 1.06 with a field group open, `field` `size` bytes of
+    /// `this` must be a live writing stream of a supported game.exe with a field group open, `field` `size` bytes of
     /// live memory, on the game's thread.
     pub unsafe fn write_delta(this: *mut Self, field: *mut c_void, size: u32) {
         // SAFETY: passed on to the caller.
@@ -101,7 +103,7 @@ impl DeltaStream {
     /// Closes the open field group: `DeltaField::EndField` 0x47DC20 (thiscall, no arguments, plain `ret`).
     ///
     /// # Safety
-    /// `this` must be a live writing stream of game.exe RU 1.06 with a field group open, on the game's thread.
+    /// `this` must be a live writing stream of a supported game.exe with a field group open, on the game's thread.
     pub unsafe fn end_field(this: *mut Self) -> u32 {
         // SAFETY: 0x47DC20 is a thiscall without stack arguments.
         let f = unsafe {
@@ -115,7 +117,7 @@ impl DeltaStream {
     /// (`CUnit::ReadNetState` reads the animation entries with it, 0x52F3A4).
     ///
     /// # Safety
-    /// `this` must be a live reading stream of game.exe RU 1.06, `field` `size` bytes of live memory, on the game's
+    /// `this` must be a live reading stream of a supported game.exe, `field` `size` bytes of live memory, on the game's
     /// thread.
     pub unsafe fn read_delta(this: *mut Self, field: *mut c_void, size: u32) {
         // SAFETY: passed on to the caller.

@@ -1,7 +1,7 @@
-//! Typed access to game.exe RU 1.06: its structures, functions and globals.
+//! Typed access to game.exe: its structures, functions and globals.
 //!
-//! Every address and offset here belongs to [`crate::exe::Build::Ru106`]; a caller checks the build before it touches
-//! any of them. Each structure is `#[repr(C)]` with its used offsets pinned by `offset_of!` asserts, and each field,
+//! Every address here is an RU 1.06 [`eix_sites::Site`], reached in the running build through it; structure offsets
+//! are the same in every supported build. A caller checks the build before it touches any of them. Each structure is `#[repr(C)]` with its used offsets pinned by `offset_of!` asserts, and each field,
 //! function and global names in its doc comment the game.exe code that shows its meaning. What is covered and what was
 //! left out: `README.md` beside this file.
 //!
@@ -14,6 +14,8 @@
 
 use core::fmt;
 use core::marker::PhantomData;
+
+use eix_sites::Site;
 
 pub mod ai;
 pub mod camera;
@@ -43,33 +45,33 @@ pub mod world;
 
 /// A global variable or static object of game.exe at a fixed address.
 pub struct Global<T> {
-    address: usize,
+    site: Site,
     _type: PhantomData<fn() -> T>,
 }
 
 impl<T> Global<T> {
-    /// The global at `address`.
-    pub(crate) const fn at(address: usize) -> Self {
+    /// The global at `site`.
+    pub(crate) const fn at(site: Site) -> Self {
         Self {
-            address,
+            site,
             _type: PhantomData,
         }
     }
 
-    /// Its address in game.exe.
-    pub const fn address(&self) -> usize {
-        self.address
+    /// Its site in game.exe.
+    pub const fn site(&self) -> Site {
+        self.site
     }
 
     /// A pointer to it in the running build; making the pointer reads nothing.
     pub fn as_ptr(&self) -> *mut T {
-        core::ptr::with_exposed_provenance_mut(eix_sites::here(self.address))
+        self.site.ptr()
     }
 
     /// Reads its value.
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread, and the global initialised.
+    /// The process must be a supported game.exe, on the game's thread, and the global initialised.
     pub unsafe fn read(&self) -> T
     where
         T: Copy,
@@ -97,7 +99,7 @@ impl<T> fmt::Debug for Global<T> {
             f,
             "Global<{}>({:#x})",
             core::any::type_name::<T>(),
-            self.address
+            self.site
         )
     }
 }
@@ -110,13 +112,13 @@ impl<T> Clone for Global<T> {
 
 impl<T> Copy for Global<T> {}
 
-/// `address` in game.exe as a function pointer of type `F`.
+/// The game function at `site` as a function pointer of type `F`.
 ///
 /// # Safety
-/// As [`crate::hook::as_fn`]: the code at `address` must have exactly type `F`.
-pub(crate) unsafe fn code<F: Copy>(address: usize) -> F {
+/// As [`crate::hook::as_fn`]: the code at `site` must have exactly type `F`.
+pub(crate) unsafe fn code<F: Copy>(site: Site) -> F {
     // SAFETY: passed on to the caller.
-    unsafe { crate::hook::as_fn(address) }
+    unsafe { crate::hook::as_fn(site) }
 }
 
 #[cfg(test)]
@@ -126,14 +128,15 @@ mod tests {
     #[test]
     fn a_global_is_its_address() {
         let g: Global<u32> = Global::at(eix_sites::DATA_7AF61C);
-        assert_eq!(g.address(), eix_sites::DATA_7AF61C);
-        assert_eq!(g.as_ptr() as usize, eix_sites::DATA_7AF61C);
+        assert_eq!(g.site(), eix_sites::DATA_7AF61C);
+        assert_eq!(g.as_ptr() as usize, eix_sites::DATA_7AF61C.ru());
     }
 
     #[test]
     fn a_global_reads_and_writes_what_is_there() {
         let mut cell = 5u32;
-        let g: Global<u32> = Global::at(core::ptr::from_mut(&mut cell).expose_provenance());
+        let g: Global<u32> =
+            Global::at(Site::of(core::ptr::from_mut(&mut cell).expose_provenance()));
         // SAFETY: the address is a live local u32 on this thread.
         unsafe { g.write(9) };
         // SAFETY: as above.

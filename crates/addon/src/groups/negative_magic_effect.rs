@@ -4,6 +4,7 @@
 
 use eix_core::rules::larger_magnitude;
 use eix_engine::patch;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup, bytes};
 
@@ -14,10 +15,10 @@ extern "system" fn select(a: f32, b: f32) -> u32 {
 
 /// The 20-byte branch-free "larger of" at `site` becomes `sub esp, 8; fstp [esp]; fstp [esp+4]; call select`,
 /// NOPs: ST0 (loaded by the `fld` that replaces the compare) is the first argument, ST1 the second.
-fn select_call(label: &str, site: usize, original: &[u8]) -> Result<Labelled, BuildError> {
+fn select_call(label: &str, site: Site, original: &[u8]) -> Result<Labelled, BuildError> {
     let mut new = vec![0x83, 0xEC, 0x08, 0xD9, 0x1C, 0x24, 0xD9, 0x5C, 0x24, 0x04];
     new.extend(patch::call_rel32(
-        site + new.len(),
+        site.offset(new.len()),
         select as *const () as usize,
     ));
     new.resize(original.len(), 0x90);

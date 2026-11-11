@@ -57,7 +57,7 @@ mod tests {
     // Universal Mod's notes name 0x79B2C4 the camera position, 0x79B2DC its rotation and 0x79B388 its aim point.
     #[test]
     fn the_cameras_fields_are_the_known_globals() {
-        let at = |offset: usize| CAMERA.address() + offset;
+        let at = |offset: usize| CAMERA.site().offset(offset);
         assert_eq!(
             at(offset_of!(TransformObject, position)),
             eix_sites::DATA_79B2C4

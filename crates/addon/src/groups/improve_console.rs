@@ -13,16 +13,17 @@ use eix_engine::game::console::{self, ConsoleWindow};
 use eix_engine::game::mfc::{self, GameString};
 use eix_engine::hook::{self, Context, Mode};
 use eix_engine::win::{clipboard_text, from_ansi, set_clipboard_text, to_ansi};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 /// `lea edi, [esi+0x24]; lea ebp, [esi+0xC]`, the start of the Enter case.
-const ENTER: usize = eix_sites::CONSOLE_WINDOW_ON_CHAR__3D;
+const ENTER: Site = eix_sites::CONSOLE_WINDOW_ON_CHAR__3D;
 const ENTER_BYTES: [u8; 6] = [0x8D, 0x7E, 0x24, 0x8D, 0x6E, 0x0C];
 /// Past the history insert.
-const AFTER_INSERT: usize = eix_sites::CONSOLE_WINDOW_ON_CHAR__63;
+const AFTER_INSERT: Site = eix_sites::CONSOLE_WINDOW_ON_CHAR__63;
 /// `mov al, [esi+0x78]; test al, al`, the Ctrl test before a character is typed.
-const CHARACTER: usize = eix_sites::CONSOLE_WINDOW_ON_CHAR__22F;
+const CHARACTER: Site = eix_sites::CONSOLE_WINDOW_ON_CHAR__22F;
 const CHARACTER_BYTES: [u8; 5] = [0x8A, 0x46, 0x78, 0x84, 0xC0];
 /// OnChar's key argument, as a stack word index at the character site.
 const KEY: usize = 0x54 / 4;

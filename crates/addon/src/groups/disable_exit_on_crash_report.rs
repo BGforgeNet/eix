@@ -5,6 +5,7 @@
 
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup, applied_write};
 use crate::{log, report};
@@ -30,7 +31,7 @@ extern "C" fn handler(_: usize, ctx: &mut Context) {
 }
 
 /// The message box call in `FatalError`.
-const BOX_CALL: usize = eix_sites::FATAL_ERROR__27;
+const BOX_CALL: Site = eix_sites::FATAL_ERROR__27;
 
 pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     report::init(&setup.options);

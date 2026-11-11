@@ -11,19 +11,20 @@ use eix_engine::exe;
 use eix_engine::group::{self, Report, SiteWrite};
 use eix_engine::hook::{self, HookError};
 use eix_engine::patch;
+use eix_sites::Site;
 
 /// game.exe's call of WinMain in the CRT's start-up code: `call 0x456440`.
-const WIN_MAIN_CALL: usize = eix_sites::ENTRY__DB;
+const WIN_MAIN_CALL: Site = eix_sites::ENTRY__DB;
 const WIN_MAIN_CALL_BYTES: [u8; 5] = [0xE8, 0x3A, 0xA1, 0xD6, 0xFF];
 
 /// The words the original loader writes for an addon without `Apply` (a `jmp [0x73A762]` at 0x73A670 and the
 /// target at 0x73A762); a new loader leaves them zero.
-const OLD_LOADER_JUMP: usize = eix_sites::TEXT_73A670;
-const OLD_LOADER_TARGET: usize = eix_sites::TEXT_73A762;
+const OLD_LOADER_JUMP: Site = eix_sites::TEXT_73A670;
+const OLD_LOADER_TARGET: Site = eix_sites::TEXT_73A762;
 
 /// The operand of WinMain's `push` that names the game's registry root, unchanged until NivalRegistry runs.
-const REGISTRY_ROOT_OPERAND: usize = eix_sites::TEXT_4568EA;
-const NIVAL_REGISTRY_ROOT: u32 = eix_sites::DATA_7848A8 as u32;
+const REGISTRY_ROOT_OPERAND: Site = eix_sites::TEXT_4568EA;
+const NIVAL_REGISTRY_ROOT: Site = eix_sites::DATA_7848A8;
 
 /// Whether the process is the game.exe build eix knows.
 pub(crate) fn known_exe() -> Result<(), String> {
@@ -44,7 +45,7 @@ pub(crate) fn known_exe() -> Result<(), String> {
 /// Whether game.exe still holds `expected` at `site`.
 ///
 /// Only called once [`known_exe`] passed: every site read here lies in RU 1.06's mapped image.
-pub(crate) fn holds(site: usize, expected: &[u8]) -> bool {
+pub(crate) fn holds(site: Site, expected: &[u8]) -> bool {
     // SAFETY: the site lies in game.exe's image (the build was checked), which is mapped and readable; before WinMain
     // no other thread writes it.
     unsafe { patch::verify(site, expected) }.is_ok()
@@ -58,7 +59,10 @@ pub(crate) fn loader_contract_holds() -> bool {
 
 /// Table T2's check: WinMain still pushes the game's registry root.
 pub(crate) fn exe_enables_t2() -> bool {
-    holds(REGISTRY_ROOT_OPERAND, &NIVAL_REGISTRY_ROOT.to_le_bytes())
+    holds(
+        REGISTRY_ROOT_OPERAND,
+        &NIVAL_REGISTRY_ROOT.ru32().to_le_bytes(),
+    )
 }
 
 /// Proof that the game's code has not started its own threads: patch groups apply through it.
@@ -94,7 +98,7 @@ extern "system" fn win_main(
     crate::addon_main(&BeforeWinMain(()));
     // SAFETY: WIN_MAIN holds the CRT's call target, WinMain 0x456440, a stdcall function of this type, stored
     // before the call site was redirected here.
-    let original: WinMain = unsafe { hook::as_fn(WIN_MAIN.load(Ordering::SeqCst)) };
+    let original: WinMain = unsafe { hook::as_fn_at(WIN_MAIN.load(Ordering::SeqCst)) };
     // SAFETY: the arguments are the CRT's, passed on unchanged.
     unsafe { original(instance, previous, command, show) }
 }
@@ -107,7 +111,7 @@ pub(crate) fn hook_win_main() -> Result<(), String> {
         win_main as *const () as usize,
     )
     .map_err(|e| e.to_string())?;
-    WIN_MAIN.store(old, Ordering::SeqCst);
+    WIN_MAIN.store(old.here(), Ordering::SeqCst);
     crate::groups::log_site("HookWinMain", &write);
     // SAFETY: the call site is game.exe's (the build was checked) and has not run yet: `Apply` runs before the
     // entry point goes on, on the only thread.

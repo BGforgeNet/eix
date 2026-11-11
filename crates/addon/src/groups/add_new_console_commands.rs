@@ -24,15 +24,16 @@ use eix_engine::game::object::EngineObject;
 use eix_engine::game::script::{MISSION_SCRIPT, Script, ScriptGroup, ScriptObjectRef};
 use eix_engine::game::ui::{self, UiContainer};
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 use crate::{log, report};
 
 /// `sete cl; cmp al, 0x40` in `Execute`, after the line is split into words.
-const REGISTER: usize = eix_sites::TEXT_5DD565;
+const REGISTER: Site = eix_sites::TEXT_5DD565;
 const REGISTER_BYTES: [u8; 5] = [0x0F, 0x94, 0xC1, 0x3C, 0x40];
 /// The battle screen's `call 0x600EF0` (`CUiContainer::DrawContainerImpl`) in `CBattleScreen::Draw` 0x636020.
-const DRAW: usize = eix_sites::C_BATTLE_SCREEN_DRAW__BF;
+const DRAW: Site = eix_sites::C_BATTLE_SCREEN_DRAW__BF;
 const DRAW_BYTES: [u8; 5] = [0xE8, 0x0C, 0xAE, 0xFC, 0xFF];
 
 /// The game's `help`, saved at each registration.
@@ -75,7 +76,7 @@ extern "fastcall" fn help(args: *mut GameArray<GameString>) {
     let game = GAME_HELP.load(Ordering::Relaxed);
     if game != 0 {
         // SAFETY: the slot held the game's own `help` handler when it was saved, a CommandHandler.
-        let f: CommandHandler = unsafe { hook::as_fn(game) };
+        let f: CommandHandler = unsafe { hook::as_fn_at(game) };
         // SAFETY: the game's handler with the arguments `Execute` passed this one.
         unsafe { f(args) };
     }
@@ -379,7 +380,7 @@ extern "thiscall" fn draw_battle_screen(screen: *mut UiContainer, arg: u32) -> u
         APPLY_GUI.store(!shown, Ordering::Relaxed);
     }
     // SAFETY: the old target is 0x600EF0, of this type, stored before the call was redirected.
-    let original: DrawContainer = unsafe { hook::as_fn(DRAW_CONTAINER.load(Ordering::SeqCst)) };
+    let original: DrawContainer = unsafe { hook::as_fn_at(DRAW_CONTAINER.load(Ordering::SeqCst)) };
     // SAFETY: the game's own call, with its arguments.
     unsafe { original(screen, arg) }
 }
@@ -388,7 +389,7 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let _ = MOD_DIR.set(setup.mod_dir.clone());
     let (draw, old) =
         hook::redirect_call(DRAW, DRAW_BYTES, draw_battle_screen as *const () as usize)?;
-    DRAW_CONTAINER.store(old, Ordering::SeqCst);
+    DRAW_CONTAINER.store(old.here(), Ordering::SeqCst);
     Ok(vec![
         Labelled {
             label: "AddNewConsoleCommands #0".to_owned(),

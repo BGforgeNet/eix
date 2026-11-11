@@ -5,18 +5,19 @@
 //! when the count is 0, as that guard does (0x6B568B).
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::Warnings;
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `cmp ebp, 1; jne 0x6B54C2`: EBP the list's count.
-const COUNT_TEST: usize = eix_sites::C_MUSIC_SYSTEM_UPDATE_MUSIC__167;
+const COUNT_TEST: Site = eix_sites::C_MUSIC_SYSTEM_UPDATE_MUSIC__167;
 const COUNT_TEST_BYTES: [u8; 5] = [0x83, 0xFD, 0x01, 0x75, 0x06];
 /// The one name's pick, the random pick, and the end of the update.
-const ONE_NAME: usize = eix_sites::C_MUSIC_SYSTEM_UPDATE_MUSIC__16C;
-const RANDOM_NAME: usize = eix_sites::C_MUSIC_SYSTEM_UPDATE_MUSIC__172;
-const DONE: usize = eix_sites::C_MUSIC_SYSTEM_UPDATE_MUSIC__33B;
+const ONE_NAME: Site = eix_sites::C_MUSIC_SYSTEM_UPDATE_MUSIC__16C;
+const RANDOM_NAME: Site = eix_sites::C_MUSIC_SYSTEM_UPDATE_MUSIC__172;
+const DONE: Site = eix_sites::C_MUSIC_SYSTEM_UPDATE_MUSIC__33B;
 
 /// The update runs every frame while the theme stays.
 static WARNINGS: Warnings = Warnings::new("EmptyMusicTheme");
@@ -45,7 +46,10 @@ mod tests {
 
     #[test]
     fn the_branches_go_where_the_jne_went() {
-        assert_eq!(ONE_NAME, COUNT_TEST + COUNT_TEST_BYTES.len());
-        assert_eq!(RANDOM_NAME, ONE_NAME + usize::from(COUNT_TEST_BYTES[4]));
+        assert_eq!(ONE_NAME, COUNT_TEST.offset(COUNT_TEST_BYTES.len()));
+        assert_eq!(
+            RANDOM_NAME,
+            ONE_NAME.offset(usize::from(COUNT_TEST_BYTES[4]))
+        );
     }
 }

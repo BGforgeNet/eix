@@ -154,7 +154,7 @@ impl Script {
     /// false on an error, which [`error_text`](Self::error_text) and [`error_line`](Self::error_line) then hold.
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a constructed script.
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a constructed script.
     pub unsafe fn load_file(this: *mut Self, path: &CStr) -> bool {
         // SAFETY: 0x4D36F0 is `int __thiscall (const char*)`.
         let f = unsafe {
@@ -181,7 +181,7 @@ impl Script {
     /// world's constructor runs on its two embedded scripts (0x589F6A, 0x589F7A).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be writable for at least
+    /// The process must be a supported game.exe, on the game's thread; `this` must be writable for at least
     /// `size_of::<Script>()` bytes and hold no constructed script.
     pub unsafe fn construct(this: *mut Self) {
         // SAFETY: 0x4BDE40 is `CScript* __thiscall ()`.
@@ -242,7 +242,7 @@ impl ScriptObjectRef {
     /// `ret 4`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live reference and `object` null
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a live reference and `object` null
     /// or a live engine object.
     pub unsafe fn assign(this: *mut Self, object: *mut EngineObject) {
         // SAFETY: 0x4B24D0 is `void __thiscall (CEngineObject*)`.
@@ -292,7 +292,7 @@ pub unsafe fn group_clear(group: *mut ScriptGroup) {
 /// grow-by, else 4) and moves the elements over. Returns the elements from the old length on, to fill.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06; `array` must be a constructed array whose block comes from the game's
+/// The process must be a supported game.exe; `array` must be a constructed array whose block comes from the game's
 /// allocator, of elements that may be moved bytewise.
 unsafe fn reserve<T>(array: *mut GameArray<T>, size: i32) -> Option<(*mut T, usize)> {
     // SAFETY: the caller guarantees a constructed array.

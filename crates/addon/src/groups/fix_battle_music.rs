@@ -3,11 +3,12 @@
 //! the test.
 
 use eix_engine::group::SiteWrite;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 /// The first two bytes of `cmp eax, 0x1A; jne 0x54B600`; `jmp short +8` lands on 0x54B600, the not-casting path.
-const SITE: usize = eix_sites::C_UNIT_SERVER_IS_FIGHTING__76;
+const SITE: Site = eix_sites::C_UNIT_SERVER_IS_FIGHTING__76;
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     Ok(vec![Labelled {

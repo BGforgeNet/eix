@@ -8,12 +8,13 @@
 use eix_core::fixes::loading_movie;
 use eix_engine::game::media::LOADING_MOVIE;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::arg_path::c_str;
 use super::{BuildError, Labelled, Setup};
 
 /// `mov dword ptr [0x791EE0], 0x790A70`: the movie becomes "progres.bik", the choice for any other allod.
-const SITE: usize = eix_sites::SELECT_LOADING_MOVIE__B0;
+const SITE: Site = eix_sites::SELECT_LOADING_MOVIE__B0;
 const ORIGINAL: [u8; 10] = [0xC7, 0x05, 0xE0, 0x1E, 0x79, 0x00, 0x70, 0x0A, 0x79, 0x00];
 
 extern "C" fn handler(_: usize, ctx: &mut Context) {
@@ -26,7 +27,7 @@ extern "C" fn handler(_: usize, ctx: &mut Context) {
         return;
     };
     if let Some(movie) = loading_movie(name.to_bytes()) {
-        // SAFETY: the build is RU 1.06, on the game's thread; the name is a static string, as the game's own are.
+        // SAFETY: the build is a supported one, on the game's thread; the name is a static string, as the game's own are.
         unsafe { LOADING_MOVIE.write(movie.as_ptr().cast()) };
     }
 }

@@ -15,14 +15,15 @@ use eix_engine::game::unit::UnitStats;
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context};
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
 use super::common::{self, Bytes, FpuSlot, read};
 use super::{Build, BuildError, Ctx};
 
 /// A `.rdata` or `.data` float of the game's.
-fn game_float(address: u32) -> f32 {
-    // SAFETY: the addresses passed are game.exe's own constants and the parameters SpellAddon writes into `.data`.
-    unsafe { read::<f32>(address) }
+fn game_float(site: Site) -> f32 {
+    // SAFETY: the sites passed are game.exe's own constants and the parameters SpellAddon writes into `.data`.
+    unsafe { read::<f32>(site.here32()) }
 }
 
 /// The implemented features: `(section, key, build)`.
@@ -86,8 +87,8 @@ extern "C" fn run_control(_: usize, ctx: &mut Context) {
 /// A map object's companion (`MapObject::companion`).
 const COMPANION: u32 = core::mem::offset_of!(eix_engine::game::unit::MapObject, companion) as u32;
 /// 0.0 in `.rdata`.
-const ZERO: u32 = eix_sites::RDATA_73B858 as u32;
-const SYNC_RUN: usize = eix_sites::C_UNIT_SERVER_SYNC_MOVE_MODES__8D;
+const ZERO: Site = eix_sites::RDATA_73B858;
+const SYNC_RUN: Site = eix_sites::C_UNIT_SERVER_SYNC_MOVE_MODES__8D;
 const SYNC_RUN_WAS: [u8; 6] = [0x08, 0x91, 0x75, 0x01, 0x00, 0x00];
 
 /// `automaticruncontrol` = 1: a unit stops running when its stamina is 0.
@@ -95,7 +96,7 @@ fn automatic_run_control(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
     if value != 1 {
         return Ok(Vec::new());
     }
-    let stub = common::call_stub(run_control, 0, SYNC_RUN + SYNC_RUN_WAS.len())?;
+    let stub = common::call_stub(run_control, 0, SYNC_RUN.offset(SYNC_RUN_WAS.len()))?;
     Ok(vec![common::branch(
         SYNC_RUN,
         &SYNC_RUN_WAS,
@@ -155,17 +156,17 @@ extern "C" fn cast_speed(_: usize, ctx: &mut Context) {
 }
 
 /// 0.5 in `.rdata`.
-const HALF: u32 = eix_sites::RDATA_73B86C as u32;
-const WRITE_STATE: usize = eix_sites::C_UNIT_WRITE_NET_STATE__201;
+const HALF: Site = eix_sites::RDATA_73B86C;
+const WRITE_STATE: Site = eix_sites::C_UNIT_WRITE_NET_STATE__201;
 /// `call DeltaField::WriteDelta`.
 const WRITE_STATE_WAS: [u8; 5] = [0xE8, 0x2A, 0xEE, 0xF4, 0xFF];
-const READ_STATE: usize = eix_sites::C_UNIT_READ_NET_STATE__419;
+const READ_STATE: Site = eix_sites::C_UNIT_READ_NET_STATE__419;
 /// `cmp dword [esi + 0x25C], 1`.
 const READ_STATE_WAS: [u8; 7] = [0x83, 0xBE, 0x5C, 0x02, 0x00, 0x00, 0x01];
-const CAST_STEPS: usize = eix_sites::C_UNIT_SERVER_BUILD_CAST_STEPS__FB;
+const CAST_STEPS: Site = eix_sites::C_UNIT_SERVER_BUILD_CAST_STEPS__FB;
 /// `fild qword [esp + 0x10]; push eax`.
 const CAST_STEPS_WAS: [u8; 5] = [0xDF, 0x6C, 0x24, 0x10, 0x50];
-const CAST_STEPS_GO_ON: usize = eix_sites::C_UNIT_SERVER_BUILD_CAST_STEPS__100;
+const CAST_STEPS_GO_ON: Site = eix_sites::C_UNIT_SERVER_BUILD_CAST_STEPS__100;
 
 /// `cleveranimationsspeedup` = 1: units send their animation speed with their state, and casting sets it from the
 /// cast's frames; the client applies its time factor for motion mode 1 (as `rewriteactionsspeed`).
@@ -178,7 +179,7 @@ fn clever_animations(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
         &WRITE_STATE_WAS,
         write_speed,
         0,
-        WRITE_STATE + 5,
+        WRITE_STATE.offset(5),
     )?;
     let read = hook::stub(
         READ_STATE,
@@ -187,7 +188,7 @@ fn clever_animations(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
         false,
         read_speed,
         0,
-        READ_STATE + READ_STATE_WAS.len(),
+        READ_STATE.offset(READ_STATE_WAS.len()),
     )?;
     let cast = common::jump_stub(CAST_STEPS, &CAST_STEPS_WAS, cast_speed, 0, CAST_STEPS_GO_ON)?;
     Ok(vec![
@@ -205,8 +206,8 @@ fn clever_animations(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 }
 
 /// `actionsdexteritymovespeed`'s parameters in `CUnit::MoveSpeedFor`'s padding: `actmovemul`, `dexmovemul`.
-const ACTIONS_MOVE_MUL: u32 = eix_sites::C_UNIT_MOVE_SPEED_FOR__C8 as u32;
-const DEXTERITY_MOVE_MUL: u32 = eix_sites::C_UNIT_MOVE_SPEED_FOR__CC as u32;
+const ACTIONS_MOVE_MUL: Site = eix_sites::C_UNIT_MOVE_SPEED_FOR__C8;
+const DEXTERITY_MOVE_MUL: Site = eix_sites::C_UNIT_MOVE_SPEED_FOR__CC;
 /// The stats refresh's value in ST0 at 0x524C79 (the armour term it is about to add 1 to).
 static ARMOUR_TERM: FpuSlot = FpuSlot::new();
 
@@ -234,12 +235,12 @@ extern "C" fn dexterity_move_factor(_: usize, ctx: &mut Context) {
     unsafe { common::write(ctx.ebp + 0xC, 1.0f32) };
 }
 
-const MOVE_FACTOR: usize = eix_sites::UNIT_STATS_RECOMPUTE__719;
+const MOVE_FACTOR: Site = eix_sites::UNIT_STATS_RECOMPUTE__719;
 const MOVE_FACTOR_WAS: [u8; 7] = [0xC7, 0x45, 0x0C, 0x00, 0x00, 0x80, 0x3F];
-const MOVE_FACTOR_GO_ON: usize = eix_sites::UNIT_STATS_RECOMPUTE__720;
+const MOVE_FACTOR_GO_ON: Site = eix_sites::UNIT_STATS_RECOMPUTE__720;
 /// game.exe's 25.0 and 1.0 in `.rdata`.
-const TWENTY_FIVE: u32 = eix_sites::RDATA_73E124 as u32;
-const ONE: u32 = eix_sites::RDATA_73B84C as u32;
+const TWENTY_FIVE: Site = eix_sites::RDATA_73E124;
+const ONE: Site = eix_sites::RDATA_73B84C;
 
 /// `actionsdexteritymovespeed` >= 1: actions and dexterity raise the move speed.
 fn dexterity_move_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
@@ -263,20 +264,20 @@ fn dexterity_move_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Buil
             2,
             stub,
         )?,
-        common::float_at(ACTIONS_MOVE_MUL as usize, padding, f("actmovemul")?)?,
-        common::float_at(DEXTERITY_MOVE_MUL as usize, padding, f("dexmovemul")?)?,
+        common::float_at(ACTIONS_MOVE_MUL, padding, f("actmovemul")?)?,
+        common::float_at(DEXTERITY_MOVE_MUL, padding, f("dexmovemul")?)?,
     ])
 }
 
 /// `speedboost`'s parameters, inside the `.data` region its routine shares with the shops' template code:
 /// `speedbase`, `speedadd`.
-const SPEED_BASE: u32 = eix_sites::DATA_79A3B5 as u32;
-const SPEED_ADD: u32 = eix_sites::DATA_79A3B9 as u32;
+const SPEED_BASE: Site = eix_sites::DATA_79A3B5;
+const SPEED_ADD: Site = eix_sites::DATA_79A3B9;
 /// The speed the site multiplies, moved through memory around the handler.
 static SPEED: FpuSlot = FpuSlot::new();
 /// `CUnit::GetMoveSpeeds`' factor (1/25.5) and the divisor 15.0, from `.rdata`.
-const MOVE_SPEED_FACTOR: u32 = eix_sites::RDATA_73EBC0 as u32;
-const FIFTEEN: u32 = eix_sites::RDATA_73C518 as u32;
+const MOVE_SPEED_FACTOR: Site = eix_sites::RDATA_73EBC0;
+const FIFTEEN: Site = eix_sites::RDATA_73C518;
 
 /// `CUnit::GetMoveSpeeds` 0x52F93A (ECX the unit), in place of `fmul [0x73EBC0]`: the speed times
 /// `((counter + speedadd) / 15) ^ speedbase`, where the counter is the unit's byte +0x345, then times the factor.
@@ -298,7 +299,7 @@ extern "C" fn speed_boost_factor(_: usize, ctx: &mut Context) {
     );
 }
 
-const MOVE_SPEEDS: usize = eix_sites::C_UNIT_GET_MOVE_SPEEDS__1A;
+const MOVE_SPEEDS: Site = eix_sites::C_UNIT_GET_MOVE_SPEEDS__1A;
 const MOVE_SPEEDS_WAS: [u8; 6] = [0xD8, 0x0D, 0xC0, 0xEB, 0x73, 0x00];
 
 /// `speedboost` = 1: units speed up with their counter.
@@ -314,11 +315,11 @@ fn speed_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
         true,
         speed_boost_factor,
         0,
-        MOVE_SPEEDS + MOVE_SPEEDS_WAS.len(),
+        MOVE_SPEEDS.offset(MOVE_SPEEDS_WAS.len()),
     )?;
     Ok(vec![
-        common::float_at(SPEED_BASE as usize, 0.0, f("speedbase")?)?,
-        common::float_at(SPEED_ADD as usize, 0.0, f("speedadd")?)?,
+        common::float_at(SPEED_BASE, 0.0, f("speedbase")?)?,
+        common::float_at(SPEED_ADD, 0.0, f("speedadd")?)?,
         common::branch(
             MOVE_SPEEDS,
             &MOVE_SPEEDS_WAS,
@@ -331,7 +332,7 @@ fn speed_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 
 /// `SchoolPrice` 0x527FF0, the price of the next skill level from the level in ECX: the original's two powers of
 /// 1.1 (`_CIpow` 0x6E81A0) and their difference.
-const SCHOOL_PRICE: usize = eix_sites::SCHOOL_PRICE;
+const SCHOOL_PRICE: Site = eix_sites::SCHOOL_PRICE;
 const SCHOOL_PRICE_WAS: [u8; 96] = [
     0x83, 0xEC, 0x08, 0xDD, 0x05, 0x40, 0xE1, 0x73, 0x00, 0x89, 0x54, 0x24, 0x00, 0x89, 0x4C, 0x24,
     0x04, 0xDB, 0x44, 0x24, 0x00, 0xD8, 0x35, 0x80, 0x54, 0x7C, 0x00, 0xE8, 0x90, 0x01, 0x1C, 0x00,
@@ -394,10 +395,10 @@ fn skills_counting(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 }
 
 /// The running stamina constant `UpdateMotion` multiplies by (1/150), an `f64` in `.rdata`.
-const RUN_CONSTANT: usize = eix_sites::RDATA_73F088;
+const RUN_CONSTANT: Site = eix_sites::RDATA_73F088;
 const RUN_CONSTANT_WAS: f64 = f64::from_bits(0x3F7B_4E81_B4E8_1B4E);
 /// The padding after `CArray<AnimationStep>`'s assignment that holds `runconstex` (an `f64`).
-const RUN_CONSTANT_EX: usize = eix_sites::TEXT_548518;
+const RUN_CONSTANT_EX: Site = eix_sites::TEXT_548518;
 
 fn run_constant_ex(ctx: &Ctx<'_>) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(
@@ -466,7 +467,7 @@ fn new_run_system(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
 }
 
 /// `CUnit::AnimDurationFor`'s six factor loads, each `fld dword [...]` becoming a load from the table.
-const ANIMATION_LOADS: [(usize, [u8; 6]); 6] = [
+const ANIMATION_LOADS: [(Site, [u8; 6]); 6] = [
     (
         eix_sites::C_UNIT_ACTION_SPEED__13,
         [0xD9, 0x81, 0xB0, 0x04, 0x00, 0x00],
@@ -493,7 +494,7 @@ const ANIMATION_LOADS: [(usize, [u8; 6]); 6] = [
     ), // idle, the constant 1.0
 ];
 /// The `.data` table of the six INI factors, in that order.
-const ANIMATION_TABLE: usize = eix_sites::DATA_799C50;
+const ANIMATION_TABLE: Site = eix_sites::DATA_799C50;
 const ANIMATION_KEYS: [&str; 6] = [
     "attackspeed",
     "castspeed",
@@ -511,13 +512,13 @@ const ADVANCE_TIME_MODE: Bytes = (
 
 /// The site of `ANIMATION_LOADS[i]` and the load there with `rewriteactionsspeed` = `value`: the table's entry for 1,
 /// else the game's own.
-pub(super) fn animation_load(value: i8, i: usize) -> (usize, [u8; 6]) {
+pub(super) fn animation_load(value: i8, i: usize) -> (Site, [u8; 6]) {
     let (site, was) = ANIMATION_LOADS[i];
     if value != 1 {
         return (site, was);
     }
     let mut now = [0xD9, 0x05, 0, 0, 0, 0];
-    now[2..].copy_from_slice(&((ANIMATION_TABLE + 4 * i) as u32).to_le_bytes());
+    now[2..].copy_from_slice(&ANIMATION_TABLE.offset(4 * i).ru32().to_le_bytes());
     (site, now)
 }
 
@@ -532,7 +533,7 @@ fn actions_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
     }
     for (i, key) in ANIMATION_KEYS.iter().enumerate() {
         writes.push(common::float_at(
-            ANIMATION_TABLE + 4 * i,
+            ANIMATION_TABLE.offset(4 * i),
             0.0,
             ctx.values.float("animationsspeed", key)?,
         )?);
@@ -541,13 +542,13 @@ fn actions_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 }
 
 /// `SpinLeftDown`'s `lea ecx, [esi - 0x94]`, before the spinner's `inc eax; push eax; call CUiSpin::SetValue`.
-const SPIN_LEFT_DOWN: usize = eix_sites::SPIN_LEFT_DOWN__18;
+const SPIN_LEFT_DOWN: Site = eix_sites::SPIN_LEFT_DOWN__18;
 const SPIN_LEFT_DOWN_WAS: [u8; 6] = [0x8D, 0x8E, 0x6C, 0xFF, 0xFF, 0xFF];
 /// `nop`, then a jump whose displacement fills the rest (the bytes after `0xE9` are a placeholder).
 const SPIN_LEFT_DOWN_NOW: [u8; 6] = [0x90, 0xE9, 0, 0, 0, 0];
 /// After the `lea`, and `SpinLeftDown`'s `pop esi; ret 0xC`, which skips the click.
-const SPIN_LEFT_DOWN_GO_ON: usize = eix_sites::SPIN_LEFT_DOWN__1E;
-const SPIN_LEFT_DOWN_SKIP: usize = eix_sites::SPIN_LEFT_DOWN__25;
+const SPIN_LEFT_DOWN_GO_ON: Site = eix_sites::SPIN_LEFT_DOWN__1E;
+const SPIN_LEFT_DOWN_SKIP: Site = eix_sites::SPIN_LEFT_DOWN__25;
 /// The difficulty spinner's control id.
 const DIFFICULTY_SPINNER: u32 = 0x19;
 
@@ -578,14 +579,14 @@ fn difficulty_change(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 
 /// `CUnitClientSpecific::Level` from 0x539170: `round(ln(exp / 200) / ln(1.61))` of the experience `[eax + 0x334]`
 /// loaded as a 64-bit integer.
-const CLIENT_LEVEL: usize = eix_sites::C_UNIT_CLIENT_SPECIFIC_LEVEL__10;
+const CLIENT_LEVEL: Site = eix_sites::C_UNIT_CLIENT_SPECIFIC_LEVEL__10;
 const CLIENT_LEVEL_WAS: [u8; 48] = [
     0x8B, 0x88, 0x34, 0x03, 0x00, 0x00, 0x89, 0x4D, 0xF4, 0xDF, 0x6D, 0xF4, 0xD8, 0x35, 0x88, 0x54,
     0x7C, 0x00, 0xD9, 0xED, 0xD9, 0xC9, 0xD9, 0xF1, 0xD9, 0xED, 0xD9, 0x05, 0x8C, 0x54, 0x7C, 0x00,
     0xD9, 0xF1, 0xDE, 0xF9, 0xD9, 0x5D, 0xFC, 0xD9, 0x45, 0xFC, 0xDB, 0x5D, 0xF8, 0x8B, 0x45, 0xF8,
 ];
 /// `CUnitServer::Level` 0x556760, the same of the experience `[ecx + 0x1E4]`.
-const SERVER_LEVEL: usize = eix_sites::C_UNIT_SERVER_LEVEL;
+const SERVER_LEVEL: Site = eix_sites::C_UNIT_SERVER_LEVEL;
 const SERVER_LEVEL_WAS: [u8; 64] = [
     0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x08, 0xD9, 0x81, 0xE4, 0x01, 0x00, 0x00, 0xD8, 0x35, 0x88, 0x54,
     0x7C, 0x00, 0xD9, 0xED, 0xD9, 0xC9, 0xD9, 0xF1, 0xD9, 0xED, 0xD9, 0x05, 0x8C, 0x54, 0x7C, 0x00,
@@ -599,7 +600,7 @@ const LEVEL_FORMULA: [u8; 32] = [
     0x14, 0xA9, 0x79, 0x00, 0xD8, 0x05, 0x18, 0xA9, 0x79, 0x00, 0xD9, 0x55, 0xFC, 0xDB, 0x5D, 0xF8,
 ];
 /// The `.data` words the formula reads: `divlvla`, `mullvla`, `addlvlb`, `addlvla`.
-const LEVEL_PARAMETERS: usize = eix_sites::DATA_79A910;
+const LEVEL_PARAMETERS: Site = eix_sites::DATA_79A910;
 
 /// The client copy: `fld1; fild dword [eax + 0x334]`, the formula, NOPs, the original's `mov eax, [ebp - 8]`.
 fn client_level() -> [u8; 48] {
@@ -637,13 +638,17 @@ fn level_counting(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
         .into_iter()
         .enumerate()
     {
-        writes.push(common::float_at(LEVEL_PARAMETERS + 4 * i, 0.0, f(key)?)?);
+        writes.push(common::float_at(
+            LEVEL_PARAMETERS.offset(4 * i),
+            0.0,
+            f(key)?,
+        )?);
     }
     Ok(writes)
 }
 
 /// The experience factor per point of intelligence, 1.04 as an `f64` in `.rdata`.
-const EXPERIENCE_FACTOR: usize = eix_sites::RDATA_73E128;
+const EXPERIENCE_FACTOR: Site = eix_sites::RDATA_73E128;
 
 /// `changeexpforint` = 1: the factor becomes `expforint`.
 fn experience_for_intelligence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
@@ -658,7 +663,7 @@ fn experience_for_intelligence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite
 }
 
 /// The backstab percentage `CItemInfoPanel::DescribeStats` shows: the immediate 300 at 0x5F1EB0.
-const BACKSTAB_BASE: usize = eix_sites::C_ITEM_INFO_PANEL_DESCRIBE_STATS__920;
+const BACKSTAB_BASE: Site = eix_sites::C_ITEM_INFO_PANEL_DESCRIBE_STATS__920;
 
 /// `backstabvisualbase` = 1: the panel shows `bsbase`.
 fn backstab_visual_base(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
@@ -740,8 +745,8 @@ fn n_hits(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// The header slack that holds `actionsmul` and `actionsadd`.
-const ACTIONS_MUL: usize = 0x40_02D0;
-const ACTIONS_ADD: usize = 0x40_02D4;
+const ACTIONS_MUL: Site = Site::new(0x40_02D0);
+const ACTIONS_ADD: Site = Site::new(0x40_02D4);
 /// The stats refresh's `fmul [0x73BAD4]; fadd [0x73BAAC]` (0.2 and 10) point at the header slack.
 const ACTIONS_FORMULA: Bytes = (
     eix_sites::UNIT_STATS_RECOMPUTE__698,
@@ -754,11 +759,11 @@ const ACTIONS_FORMULA: Bytes = (
 );
 
 /// The site of [`ACTIONS_FORMULA`]'s `fadd` and its bytes with `actionspatch` = `value`.
-pub(super) fn actions_add(value: i8) -> (usize, [u8; 6]) {
+pub(super) fn actions_add(value: i8) -> (Site, [u8; 6]) {
     let (site, was, now) = ACTIONS_FORMULA;
     let mut add = [0; 6];
     add.copy_from_slice(&if value == 1 { now } else { was }[6..]);
-    (site + 6, add)
+    (site.offset(6), add)
 }
 
 /// `actionspatch` = 1: actions are `dexterity * actionsmul + actionsadd`.
@@ -781,7 +786,7 @@ const GHOSTLINESS: u32 = 0x18;
 /// `UnitStats::conspicuity[0].current` (ei-rebuild's `UnitStats`): how visible the unit is.
 const VISIBILITY: u32 = 0xE4;
 /// 0.01 in `.rdata`, the factor Ghostliness's level value goes through.
-const PERCENT: u32 = eix_sites::RDATA_73D09C as u32;
+const PERCENT: Site = eix_sites::RDATA_73D09C;
 
 /// The value of the unit's level of `perk` as the original reads it, the level record's +0x34 as an unsigned integer
 /// (`fild qword` with a zero high half), or `None` without a level or with a value of 0.
@@ -832,9 +837,9 @@ extern "C" fn ghostliness(_: usize, ctx: &mut Context) {
 }
 
 /// The refresh's store of the visibility, `fstp dword [ebx + 0xE4]`, and the clear after the loudness.
-const ENDURANCE_SITE: usize = eix_sites::UNIT_STATS_RECOMPUTE__2DF;
+const ENDURANCE_SITE: Site = eix_sites::UNIT_STATS_RECOMPUTE__2DF;
 const ENDURANCE_WAS: [u8; 6] = [0xD9, 0x9B, 0xE4, 0x00, 0x00, 0x00];
-const GHOSTLINESS_SITE: usize = eix_sites::UNIT_STATS_RECOMPUTE__2EE;
+const GHOSTLINESS_SITE: Site = eix_sites::UNIT_STATS_RECOMPUTE__2EE;
 const GHOSTLINESS_WAS: [u8; 7] = [0xC7, 0x45, 0xFC, 0x00, 0x00, 0x00, 0x00];
 
 /// `newperks` >= 1: the game's perk ids from 0x17 up move up by two, in the stats refresh's lookups, the table
@@ -931,7 +936,7 @@ fn new_perks(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 
 /// `CDifficultyBox::Build` 0x6337B0 (the new game's difficulty question): its `CString::TrimRight("\r\n")` of the
 /// explanation before the explanation is measured, which value 1 drops.
-const EXPLANATION_TRIM: (usize, &[u8]) = (
+const EXPLANATION_TRIM: (Site, &[u8]) = (
     eix_sites::C_DIFFICULTY_BOX_BUILD__FD,
     &[
         0x68, 0x00, 0xDD, 0x78, 0x00, 0x8D, 0x4C, 0x24, 0x18, 0xE8, 0xCF, 0xA7, 0x0C, 0x00,
@@ -940,25 +945,25 @@ const EXPLANATION_TRIM: (usize, &[u8]) = (
 /// The build's `lea ecx, [edi + ebx + 0x6C]; mov eax, 0x226`: ECX becomes the box's height `B`, EAX the 550 it is
 /// centred in. Ours makes `B` a row taller for the hard row (the original's box keeps the game's two-row height);
 /// the sum does not fit the `lea`'s byte displacement, so a stub adds the row.
-const BOX_HEIGHT: usize = eix_sites::C_DIFFICULTY_BOX_BUILD__149;
+const BOX_HEIGHT: Site = eix_sites::C_DIFFICULTY_BOX_BUILD__149;
 const BOX_HEIGHT_WAS: [u8; 9] = [0x8D, 0x4C, 0x1F, 0x6C, 0xB8, 0x26, 0x02, 0x00, 0x00];
 /// The displacement of the explanation's top, `lea edx, [ebx + edi - 7]` (title height plus the box's top, on the
 /// box's surface): a row lower, below the hard row, where the original draws it over the hard label.
 const EXPLANATION_TOP: Bytes = (eix_sites::C_DIFFICULTY_BOX_BUILD__1B7, &[0xF9], &[0x11]);
 /// The build's `mov ecx, [0x7AF788]` (the text manager) before it reads the labels: the hard label is read there.
-const LABELS_READ: usize = eix_sites::C_DIFFICULTY_BOX_BUILD__1E9;
+const LABELS_READ: Site = eix_sites::C_DIFFICULTY_BOX_BUILD__1E9;
 const LABELS_READ_WAS: [u8; 6] = [0x8B, 0x0D, 0x88, 0xF7, 0x7A, 0x00];
 /// The text manager, and its `GetString` 0x4E0020 (thiscall: the key and the `CString` it assigns, `ret 8`).
-const TEXTS: u32 = eix_sites::DATA_7AF788 as u32;
-const GET_STRING: usize = eix_sites::C_TEXT_MANAGER_GET_STRING;
+const TEXTS: Site = eix_sites::DATA_7AF788;
+const GET_STRING: Site = eix_sites::C_TEXT_MANAGER_GET_STRING;
 /// The operand of the second label's `push 0x79427C` ("difficulty_hard"): the normal label takes its place, so the
 /// build measures and draws it as its second label and the box's width counts easy and normal.
-const SECOND_KEY: usize = eix_sites::C_DIFFICULTY_BOX_BUILD__20F;
-const HARD_KEY: u32 = eix_sites::DATA_79427C as u32;
+const SECOND_KEY: Site = eix_sites::C_DIFFICULTY_BOX_BUILD__20F;
+const HARD_KEY: Site = eix_sites::DATA_79427C;
 static NORMAL_KEY: &CStr = c"difficulty_norm";
 /// The build's `mov eax, [esp + 0x4C]; push 1` after it draws the easy label: EAX becomes the labels' left edge, EBX
 /// is the first check box's row, and the surface is the local the build reads at the site's `[esp + 0x10]`.
-const LABELS_DRAW: usize = eix_sites::C_DIFFICULTY_BOX_BUILD__2C4;
+const LABELS_DRAW: Site = eix_sites::C_DIFFICULTY_BOX_BUILD__2C4;
 const LABELS_DRAW_WAS: [u8; 6] = [0x8B, 0x44, 0x24, 0x4C, 0x6A, 0x01];
 /// The labels' font, colour, format and last argument, as the build draws its own.
 const LABEL_FONT: i32 = 2;
@@ -967,12 +972,12 @@ const LABEL_COLOUR: u32 = 0xA7_D7E4;
 const START_SELECTION: Bytes = (eix_sites::C_DIFFICULTY_BOX_BUILD__314, &[0x00], &[0x01]);
 /// The build's `lea edx, [ebx + 0x2D]; push 0x4C` after the second check box's `AddSprite`: EAX is that sprite, ESI
 /// the box, EBP `half`, EBX the row; EDX becomes the bottom of the next box the build shapes.
-const BOXES: usize = eix_sites::C_DIFFICULTY_BOX_BUILD__38C;
+const BOXES: Site = eix_sites::C_DIFFICULTY_BOX_BUILD__38C;
 const BOXES_WAS: [u8; 5] = [0x8D, 0x53, 0x2D, 0x6A, 0x4C];
 /// The build's next box is the hard one, a row lower (its top `lea eax, [ebx + 0x18]`), and no longer checked at
 /// the start (`mov [ebp + 0xCC], 0xBDB80000`).
 const HARD_BOX_TOP: Bytes = (eix_sites::C_DIFFICULTY_BOX_BUILD__3B5, &[0x18], &[0x30]);
-const HARD_BOX_MARK: (usize, &[u8]) = (
+const HARD_BOX_MARK: (Site, &[u8]) = (
     eix_sites::C_DIFFICULTY_BOX_BUILD__3D9,
     &[0xC7, 0x85, 0xCC, 0x00, 0x00, 0x00, 0x00, 0x00, 0xB8, 0xBD],
 );
@@ -982,12 +987,12 @@ const BOX_SCALE: f32 = 100.0;
 const BOX_TEXELS: [i32; 4] = [209, 55, 230, 76];
 /// The build's `mov edx, [esp + 0x3C]; mov ecx, [esp + 0x4C]` after the second check box's `AddRegion`: EAX is that
 /// region, ESI the box; EBX, ECX, EDI and EDX become its rectangle, which the build then sets.
-const REGIONS: usize = eix_sites::C_DIFFICULTY_BOX_BUILD__5BF;
+const REGIONS: Site = eix_sites::C_DIFFICULTY_BOX_BUILD__5BF;
 const REGIONS_WAS: [u8; 8] = [0x8B, 0x54, 0x24, 0x3C, 0x8B, 0x4C, 0x24, 0x4C];
 /// `CUiWindow::AddRegion` 0x5FF830 (thiscall, plain `ret`) and `CUiRegion::SetRect` 0x5FC9E0 (left, top, right,
 /// bottom; `ret 0x10`).
-const ADD_REGION: usize = eix_sites::C_UI_WINDOW_ADD_REGION;
-const SET_RECT: usize = eix_sites::C_UI_REGION_SET_RECT;
+const ADD_REGION: Site = eix_sites::C_UI_WINDOW_ADD_REGION;
+const SET_RECT: Site = eix_sites::C_UI_REGION_SET_RECT;
 
 /// The check boxes' sprites, top to bottom: the box adds them before its other sprites.
 const EASY_BOX: i32 = 0;
@@ -1007,7 +1012,7 @@ const CLICK_BOUND: Bytes = (
 );
 const CLICK_TABLE: Bytes = (eix_sites::TEXT_633DF4, &[0xA4], &[0xAC]);
 /// The click handler from the easy box's case (ECX the sprite array) to its jump table and padding.
-const CLICK_CASES: usize = eix_sites::TEXT_633E5F;
+const CLICK_CASES: Site = eix_sites::TEXT_633E5F;
 const CLICK_CASES_WAS: [u8; 97] = [
     0x8B, 0x51, 0x04, 0xC7, 0x82, 0xCC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC7, 0x86, 0xEC,
     0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x5E, 0xC2, 0x0C, 0x00, 0x8B, 0x46, 0x74, 0x8B, 0x48,
@@ -1032,8 +1037,8 @@ const CLICK_CASES_NOW: [u8; 97] = [
 /// The table entry of region 4, the normal box, in [`CLICK_CASES_NOW`].
 const NORMAL_CASE: usize = 0x5D;
 /// Where the easy case goes on after its jump out, and the handler's `pop esi; ret 0xC` in the rewrite.
-const CLICK_EASY_GO_ON: usize = eix_sites::TEXT_633E66;
-const CLICK_END: usize = eix_sites::TEXT_633EA8;
+const CLICK_EASY_GO_ON: Site = eix_sites::TEXT_633E66;
+const CLICK_END: Site = eix_sites::TEXT_633EA8;
 /// The click handler's ESI is the box + 0x94: its +0xEC is the selection, `[box + 0x180]`, and +0x74 the sprite
 /// array, `[box + 0x108]`.
 const CLICK_SELECTION: u32 = 0xEC;
@@ -1123,14 +1128,14 @@ extern "C" fn read_hard_label(_: usize, _: &mut Context) {
     // SAFETY: the slot holds no string: the draw after this destroys the one read here.
     unsafe { mfc::construct_empty(text) };
     // SAFETY: the game's text manager pointer, which the build reads at this site.
-    let texts = unsafe { read::<u32>(TEXTS) };
+    let texts = unsafe { read::<u32>(TEXTS.here32()) };
     // SAFETY: `CTextManager::GetString`, see [`GET_STRING`].
     let get = unsafe { hook::as_fn::<GetString>(GET_STRING) };
     // SAFETY: the text manager, a key of game.exe's `.data` and our constructed string, on the game's thread.
     unsafe {
         get(
             texts,
-            core::ptr::with_exposed_provenance(eix_sites::here(HARD_KEY as usize)),
+            core::ptr::with_exposed_provenance(HARD_KEY.here()),
             text,
         )
     };
@@ -1314,7 +1319,7 @@ fn new_difficulty_levels(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
     )?);
     writes.push(SiteWrite::bytes(
         SECOND_KEY,
-        &HARD_KEY.to_le_bytes(),
+        &HARD_KEY.ru32().to_le_bytes(),
         &normal_key,
     )?);
     writes.push(common::branch_before(
@@ -1366,7 +1371,7 @@ mod tests {
     use super::super::testing::{Original, assert_original, no_log, plain, values};
     use super::*;
 
-    fn sites(writes: &[SiteWrite]) -> Vec<(usize, usize)> {
+    fn sites(writes: &[SiteWrite]) -> Vec<(Site, usize)> {
         writes.iter().map(|w| (w.site(), w.size())).collect()
     }
 
@@ -1485,7 +1490,7 @@ mod tests {
         );
         assert_eq!(
             plain(&actions_patch(&ctx, 1).unwrap())[0],
-            (0x40_02D0, vec![0; 4], vec![0xCD, 0xCC, 0x4C, 0x3E])
+            (ACTIONS_MUL, vec![0; 4], vec![0xCD, 0xCC, 0x4C, 0x3E])
         );
         let w = plain(&backstab_visual_base(&ctx, 1).unwrap());
         assert_eq!(w[0].1, w[0].2);
@@ -1630,9 +1635,12 @@ mod tests {
         assert!(w.contains(&(eix_sites::DATA_787690, vec![0x01], vec![0x00])));
         let (_, _, click) = w.iter().find(|w| w.0 == CLICK_CASES).unwrap();
         let entry = u32::from_le_bytes(click[NORMAL_CASE..NORMAL_CASE + 4].try_into().unwrap());
-        assert!(entry > 0x10000 && entry as usize != CLICK_END, "{entry:#x}");
+        assert!(
+            entry > 0x10000 && entry as usize != CLICK_END.ru(),
+            "{entry:#x}"
+        );
         let (_, was, key) = w.iter().find(|w| w.0 == SECOND_KEY).unwrap();
-        assert_eq!(was, &HARD_KEY.to_le_bytes());
+        assert_eq!(was, &HARD_KEY.ru32().to_le_bytes());
         let key = u32::from_le_bytes(key[..].try_into().unwrap());
         // SAFETY: the address the build pushes, our NUL-terminated key.
         let key = unsafe { CStr::from_ptr(key as usize as *const core::ffi::c_char) };

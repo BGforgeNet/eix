@@ -13,8 +13,9 @@ use eix_engine::game::unit::{MapObject, Unit, UnitServer, UnitStatLayer, UnitSta
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, FpuContext, Mode};
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
-use super::common::{self, Bytes, Stale, read, write};
+use super::common::{self, Bytes, NOWHERE, Stale, read, write};
 use super::{Build, BuildError, Ctx};
 
 /// The implemented features: `(section, key, build)`.
@@ -44,11 +45,11 @@ pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
 
 /// `CUnitServer::OnDamaged` 0x553B07: the virtual call that reports the damage, and where the original's added code
 /// goes on with it (0x553B0C) or past the diplomacy reaction it would raise (0x553D62).
-const ON_DAMAGED: usize = eix_sites::C_UNIT_SERVER_ON_DAMAGED__47;
+const ON_DAMAGED: Site = eix_sites::C_UNIT_SERVER_ON_DAMAGED__47;
 /// `call [edx + 0x44]; test eax, eax`.
 const ON_DAMAGED_WAS: [u8; 5] = [0xFF, 0x52, 0x44, 0x85, 0xC0];
-const ON_DAMAGED_GO_ON: usize = eix_sites::C_UNIT_SERVER_ON_DAMAGED__4C;
-const ON_DAMAGED_NO_REACTION: usize = eix_sites::C_UNIT_SERVER_ON_DAMAGED__2A2;
+const ON_DAMAGED_GO_ON: Site = eix_sites::C_UNIT_SERVER_ON_DAMAGED__4C;
+const ON_DAMAGED_NO_REACTION: Site = eix_sites::C_UNIT_SERVER_ON_DAMAGED__2A2;
 /// The variable the feature reads, with the damaged unit's id after it: player 0's `und<id>`.
 const DUEL_VARIABLE: &[u8] = b"und";
 
@@ -86,8 +87,8 @@ fn duels(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `increasinghitchance`'s parameters, in the padding of two unrelated functions: `tohitmul`, `tohitsub`.
-const TO_HIT_MUL: u32 = eix_sites::TEXT_4500EC as u32;
-const TO_HIT_SUB: u32 = eix_sites::OWNED_BONE_LINK_ARRAYS_SET_SIZE__184 as u32;
+const TO_HIT_MUL: Site = eix_sites::TEXT_4500EC;
+const TO_HIT_SUB: Site = eix_sites::OWNED_BONE_LINK_ARRAYS_SET_SIZE__184;
 /// The miss counter the feature keeps per unit: the companion's byte +0x25.
 const MISS_COUNTER: u32 = 0x25;
 
@@ -158,11 +159,11 @@ extern "C" fn raise_miss_counter(_: usize, ctx: &mut Context) {
     }
 }
 
-const HIT_ROLL: usize = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__108;
+const HIT_ROLL: Site = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__108;
 const HIT_ROLL_WAS: [u8; 6] = [0xDB, 0x45, 0xF4, 0xD8, 0x5D, 0xFC];
-const HIT_ROLL_GO_ON: usize = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__10E;
+const HIT_ROLL_GO_ON: Site = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__10E;
 /// The two constant loads of the hit and miss marks, which the counter's update rides on.
-const HIT_MARK_LOADS: [(usize, [u8; 6], usize); 2] = [
+const HIT_MARK_LOADS: [(Site, [u8; 6], Site); 2] = [
     (
         eix_sites::C_UNIT_SERVER_RESOLVE_HIT__115,
         [0xD9, 0x05, 0x3C, 0xF1, 0x73, 0x00],
@@ -193,12 +194,12 @@ fn increasing_hit_chance(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
     )?;
     let mut writes = vec![
         common::float_at(
-            TO_HIT_MUL as usize,
+            TO_HIT_MUL,
             padding,
             ctx.values.float("gameplay", "tohitmul")?,
         )?,
         common::float_at(
-            TO_HIT_SUB as usize,
+            TO_HIT_SUB,
             padding,
             ctx.values.float("gameplay", "tohitsub")?,
         )?,
@@ -264,7 +265,7 @@ extern "C" fn melee_sum_server(_: usize, ctx: &mut Context) {
 
 /// `GetAttackParams` 0x555AF8 (`meleesum_low`): from the operand of `fld [ebp + 0x254]`, the two `_ftol` stores
 /// become `fld [ebp + 0x1F8]; call 0x799C68; fstp st(0)` and NOPs.
-const MELEE_LOW: usize = eix_sites::C_UNIT_SERVER_GET_ATTACK_PARAMS__F8;
+const MELEE_LOW: Site = eix_sites::C_UNIT_SERVER_GET_ATTACK_PARAMS__F8;
 const MELEE_LOW_WAS: [u8; 26] = [
     0x54, 0x02, 0x00, 0x00, 0xE8, 0x3B, 0x2A, 0x19, 0x00, 0x89, 0x46, 0x18, 0xD9, 0x85, 0x5C, 0x02,
     0x00, 0x00, 0xE8, 0x2D, 0x2A, 0x19, 0x00, 0x89, 0x46, 0x1C,
@@ -280,7 +281,7 @@ fn melee_sum_low(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
-    let stub = common::call_stub(melee_sum_server, 0, MELEE_LOW + 9)?;
+    let stub = common::call_stub(melee_sum_server, 0, MELEE_LOW.offset(9))?;
     Ok(vec![common::branch(
         MELEE_LOW,
         &MELEE_LOW_WAS,
@@ -314,12 +315,12 @@ extern "C" fn melee_sum_client(_: usize, ctx: &mut Context) {
     ctx.eax = melee_sum_byte(defence.into(), unit);
 }
 
-const MELEE_CLIENT: usize = eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__151;
+const MELEE_CLIENT: Site = eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__151;
 const MELEE_CLIENT_WAS: [u8; 12] = [
     0x89, 0x4E, 0x18, 0x8B, 0x57, 0x1C, 0x8A, 0x82, 0x4B, 0x03, 0x00, 0x00,
 ];
 const MELEE_CLIENT_NOW: [u8; 12] = [0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xE9, 0, 0, 0, 0];
-const MELEE_CLIENT_GO_ON: usize = eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__15D;
+const MELEE_CLIENT_GO_ON: Site = eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__15D;
 
 /// `meleesum_2` = 1: the client's attack and defence get the sum too.
 fn melee_sum_2(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
@@ -337,10 +338,10 @@ fn melee_sum_2(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `newattackdefence`'s parameters in `.data`: `submod`, `divmod`.
-const ATTACK_SUBMOD: u32 = eix_sites::DATA_79A7F8 as u32;
-const ATTACK_DIVMOD: u32 = eix_sites::DATA_79A7FC as u32;
+const ATTACK_SUBMOD: Site = eix_sites::DATA_79A7F8;
+const ATTACK_DIVMOD: Site = eix_sites::DATA_79A7FC;
 /// `AttackRoll`'s weight constant (20.0, or `changeweightrangebonuses`' `weight`).
-const ATTACK_WEIGHT: u32 = WEIGHT_CONSTANT as u32;
+const ATTACK_WEIGHT: Site = WEIGHT_CONSTANT;
 /// The damage factor G that `ResolveHit` computes and `ApplyHit` uses (values 1 and 2; the original's 0x79A7F4).
 static ATTACK_FACTOR: AtomicU32 = AtomicU32::new(0);
 /// What `AttackRoll` left below `ResolveHit`'s stack at 0x553E56: two integers (the attack and defence it
@@ -390,14 +391,14 @@ extern "C" fn apply_attack_factor(_: usize, ctx: &mut Context) {
 
 /// The return address `ApplyHit`'s stack holds at +0x128 when `CUnitServer::DeliverAttack` 0x54F535 is the chain
 /// that called it.
-const DELIVER_ATTACK_RETURN: u32 = eix_sites::C_UNIT_SERVER_DELIVER_ATTACK__E5 as u32;
+const DELIVER_ATTACK_RETURN: Site = eix_sites::C_UNIT_SERVER_DELIVER_ATTACK__E5;
 /// The `.data` buffers the original fills with the attacker's and the defender's attack parameters.
-const ATTACKER_PARAMS: u32 = eix_sites::DATA_798188 as u32;
-const DEFENDER_PARAMS: u32 = eix_sites::DATA_798168 as u32;
+const ATTACKER_PARAMS: Site = eix_sites::DATA_798188;
+const DEFENDER_PARAMS: Site = eix_sites::DATA_798168;
 /// 0.0 in `.rdata`: what a backstab subtracts instead of the defence.
-const ZERO: u32 = eix_sites::RDATA_73B858 as u32;
+const ZERO: Site = eix_sites::RDATA_73B858;
 /// What the original passes in EDI to `CUnit::IsBehind`, which `backstabsforall`'s rewrite reads (`[edi + 0x264]`).
-const IS_BEHIND_EDI: u32 = eix_sites::DATA_7944F4 as u32;
+const IS_BEHIND_EDI: Site = eix_sites::DATA_7944F4;
 
 /// `CUnit::IsBehind` 0x530A60 of `unit` and `target`, with EDI as the original sets it; the whole EAX, of
 /// which the function sets only AL, as the original tests it.
@@ -412,9 +413,9 @@ unsafe fn is_behind(unit: u32, target: u32) -> u32 {
             "push {target}",
             "call {f}",
             target = in(reg) target,
-            f = in(reg) eix_sites::here(eix_sites::C_UNIT_IS_BEHIND),
+            f = in(reg) eix_sites::C_UNIT_IS_BEHIND.here(),
             in("ecx") unit,
-            in("edi") eix_sites::here(IS_BEHIND_EDI as usize),
+            in("edi") IS_BEHIND_EDI.here(),
             lateout("eax") behind,
             clobber_abi("C"),
         );
@@ -441,18 +442,18 @@ fn word(address: u32) -> u32 {
 fn scale_by_attack_defence(ctx: &Context) {
     let kind = word(ctx.ebp.wrapping_sub(0x10));
     let chain = word(ctx.stack() as u32 + 0x128);
-    if kind > 2 || eix_sites::ru(chain as usize) as u32 != DELIVER_ATTACK_RETURN {
+    if kind > 2 || Site::of(chain as usize) != DELIVER_ATTACK_RETURN {
         return;
     }
     // The caller's frame (`DeliverAttack`) holds the attacker's and the defender's unit servers there.
     let attacker_at = ctx.ebp.wrapping_add(0xD8);
     let defender_at = ctx.ebp.wrapping_add(0x1C);
-    let params = |server: u32, out: u32| {
+    let params = |server: u32, out: Site| {
         // SAFETY: a live unit server and the original's 0x20-byte `.data` buffer, on the game's thread.
         unsafe {
             AttackParams::of_server(
                 core::ptr::with_exposed_provenance_mut(server as usize),
-                core::ptr::with_exposed_provenance_mut(eix_sites::here(out as usize)),
+                out.ptr(),
             );
         }
     };
@@ -474,11 +475,11 @@ fn scale_by_attack_defence(ctx: &Context) {
     let target = word(word(defender_at) + 0x1C);
     // SAFETY: two live units.
     let behind = unsafe { is_behind(unit, target) };
-    let attack = word(eix_sites::here(ATTACKER_PARAMS as usize + 0x18) as u32) as i32;
+    let attack = word(ATTACKER_PARAMS.offset(0x18).here32()) as i32;
     let minus = if behind != 0 {
         f64::from(game_float(ZERO))
     } else {
-        f64::from(word(eix_sites::here(DEFENDER_PARAMS as usize + 0x1C) as u32) as i32)
+        f64::from(word(DEFENDER_PARAMS.offset(0x1C).here32()) as i32)
     };
     let factor = Ext::new(attack.into())
         .fsub(minus)
@@ -503,18 +504,18 @@ fn scale_by_attack_defence(ctx: &Context) {
             "fld qword ptr [{f}]",
             "fcomp dword ptr [{s}]",
             f = in(reg) &factor,
-            s = in(reg) eix_sites::here(ATTACK_SUBMOD as usize),
+            s = in(reg) ATTACK_SUBMOD.here(),
             options(nostack),
         );
     }
 }
 
 /// `ResolveHit` 0x553E56: `mov al, [edi + 0x38]; test al, al`.
-const RESOLVE_ROLL: usize = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__66;
+const RESOLVE_ROLL: Site = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__66;
 const RESOLVE_ROLL_WAS: [u8; 5] = [0x8A, 0x47, 0x38, 0x84, 0xC0];
-const RESOLVE_ROLL_GO_ON: usize = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__6D;
+const RESOLVE_ROLL_GO_ON: Site = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__6D;
 /// `ResolveHit`'s load of the "hit" constant 0x73C1A8: NOPs (1, 2), or the "miss" constant 0x73F13C (4).
-const RESOLVE_HIT_MARK: usize = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__11D;
+const RESOLVE_HIT_MARK: Site = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__11D;
 const RESOLVE_HIT_MARK_WAS: [u8; 6] = [0xD9, 0x05, 0xA8, 0xC1, 0x73, 0x00];
 
 /// What `newattackdefence` = `value` leaves at [`RESOLVE_HIT_MARK`].
@@ -527,19 +528,19 @@ fn resolve_hit_mark(value: i8) -> [u8; 6] {
 }
 
 /// `pop edi; pop esi; fnstsw ax; test ah, 0x41` at the end of `ResolveHit`: `nop; nop; jmp` to a copy.
-const RESOLVE_END: usize = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__12C;
+const RESOLVE_END: Site = eix_sites::C_UNIT_SERVER_RESOLVE_HIT__12C;
 const RESOLVE_END_WAS: [u8; 7] = [0x5F, 0x5E, 0xDF, 0xE0, 0xF6, 0xC4, 0x41];
 /// `ApplyHit`'s `fcomp [0x73B84C]; mov ebx, 1`: `jmp` to the hook, then the `fcomp` moved down (1, 2).
-const APPLY_HIT: usize = eix_sites::TEXT_5251DA;
+const APPLY_HIT: Site = eix_sites::TEXT_5251DA;
 const APPLY_HIT_WAS: [u8; 11] = [
     0xD8, 0x1D, 0x4C, 0xB8, 0x73, 0x00, 0xBB, 0x01, 0x00, 0x00, 0x00,
 ];
 const APPLY_HIT_NOW: [u8; 11] = [0xE9, 0, 0, 0, 0, 0xD8, 0x1D, 0x4C, 0xB8, 0x73, 0x00];
-const APPLY_HIT_GO_ON: usize = eix_sites::TEXT_5251DF;
+const APPLY_HIT_GO_ON: Site = eix_sites::TEXT_5251DF;
 /// `ApplyHit`'s `mov ebx, 1` (3, 4).
-const APPLY_HIT_EBX: usize = eix_sites::TEXT_5251E0;
+const APPLY_HIT_EBX: Site = eix_sites::TEXT_5251E0;
 const APPLY_HIT_EBX_WAS: [u8; 5] = [0xBB, 0x01, 0x00, 0x00, 0x00];
-const APPLY_HIT_EBX_GO_ON: usize = eix_sites::TEXT_5251E5;
+const APPLY_HIT_EBX_GO_ON: Site = eix_sites::TEXT_5251E5;
 
 /// `newattackdefence` 1 to 4: attack and defence scale damage instead of deciding misses.
 ///
@@ -550,8 +551,8 @@ fn new_attack_defence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
     }
     let f = |key| ctx.values.float("gameplay", key);
     let mut writes = vec![
-        common::float_at(ATTACK_DIVMOD as usize, 0.0, f("divmod")?)?,
-        common::float_at(ATTACK_SUBMOD as usize, 0.0, f("submod")?)?,
+        common::float_at(ATTACK_DIVMOD, 0.0, f("divmod")?)?,
+        common::float_at(ATTACK_SUBMOD, 0.0, f("submod")?)?,
     ];
     if value <= 2 {
         let stub = hook::stub(
@@ -609,7 +610,7 @@ fn new_attack_defence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
         if value == 4 {
             // The constant's address alone, as the original writes it.
             writes.push(SiteWrite::bytes(
-                RESOLVE_HIT_MARK + 2,
+                RESOLVE_HIT_MARK.offset(2),
                 &RESOLVE_HIT_MARK_WAS[2..4],
                 &resolve_hit_mark(value)[2..4],
             )?);
@@ -619,13 +620,13 @@ fn new_attack_defence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
 }
 
 /// game.exe's constants 25.0 (the attribute every boost counts from) and 1.0, which the original loads from `.rdata`.
-const TWENTY_FIVE: u32 = eix_sites::RDATA_73E124 as u32;
-const ONE: u32 = eix_sites::RDATA_73B84C as u32;
+const TWENTY_FIVE: Site = eix_sites::RDATA_73E124;
+const ONE: Site = eix_sites::RDATA_73B84C;
 
 /// A `.rdata` or `.data` float of the game's.
-fn game_float(address: u32) -> f32 {
-    // SAFETY: the addresses passed are game.exe's own constants and the parameters SpellAddon writes into `.data`.
-    unsafe { read::<f32>(address) }
+fn game_float(site: Site) -> f32 {
+    // SAFETY: the sites passed are game.exe's own constants and the parameters SpellAddon writes into `.data`.
+    unsafe { read::<f32>(site.here32()) }
 }
 
 /// Where a unit server keeps strength, dexterity and intelligence.
@@ -637,16 +638,16 @@ const INTELLIGENCE: u32 =
 const CONTROLLER: u32 = offset_of!(Unit, controller) as u32;
 
 /// `damageboost`'s parameters in `.data`: `int`, `str`, `dex`.
-const BOOST_INT: u32 = eix_sites::DATA_799A64 as u32;
-const BOOST_STR: u32 = eix_sites::DATA_799A68 as u32;
-const BOOST_DEX: u32 = eix_sites::DATA_799A6C as u32;
+const BOOST_INT: Site = eix_sites::DATA_799A64;
+const BOOST_STR: Site = eix_sites::DATA_799A68;
+const BOOST_DEX: Site = eix_sites::DATA_799A6C;
 /// Value 1 divides by the parameters, the others multiply.
 const BOOST_DIVIDE: usize = 1;
 /// Value 5 boosts only spell effects whose cast set the mark.
 const BOOST_MARKED: usize = 2;
 
 /// `(stat - 25) / p` or `(stat - 25) * p`, as one x87 sequence.
-fn boost_term(stat: f32, p: u32, flags: usize) -> f64 {
+fn boost_term(stat: f32, p: Site, flags: usize) -> f64 {
     let t = Ext::new(stat.into()).fsub(game_float(TWENTY_FIVE).into());
     let p = f64::from(game_float(p));
     if flags & BOOST_DIVIDE != 0 {
@@ -726,9 +727,13 @@ extern "C" fn boost_spell_effect(flags: usize, ctx: &mut Context) {
             unsafe { boost_by(ctx.ebx + 0x58, term) };
         }
     }
+    let entry = EFFECT_START_TABLE
+        .here32()
+        .wrapping_add(ctx.ecx.wrapping_mul(4));
     // SAFETY: ECX is the effect type the original's `jmp [ecx*4 + 0x681AFC]` dispatches on, in the table's range.
-    ctx.resume =
-        unsafe { read::<u32>(EFFECT_START_TABLE.wrapping_add(ctx.ecx.wrapping_mul(4))) } as usize;
+    let target = unsafe { read::<u32>(entry) };
+    // The table holds the running build's addresses.
+    ctx.resume = Site::of(target as usize);
 }
 
 /// `CUnitServer::FinishCast` 0x54EE90 with value 4: the cast's amount `[ebx + 0x24]` times `1 + int term` of the
@@ -764,15 +769,15 @@ extern "C" fn unmark_cast(_: usize, ctx: &mut Context) {
 }
 
 /// `jmp [ecx*4 + 0x681AFC]`: `CSpellEffect::Start`'s effect-type table.
-const EFFECT_START_TABLE: u32 = eix_sites::C_SPELL_EFFECT_START__228C as u32;
-const EFFECT_START: usize = eix_sites::C_SPELL_EFFECT_START__92;
+const EFFECT_START_TABLE: Site = eix_sites::C_SPELL_EFFECT_START__228C;
+const EFFECT_START: Site = eix_sites::C_SPELL_EFFECT_START__92;
 const EFFECT_START_WAS: [u8; 7] = [0xFF, 0x24, 0x8D, 0xFC, 0x1A, 0x68, 0x00];
 const EFFECT_START_NOW: [u8; 7] = [0x90, 0x90, 0xE9, 0, 0, 0, 0];
 /// `fstp [ebx + 0x24]; jmp 0x54F7A6` after `RollDamage`: the store goes into the stub.
-const ROLLED_HIT: usize = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_HIT__BB;
+const ROLLED_HIT: Site = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_HIT__BB;
 const ROLLED_HIT_WAS: [u8; 8] = [0xD9, 0x5B, 0x24, 0xE9, 0xB3, 0x00, 0x00, 0x00];
 const ROLLED_HIT_NOW: [u8; 8] = [0x90, 0x90, 0x90, 0xE9, 0, 0, 0, 0];
-const ROLLED_HIT_GO_ON: usize = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_HIT__176;
+const ROLLED_HIT_GO_ON: Site = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_HIT__176;
 /// `fstp dword [ebx + 0x24]`.
 const STORE_AMOUNT: [u8; 3] = [0xD9, 0x5B, 0x24];
 /// Value 3: `BuildAttackHit` jumps over `ScaleDamageByEffects` and drops its store; the client's
@@ -796,7 +801,7 @@ const BOOST_CLIENT_SKIP: Bytes = (
     &[0xEB, 0x2A],
 );
 /// Where [`BOOST_CLIENT_SKIP`] jumps to.
-const BOOST_CLIENT_GO_ON: usize = eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__214;
+const BOOST_CLIENT_GO_ON: Site = eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__214;
 /// Values 4 and 5: `fstp [ebx + 0x24]; test eax, eax; mov [ebx + 0x2C], ecx` becomes `mov [ebx + 0x2C], ecx; jmp
 /// 0x54F842; fstp [ebx + 0x24]`, and the padding's last five bytes jump to the hook.
 const SCALED_HIT_DETOUR: Bytes = (
@@ -804,17 +809,17 @@ const SCALED_HIT_DETOUR: Bytes = (
     &[0xD9, 0x5B, 0x24, 0x85, 0xC0, 0x89, 0x4B, 0x2C],
     &[0x89, 0x4B, 0x2C, 0xEB, 0x7C, 0xD9, 0x5B, 0x24],
 );
-const SCALED_HIT: usize = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_HIT__212;
+const SCALED_HIT: Site = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_HIT__212;
 const SCALED_HIT_NOW: [u8; 14] = [
     0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xE9, 0, 0, 0, 0,
 ];
-const SCALED_HIT_GO_ON: usize = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_HIT__199;
+const SCALED_HIT_GO_ON: Site = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_HIT__199;
 /// `FinishCast`'s `mov ecx, [esi + 0x198]`, after the hit is built.
-const FINISH_CAST: usize = eix_sites::C_UNIT_SERVER_FINISH_CAST__80;
+const FINISH_CAST: Site = eix_sites::C_UNIT_SERVER_FINISH_CAST__80;
 const FINISH_CAST_WAS: [u8; 6] = [0x8B, 0x8E, 0x98, 0x01, 0x00, 0x00];
-const FINISH_CAST_GO_ON: usize = eix_sites::C_UNIT_SERVER_FINISH_CAST__86;
+const FINISH_CAST_GO_ON: Site = eix_sites::C_UNIT_SERVER_FINISH_CAST__86;
 /// `FinishCast`'s exit `pop edi; pop esi; pop ebx; mov esp, ebp`, then `pop ebp; ret`.
-const FINISH_CAST_EXIT: usize = eix_sites::C_UNIT_SERVER_FINISH_CAST__1E5;
+const FINISH_CAST_EXIT: Site = eix_sites::C_UNIT_SERVER_FINISH_CAST__1E5;
 const FINISH_CAST_EXIT_WAS: [u8; 5] = [0x5F, 0x5E, 0x5B, 0x8B, 0xE5];
 const FINISH_CAST_EXIT_CODE: [u8; 7] = [0x5F, 0x5E, 0x5B, 0x8B, 0xE5, 0x5D, 0xC3];
 
@@ -825,9 +830,9 @@ fn damage_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
     }
     let f = |key| ctx.values.float("gameplay", key);
     let mut writes = vec![
-        common::float_at(BOOST_INT as usize, 0.0, f("int")?)?,
-        common::float_at(BOOST_STR as usize, 0.0, f("str")?)?,
-        common::float_at(BOOST_DEX as usize, 0.0, f("dex")?)?,
+        common::float_at(BOOST_INT, 0.0, f("int")?)?,
+        common::float_at(BOOST_STR, 0.0, f("str")?)?,
+        common::float_at(BOOST_DEX, 0.0, f("dex")?)?,
     ];
     let flags = match value {
         1 => BOOST_DIVIDE,
@@ -835,7 +840,7 @@ fn damage_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
         _ => 0,
     };
     let effect_start = |writes: &mut Vec<SiteWrite>| -> Result<(), BuildError> {
-        let stub = common::jump_stub(EFFECT_START, &[], boost_spell_effect, flags, 0)?;
+        let stub = common::jump_stub(EFFECT_START, &[], boost_spell_effect, flags, NOWHERE)?;
         writes.push(common::branch(
             EFFECT_START,
             &EFFECT_START_WAS,
@@ -940,7 +945,7 @@ fn archers_defence(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 /// `ApplyHit`'s `jle` to the part-breaking branch becomes a `jmp` past it (0x5252A8).
 const BODY_PART_BREAK: Bytes = (eix_sites::TEXT_525247, &[0x7E, 0x45], &[0xEB, 0x5F]);
 /// The `.rdata` constant -5.0 that the patch replaces with `bodypartbreakmodifier`.
-const BODY_PART_FLOOR: usize = eix_sites::RDATA_73DDC0;
+const BODY_PART_FLOOR: Site = eix_sites::RDATA_73DDC0;
 
 /// `unbreakablebodyparts` >= 1: parts no longer break.
 fn unbreakable_body_parts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
@@ -1040,8 +1045,8 @@ fn only_min_damage(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 }
 
 /// `AttackRoll`'s weight (20.0) and range (10.0) constants in `.rdata`.
-const WEIGHT_CONSTANT: usize = eix_sites::RDATA_73EED8;
-const RANGE_CONSTANT: usize = eix_sites::RDATA_73EEDC;
+const WEIGHT_CONSTANT: Site = eix_sites::RDATA_73EED8;
+const RANGE_CONSTANT: Site = eix_sites::RDATA_73EEDC;
 /// `AttackRoll`+0x100: a `jne` that value 2 makes a `jmp`.
 const WEIGHT_RANGE_TEST: Bytes = (eix_sites::C_UNIT_SERVER_ATTACK_ROLL__100, &[0x75], &[0xEB]);
 
@@ -1065,9 +1070,9 @@ fn weight_range_bonuses(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Buil
 }
 
 /// The strength factors in `.rdata`: HP (0.005), damage (0.003), carried weight (12.0).
-const STRENGTH_HP: usize = eix_sites::RDATA_73E130;
-const STRENGTH_DAMAGE: usize = eix_sites::RDATA_73E134;
-const STRENGTH_WEIGHT: usize = eix_sites::RDATA_73E138;
+const STRENGTH_HP: Site = eix_sites::RDATA_73E130;
+const STRENGTH_DAMAGE: Site = eix_sites::RDATA_73E134;
+const STRENGTH_WEIGHT: Site = eix_sites::RDATA_73E138;
 /// `CFlyingHitPoints::Draw`'s two `fadd [0x73E138]`: their operands' low bytes, which point them at 0x73E0FC.
 const FLYING_NUMBERS: &[Bytes] = &[
     (
@@ -1174,8 +1179,8 @@ const REACH_EXITS: &[Bytes] = &[
     ),
 ];
 /// The function padding that holds `hitdistmul` and `hitdistadd`.
-const HIT_DISTANCE_MUL: usize = eix_sites::C_UNIT_SERVER_FINISH_ACTION__1D4;
-const HIT_DISTANCE_ADD: usize = eix_sites::C_UNIT_SERVER_FINISH_ACTION__1D8;
+const HIT_DISTANCE_MUL: Site = eix_sites::C_UNIT_SERVER_FINISH_ACTION__1D4;
+const HIT_DISTANCE_ADD: Site = eix_sites::C_UNIT_SERVER_FINISH_ACTION__1D8;
 
 /// `runawaydistcontrol` = 1: an attack reaches `range * hitdistmul + hitdistadd`.
 fn run_away_distance(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
@@ -1211,7 +1216,7 @@ fn is_ranged(weapon_type: u32) -> u32 {
     u32::from(RANGED_TYPES.contains(&weapon_type))
 }
 
-const HAS_RANGED: usize = eix_sites::C_UNIT_SERVER_HAS_RANGED_WEAPON__1D;
+const HAS_RANGED: Site = eix_sites::C_UNIT_SERVER_HAS_RANGED_WEAPON__1D;
 /// `cmp eax, 5; je +0x10; mov ecx, esi; call CItemWeapon::GetType; cmp eax, 6; je`.
 const HAS_RANGED_WAS: [u8; 16] = [
     0x83, 0xF8, 0x05, 0x74, 0x10, 0x8B, 0xCE, 0xE8, 0x47, 0x51, 0x15, 0x00, 0x83, 0xF8, 0x06, 0x74,
@@ -1221,13 +1226,13 @@ const HAS_RANGED_NOW: [u8; 16] = [
     0x90, 0x90, 0x90, 0xE8, 0, 0, 0, 0, 0x90, 0x90, 0x90, 0x90, 0x90, 0x85, 0xC0, 0x75,
 ];
 /// `CUnitServer::HasRangedWeapon`, which the other tests now call.
-const HAS_RANGED_WEAPON: usize = eix_sites::C_UNIT_SERVER_HAS_RANGED_WEAPON;
+const HAS_RANGED_WEAPON: Site = eix_sites::C_UNIT_SERVER_HAS_RANGED_WEAPON;
 
 /// A weapon test of the unit server's callers: the unit's weapon and its two type compares (43 bytes, `was`)
 /// become `mov ecx, <server>` (`server`), a call of `HasRangedWeapon` and NOPs, and the last compare's `cmp eax, 6`
 /// becomes `cmp eax, <test>`.
 struct RangedTest {
-    site: usize,
+    site: Site,
     was: [u8; 43],
     server: [u8; 2],
     test: u8,
@@ -1307,7 +1312,7 @@ impl RangedTest {
         let mut now = [0x90u8; 43];
         now[2..4].copy_from_slice(&self.server);
         now[4] = 0xE8;
-        now[5..9].copy_from_slice(&common::rel32(self.site + 9, HAS_RANGED_WEAPON));
+        now[5..9].copy_from_slice(&common::rel32(self.site.offset(9), HAS_RANGED_WEAPON.ru()));
         now[40..].copy_from_slice(&[0x83, 0xF8, self.test]);
         Ok(SiteWrite::bytes(self.site, &self.was, &now)?)
     }
@@ -1321,7 +1326,7 @@ fn new_ranged_weapon_types(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, B
         return Ok(Vec::new());
     }
     let backstabs = ctx.values.flag("gameplay", "rangedweaponbackstabs")? == 1;
-    let stub = common::call_stub(ranged_type, 0, HAS_RANGED + 8)?;
+    let stub = common::call_stub(ranged_type, 0, HAS_RANGED.offset(8))?;
     let mut writes = vec![common::branch(
         HAS_RANGED,
         &HAS_RANGED_WAS,
@@ -1341,7 +1346,7 @@ fn new_ranged_weapon_types(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, B
 
 /// `CSpellEffect::UpdateLasting`'s cases for spell kind 8 (value 1, 0x68290E) and kind 6 (value 2, 0x682AB0): both
 /// begin `mov eax, [ebx + 0xA0]`.
-const ACID_CASES: [usize; 2] = [
+const ACID_CASES: [Site; 2] = [
     eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__2BE,
     eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__460,
 ];
@@ -1364,7 +1369,7 @@ fn acid_attack(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
         &ACID_CASE_WAS,
         acid_case,
         0,
-        site + ACID_CASE_WAS.len(),
+        site.offset(ACID_CASE_WAS.len()),
     )?;
     Ok(vec![common::branch(
         site,
@@ -1393,7 +1398,7 @@ fn night_factor(vision: Ext, night: &NightPower) -> Ext {
     // SAFETY: `CWorld::NightLevel` 0x55FC50 (thiscall, no arguments, a float).
     let night_level = unsafe { hook::as_fn::<NightLevel>(eix_sites::C_WORLD_NIGHT_LEVEL) };
     // SAFETY: the client world, a static object, on the game's thread.
-    let level = Ext::new(unsafe { night_level(eix_sites::DATA_7AF5B8 as u32) }.into());
+    let level = Ext::new(unsafe { night_level(eix_sites::DATA_7AF5B8.here32()) }.into());
     let scaled = level.fmul(night.mul.into());
     let raised = vision.fmul_ext(scaled).fdiv(100.0);
     Ext::new(night.add.into()).fsub_ext(scaled).fadd_ext(raised)
@@ -1448,7 +1453,7 @@ extern "C" fn night_client(arg: usize, ctx: &mut Context) {
 extern "C" fn night_client_scale(arg: usize, ctx: &mut Context) {
     // SAFETY: the build keeps the parameters for the process.
     let night = unsafe { common::kept::<NightPower>(arg) };
-    if ctx.stack_word(4).map(|w| eix_sites::ru(w as usize))
+    if ctx.stack_word(4).map(|w| Site::of(w as usize))
         == Some(eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__29B)
     {
         // SAFETY: `DrawUnitInfo`'s frame and its pointer into the shown unit.
@@ -1511,17 +1516,17 @@ fn night_power(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 
 /// `CUnitServer::BuildAttackSteps` 0x54F970 after `ActionDistance`'s call (`fstp [ebp + 0x14]; fld [ebp - 0x2C]`):
 /// st(0) the reach, then the distance.
-const AIM_REACH: usize = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__EF;
+const AIM_REACH: Site = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__EF;
 const AIM_REACH_WAS: [u8; 6] = [0xD9, 0x5D, 0x14, 0xD9, 0x45, 0xD4];
 /// `mov esi, 0x2000000`, ESI the target unit until then.
-const AIM_TARGET: usize = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__15D;
+const AIM_TARGET: Site = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__15D;
 const AIM_TARGET_WAS: [u8; 5] = [0xBE, 0x00, 0x00, 0x00, 0x02];
 /// The displacement of the `jl` that takes an aim mode of 0 to 5 past `PickLocation`; the original points it at the
 /// second half of [`AIM_PICKED`], past the chooser.
-const AIM_FIXED: usize = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__23F;
+const AIM_FIXED: Site = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__23F;
 /// After `PickLocation` (EAX its part): `fld [ebp - 0x40]; fadd [ebp + 0x14]`, then `mov [ebp - 0x2C], eax;
 /// fst [ebp - 0x70]`. The original turns each half into `nop; jmp`: to the chooser, and to a copy of the whole.
-const AIM_PICKED: usize = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__24A;
+const AIM_PICKED: Site = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__24A;
 const AIM_PICKED_WAS: [u8; 12] = [
     0xD9, 0x45, 0xC0, 0xD8, 0x45, 0x14, 0x89, 0x45, 0xD4, 0xD9, 0x55, 0x90,
 ];
@@ -1791,7 +1796,7 @@ unsafe fn aim_target(target: u32) -> AimTarget {
 
 /// `BuildAttackSteps` after its class test (0x54F9B5, `xor eax, eax; push ebx; mov [ebp - 0x54], eax`; EDI the
 /// attacker's controller, ESI the target unit), with `randomlessaimedhits` 2, 6, 7 and 9.
-const AIM_START: usize = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__45;
+const AIM_START: Site = eix_sites::C_UNIT_SERVER_BUILD_ATTACK_STEPS__45;
 const AIM_START_WAS: [u8; 6] = [0x33, 0xC0, 0x53, 0x89, 0x45, 0xAC];
 
 /// The target's reach against the attacker that [`aim_start`] measured, for [`aim_reach`] in the same call.
@@ -1878,7 +1883,7 @@ type Reduce = unsafe extern "thiscall" fn(stats: u32, full: f32) -> f32;
 extern "C" fn aim_part(arg: usize, ctx: &mut Context) {
     // SAFETY: the build keeps the settings for the process.
     let aim = unsafe { common::kept::<Aim>(arg) };
-    ctx.resume = AIM_PICKED + 6;
+    ctx.resume = AIM_PICKED.offset(6);
     let server = ctx.edi;
     let target_unit = AIMED_TARGET.load(Ordering::Relaxed);
     // SAFETY: the target the same call kept at [`AIM_TARGET`], a unit (the function's class test).
@@ -1974,7 +1979,7 @@ fn randomless_aimed_hits(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
             false,
             aim_start,
             0,
-            AIM_START + AIM_START_WAS.len(),
+            AIM_START.offset(AIM_START_WAS.len()),
         )?;
         writes.push(common::branch(
             AIM_START,
@@ -1987,7 +1992,7 @@ fn randomless_aimed_hits(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
     writes.extend([
         SiteWrite::nop(AIM_REACH, &AIM_REACH_WAS[..1]),
         hook::fpu_hook(
-            AIM_REACH + 1,
+            AIM_REACH.offset(1),
             &AIM_REACH_WAS[1..],
             &AIM_REACH_WAS[1..],
             Mode::Drop,
@@ -2004,7 +2009,7 @@ fn randomless_aimed_hits(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
             chooser,
         )?,
         common::branch(
-            AIM_PICKED + 6,
+            AIM_PICKED.offset(6),
             &AIM_PICKED_WAS[6..],
             &[0x90, 0xE9, 0, 0, 0, 0],
             1,
@@ -2020,7 +2025,7 @@ mod tests {
     use super::*;
 
     /// The sites a build writes, without their bytes.
-    fn sites(writes: &[SiteWrite]) -> Vec<(usize, usize)> {
+    fn sites(writes: &[SiteWrite]) -> Vec<(Site, usize)> {
         writes.iter().map(|w| (w.site(), w.size())).collect()
     }
 

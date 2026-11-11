@@ -12,6 +12,7 @@
 
 use eix_engine::game::ui::{DRAW_TEXT_IN, DrawTextIn, Rect, Surface};
 use eix_engine::hook;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup, bytes};
 
@@ -112,7 +113,7 @@ extern "thiscall" fn draw_wrapped(
 }
 
 /// The three calls of DrawTextIn the list makes through the addon, with their bytes.
-const CALLS: [(&str, usize, [u8; 5]); 3] = [
+const CALLS: [(&str, Site, [u8; 5]); 3] = [
     (
         "ExtendedServerName #9",
         eix_sites::C_MP_CONNECT_SCREEN_DRAW_LIST_VANILLA__51E,

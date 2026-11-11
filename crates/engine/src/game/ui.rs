@@ -6,6 +6,8 @@
 use core::ffi::{CStr, c_char, c_void};
 use core::mem::offset_of;
 
+use eix_sites::Site;
+
 use super::console::ConsoleWindow;
 use super::mfc::{GameArray, GameString};
 use super::{Global, code};
@@ -98,7 +100,7 @@ impl UiMesh {
     /// texels (`u0`, `v0`)-(`u1`, `v1`): `CUiMesh::SetRectangle` 0x5E70E0 (thiscall, `ret 0x28`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live sprite.
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a live sprite.
     #[expect(
         clippy::too_many_arguments,
         reason = "the game function's own ten arguments"
@@ -182,7 +184,7 @@ impl UiWindow {
     /// `CUiWindow::AddSprite` 0x5FF3C0 (thiscall, `ret 4`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live window.
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a live window.
     pub unsafe fn add_sprite(this: *mut Self, name: *const c_char) -> *mut UiMesh {
         // SAFETY: 0x5FF3C0 takes the window in ECX and one stack word, which it cleans (`ret 4` at 0x5FF3DC).
         let f = unsafe {
@@ -337,21 +339,21 @@ pub type DrawTextIn =
     unsafe extern "thiscall" fn(*mut Surface, *const u8, *mut Rect, i32, u32, u32, i32) -> i32;
 
 /// The address of [`DrawTextIn`].
-pub const DRAW_TEXT_IN: usize = eix_sites::C_UI_SURFACE_DRAW_TEXT_IN;
+pub const DRAW_TEXT_IN: Site = eix_sites::C_UI_SURFACE_DRAW_TEXT_IN;
 
 /// `UiSurfaceGetDC` 0x5FDC00: takes [`super::surface::DIRECTDRAW_LOCK`], gets the surface's device context into
 /// [`Surface::dc`] (retrying while DirectDraw answers DDERR_WASSTILLDRAWING) and returns its MFC `CDC` (thiscall,
 /// returns the `CDC*` or null; without a holder it takes nothing and returns null).
-pub const SURFACE_GET_DC: usize = eix_sites::UI_SURFACE_GET_DC;
+pub const SURFACE_GET_DC: Site = eix_sites::UI_SURFACE_GET_DC;
 /// `UiSurfaceReleaseDC` 0x5FDC60: gives the device context back, clears [`Surface::dc`] and leaves the lock
 /// (thiscall).
-pub const SURFACE_RELEASE_DC: usize = eix_sites::UI_SURFACE_RELEASE_DC;
+pub const SURFACE_RELEASE_DC: Site = eix_sites::UI_SURFACE_RELEASE_DC;
 
 impl Surface {
     /// Calls the game's [`SURFACE_GET_DC`].
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live surface without a device
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a live surface without a device
     /// context out.
     pub unsafe fn get_dc(this: *mut Self) -> *mut c_void {
         // SAFETY: 0x5FDC00 is `CDC* __thiscall ()`.
@@ -377,7 +379,7 @@ impl Surface {
     /// `UiSurface::DrawWrappedText` 0x5FDFA0 (thiscall, `ret 0x1C`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live surface and `text` a
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a live surface and `text` a
     /// NUL-terminated string.
     #[expect(
         clippy::too_many_arguments,
@@ -415,7 +417,7 @@ impl Interface {
     /// `ret 4`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be [`INTERFACE`].
+    /// The process must be a supported game.exe, on the game's thread; `this` must be [`INTERFACE`].
     pub unsafe fn console_add_text(this: *mut Self, text: &CStr) {
         // SAFETY: 0x5F7EB0 is `void __thiscall (const char*)`; it skips a null window.
         let f = unsafe {
@@ -462,7 +464,7 @@ impl Interface {
     /// 0x5F7CA0 (thiscall, `ret 4`), as `UiSurface::DrawTextIn` scales its rectangle (0x5FDE9C).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live interface.
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a live interface.
     pub unsafe fn scale_rect_to_screen(this: *mut Self, rect: &mut Rect) {
         // SAFETY: 0x5F7CA0 takes `this` in ECX and the rectangle on the stack, which it cleans (`ret 4` at 0x5F7D0E).
         let f = unsafe {
@@ -516,7 +518,7 @@ const PICTURE_MAX_SIDE: u32 = 1024;
 /// FreeAllFiles (vtable +0x58, 0x600240) at the end. None when there is no such file or its size is out of range.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread, with the interface set up; `interface` must be the
+/// The process must be a supported game.exe, on the game's thread, with the interface set up; `interface` must be the
 /// live interface.
 pub unsafe fn decode_picture(interface: *mut Interface, name: &CStr) -> Option<Picture> {
     type GetFileData = unsafe extern "thiscall" fn(*mut c_void, *const u8) -> *const u8;
@@ -558,7 +560,7 @@ pub unsafe fn decode_picture(interface: *mut Interface, name: &CStr) -> Option<P
             // SAFETY: the live converter's vtable has the slot CopyImage calls (0x6000B3).
             let address = unsafe { slot(converter, 5) };
             // SAFETY: slot 5 of the converter's vtable, which CopyImage calls with these four arguments.
-            let convert = unsafe { code::<Convert>(address) };
+            let convert = unsafe { crate::hook::as_fn_at::<Convert>(address) };
             // SAFETY: `count` words to write, the data after the header, the count and the format's flag.
             unsafe {
                 convert(
@@ -579,7 +581,7 @@ pub unsafe fn decode_picture(interface: *mut Interface, name: &CStr) -> Option<P
     // SAFETY: the live manager's vtable has the slot CopyImage calls (0x600240).
     let address = unsafe { slot(manager, 22) };
     // SAFETY: slot 22 of the manager's vtable, which CopyImage calls once it is done with the file.
-    let free_all = unsafe { code::<FreeAllFiles>(address) };
+    let free_all = unsafe { crate::hook::as_fn_at::<FreeAllFiles>(address) };
     // SAFETY: the live manager.
     unsafe { free_all(manager) };
     picture
@@ -613,7 +615,7 @@ pub const MESSAGE_BOX_SIZE: usize = 0x180;
 /// interface, title, text, 0x20000, 3 and 1 on the stack, `ret 0x18`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread; `block` must be such a block holding no object.
+/// The process must be a supported game.exe, on the game's thread; `block` must be such a block holding no object.
 pub unsafe fn construct_message_box(
     block: *mut c_void,
     interface: *mut Interface,
@@ -666,7 +668,7 @@ impl UiContainer {
     /// adds its scroll bar (0x64C000).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live container and `child` a
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a live container and `child` a
     /// constructed window the container then owns.
     pub unsafe fn add_child(this: *mut Self, child: *mut c_void) {
         // SAFETY: 0x600D30 is `void __thiscall (CUiWindow*)`.
@@ -710,7 +712,7 @@ impl UiScrollbar {
     /// `CObjectivesWindow::Build` calls it with depth 3, maximum 0 and speed 1 (0x64BFAF..0x64BFE9).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `block` must be such a block holding no object
+    /// The process must be a supported game.exe, on the game's thread; `block` must be such a block holding no object
     /// and `interface` the live interface.
     pub unsafe fn construct(
         block: *mut c_void,
@@ -751,7 +753,7 @@ impl UiScrollbar {
     /// (thiscall, `ret 4`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live scroll bar.
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a live scroll bar.
     pub unsafe fn set_maximum(this: *mut Self, maximum: i32) {
         // SAFETY: 0x65AFE0 is `void __thiscall (int)`.
         let f = unsafe {
@@ -800,7 +802,7 @@ impl UiScrollbar {
 /// `ret 8`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread; `window` must be a live window.
+/// The process must be a supported game.exe, on the game's thread; `window` must be a live window.
 pub unsafe fn set_window_enabled(window: *mut c_void, enabled: bool) {
     // SAFETY: 0x6002A0 is `void __thiscall (bool, int)`.
     let f = unsafe {
@@ -818,7 +820,7 @@ pub const CURSOR: Global<c_void> = Global::at(eix_sites::DATA_7C7BD8);
 /// Shows or hides the cursor's image: `CCursor::ShowImage` 0x5E5270 (thiscall, `ret 4`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread.
+/// The process must be a supported game.exe, on the game's thread.
 pub unsafe fn show_cursor(shown: bool) {
     // SAFETY: 0x5E5270 is `void __thiscall (bool)`.
     let f = unsafe {

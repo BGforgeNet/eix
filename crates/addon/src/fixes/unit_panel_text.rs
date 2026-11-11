@@ -18,16 +18,17 @@ use eix_engine::game::surface::{enter_directdraw_lock, leave_directdraw_lock};
 use eix_engine::game::ui::Surface;
 use eix_engine::gdi::{self, Dib, MemoryDc};
 use eix_engine::hook;
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::log;
 use crate::setup::Setup;
 
 /// `CHudUnitPanel::DrawVanilla` gets the panel surface's DC: `call UiSurfaceGetDC`.
-const GET_DC: usize = eix_sites::C_HUD_UNIT_PANEL_DRAW_VANILLA__145;
+const GET_DC: Site = eix_sites::C_HUD_UNIT_PANEL_DRAW_VANILLA__145;
 const GET_DC_BYTES: [u8; 5] = [0xE8, 0x16, 0x78, 0xFB, 0xFF];
 /// ... and gives it back after the text: `call UiSurfaceReleaseDC`.
-const RELEASE_DC: usize = eix_sites::C_HUD_UNIT_PANEL_DRAW_VANILLA__878;
+const RELEASE_DC: Site = eix_sites::C_HUD_UNIT_PANEL_DRAW_VANILLA__878;
 const RELEASE_DC_BYTES: [u8; 5] = [0xE8, 0x43, 0x71, 0xFB, 0xFF];
 
 /// The panel's drawing between the two calls, and what its surface holds.
@@ -192,7 +193,10 @@ mod tests {
         ] {
             let rel = i32::from_le_bytes(bytes[1..5].try_into().unwrap());
             assert_eq!(bytes[0], 0xE8);
-            assert_eq!((site + 5).wrapping_add_signed(rel as isize), old);
+            assert_eq!(
+                Site::new((site.offset(5)).ru().wrapping_add_signed(rel as isize)),
+                old
+            );
         }
     }
 }

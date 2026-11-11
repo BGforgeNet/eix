@@ -3,18 +3,19 @@
 #![expect(unsafe_code, reason = "reading the item name the game passes")]
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::arg_path::c_str;
 use super::{BuildError, Labelled, Setup};
 use crate::report;
 
 /// The failure exit after the first `FatalError` call, which destroys the locals and returns null.
-const FAILURE_EXIT: usize = eix_sites::C_ITEM_MANAGER_CREATE_ITEM__261;
+const FAILURE_EXIT: Site = eix_sites::C_ITEM_MANAGER_CREATE_ITEM__261;
 /// Stack word 0x18 (ESP + 0x60) at both sites: the item's name, which the second site's `FatalError` prints.
 const NAME_WORD: usize = 0x60 / 4;
 
 /// The two `FatalError` calls' first instructions and what each reports.
-const SITES: [(&str, usize, &[u8], &str); 2] = [
+const SITES: [(&str, Site, &[u8], &str); 2] = [
     (
         "FixCreateItem #0",
         eix_sites::C_ITEM_MANAGER_CREATE_ITEM__24D,

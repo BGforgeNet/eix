@@ -10,6 +10,7 @@ use eix_core::widescreen::Layout;
 use eix_engine::game::ui::{HudUnitPanel, Rect, UiWindow};
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{Numbered, bytes, layout, set_panel_offset, word};
 use crate::groups::BuildError;
@@ -22,7 +23,7 @@ enum Edge {
 }
 
 /// A builder's entry: its first whole instructions (the jump covers 5 bytes of them).
-const ENTRIES: [(usize, usize, Edge, &[u8]); 10] = [
+const ENTRIES: [(usize, Site, Edge, &[u8]); 10] = [
     // CHudMap::Setup, Layout.
     (
         21,
@@ -94,7 +95,7 @@ const ENTRIES: [(usize, usize, Edge, &[u8]); 10] = [
 
 /// A builder's returns, and the points inside one where the original clears the offset: the whole instructions
 /// there, which run after the offset is cleared.
-const EXITS: [(usize, usize, &[u8]); 13] = [
+const EXITS: [(usize, Site, &[u8]); 13] = [
     // CHudMap::Setup's `ret 8`; Layout before the regions' offsets (`mov ecx, [esi + 0x12C]`).
     (
         22,
@@ -170,11 +171,11 @@ const EXITS: [(usize, usize, &[u8]); 13] = [
 
 /// `CHudUnitPanel::Setup` 0x6456E0 from 0x645719, after the SEH frame: the slide fields from its flag argument and
 /// the window's rectangle, up to `call 0x5FF830` at 0x645777.
-const UNIT_PANEL_SETUP: (usize, [u8; 5]) = (
+const UNIT_PANEL_SETUP: (Site, [u8; 5]) = (
     eix_sites::C_HUD_UNIT_PANEL_SETUP__39,
     [0x89, 0x54, 0x24, 0x4C, 0x89],
 );
-const UNIT_PANEL_SETUP_RESUME: usize = eix_sites::C_HUD_UNIT_PANEL_SETUP__97;
+const UNIT_PANEL_SETUP_RESUME: Site = eix_sites::C_HUD_UNIT_PANEL_SETUP__97;
 /// Stack word 0x13, ESP + 0x4C: the local the slide's floats are loaded from.
 const UNIT_PANEL_LOCAL: usize = 0x13;
 /// The rectangle the original's handler gives the panel whatever the margin (Setup's is (0, 0)-(185, 225)), and
@@ -188,7 +189,7 @@ const UNIT_PANEL_RECT: Rect = Rect {
 const UNIT_PANEL_TRAVEL: i32 = 0xB4;
 
 /// `CHudActionColumn::Construct` 0x63F300 at 0x63F378, after the vtables: `mov [esi + 0xD8], ebx`, the window's left.
-const ACTION_COLUMN: (usize, [u8; 6]) = (
+const ACTION_COLUMN: (Site, [u8; 6]) = (
     eix_sites::C_HUD_ACTION_COLUMN_CONSTRUCT__78,
     [0x89, 0x9E, 0xD8, 0x00, 0x00, 0x00],
 );
@@ -202,7 +203,7 @@ enum Constant {
 }
 
 /// Each constant's site (its 4 bytes), what it holds, and +1 or -1: the value becomes `value + sign * extra`.
-const CONSTANTS: [(usize, usize, Constant, i32); 29] = [
+const CONSTANTS: [(usize, Site, Constant, i32); 29] = [
     // CUiTooltip::OnMouseMove: the layout's right edge (`cmp eax, 800`, `add eax, -800`).
     (
         19,
@@ -369,7 +370,7 @@ const CONSTANTS: [(usize, usize, Constant, i32); 29] = [
 
 /// `CInterface3D::DrawOverlays` 0x5F5320 constructs the full-size backdrop twice with `push 1; push 600; push 800`:
 /// it gets flag 0 and the mode's size. The flag's byte, and the height's and the width's immediates.
-const OVERLAYS: [[(usize, usize); 3]; 2] = [
+const OVERLAYS: [[(usize, Site); 3]; 2] = [
     [
         (82, eix_sites::C_INTERFACE_3D_DRAW_OVERLAYS__14A),
         (83, eix_sites::C_INTERFACE_3D_DRAW_OVERLAYS__14E),
@@ -384,9 +385,9 @@ const OVERLAYS: [[(usize, usize); 3]; 2] = [
 
 /// CHudWeaponBar::AddWeapon's two `fadd` operands at 0x63BF80 (80.0 at 0x741F1C) and 0x63BF71 (120.0 at 0x740094)
 /// read the floats `80 - extra` and `120 - extra`, which go into SetRect's replaced body at 0x5FC9F4.
-const WEAPON_FLOATS: usize = eix_sites::C_UI_REGION_SET_RECT__14;
+const WEAPON_FLOATS: Site = eix_sites::C_UI_REGION_SET_RECT__14;
 const WEAPON_FLOATS_ORIGINAL: [u8; 8] = [0xC4, 0x04, 0xC7, 0x46, 0x04, 0x00, 0x00, 0x00];
-const WEAPON_OPERANDS: [(usize, usize, usize, usize); 2] = [
+const WEAPON_OPERANDS: [(usize, Site, Site, Site); 2] = [
     (
         63,
         eix_sites::C_HUD_WEAPON_BAR_ADD_WEAPON__2C0,
@@ -397,7 +398,7 @@ const WEAPON_OPERANDS: [(usize, usize, usize, usize); 2] = [
         64,
         eix_sites::C_HUD_WEAPON_BAR_ADD_WEAPON__2B1,
         eix_sites::RDATA_740094,
-        WEAPON_FLOATS + 4,
+        WEAPON_FLOATS.offset(4),
     ),
 ];
 
@@ -518,7 +519,7 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
     floats.extend_from_slice(&constant_bytes(Constant::Float(120), -l.extra));
     sites.push((62, bytes(WEAPON_FLOATS, &WEAPON_FLOATS_ORIGINAL, &floats)?));
     for (n, site, old, new) in WEAPON_OPERANDS {
-        sites.push((n, SiteWrite::pointer(site, old, new)));
+        sites.push((n, SiteWrite::pointer(site, old.ru(), new.ru())));
     }
     Ok(sites)
 }

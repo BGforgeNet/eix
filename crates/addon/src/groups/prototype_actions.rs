@@ -13,6 +13,7 @@ use eix_engine::game::unit::{ActionItem, UnitServer, VALUE_ATTACK_INTERVAL};
 use eix_engine::group::SiteWrite;
 use eix_engine::patch;
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup, bytes};
 
@@ -90,13 +91,13 @@ extern "thiscall" fn item_value_method(us: *mut UnitServer, item: *mut ActionIte
 /// `code` (pushes of the arguments) and a call of `to` at `site`, then NOPs over the rest of `original`.
 fn inlined_call(
     label: &str,
-    site: usize,
+    site: Site,
     original: &[u8],
     code: &[u8],
     to: usize,
 ) -> Result<Labelled, BuildError> {
     let mut new = code.to_vec();
-    new.extend(patch::call_rel32(site + new.len(), to));
+    new.extend(patch::call_rel32(site.offset(new.len()), to));
     new.resize(original.len(), 0x90);
     bytes(label, site, original, &new)
 }

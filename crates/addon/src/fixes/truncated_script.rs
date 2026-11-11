@@ -16,6 +16,7 @@
 use core::ffi::{c_char, c_void};
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::Warnings;
 use crate::groups::{BuildError, Labelled};
@@ -24,39 +25,39 @@ use crate::setup::Setup;
 /// `mov eax, [esi]; lea ecx, [esp+0x18]`, run before the handler (harmless): EAX is then the cursor.
 const BODY_BYTES: [u8; 6] = [0x8B, 0x06, 0x8D, 0x4C, 0x24, 0x18];
 /// `LoadScriptBody`'s reads after `(`, after the condition block and after `then`, and its report.
-const BODY: [usize; 3] = [
+const BODY: [Site; 3] = [
     eix_sites::C_SCRIPT_LOAD_SCRIPT_BODY__BA,
     eix_sites::C_SCRIPT_LOAD_SCRIPT_BODY__124,
     eix_sites::C_SCRIPT_LOAD_SCRIPT_BODY__166,
 ];
-const BODY_END: usize = eix_sites::C_SCRIPT_LOAD_SCRIPT_BODY__1FA;
+const BODY_END: Site = eix_sites::C_SCRIPT_LOAD_SCRIPT_BODY__1FA;
 
 /// `mov ecx, [esp+0x80]`, run before the handler (harmless), before `GetNext` on the cursor EDI points at; the report
 /// at the loop's end.
-const FUNCTION: usize = eix_sites::C_SCRIPT_LOAD_FUNCTION__735;
+const FUNCTION: Site = eix_sites::C_SCRIPT_LOAD_FUNCTION__735;
 const FUNCTION_BYTES: [u8; 7] = [0x8B, 0x8C, 0x24, 0x80, 0x00, 0x00, 0x00];
-const FUNCTION_END: usize = eix_sites::C_SCRIPT_LOAD_FUNCTION__B44;
+const FUNCTION_END: Site = eix_sites::C_SCRIPT_LOAD_FUNCTION__B44;
 
 /// `mov eax, [edi]; mov ecx, [eax]; lea esi, [eax+8]`, which the handler does instead (the second read is the
 /// fault): EDI points at the cursor.
 const DECLARATION_BYTES: [u8; 7] = [0x8B, 0x07, 0x8B, 0x08, 0x8D, 0x70, 0x08];
 /// The read after a declaration's `,`, and the null test's report that follows it.
-const DECLARATION: usize = eix_sites::C_SCRIPT_LOAD_VARIABLE_DECLARATIONS__CE;
-const DECLARATION_END: usize = eix_sites::C_SCRIPT_LOAD_VARIABLE_DECLARATIONS__100;
+const DECLARATION: Site = eix_sites::C_SCRIPT_LOAD_VARIABLE_DECLARATIONS__CE;
+const DECLARATION_END: Site = eix_sites::C_SCRIPT_LOAD_VARIABLE_DECLARATIONS__100;
 /// The read after that report when it returns non-zero (SpellAddon's `scriptchecking` makes it), and the function's
 /// failure exit: a second report there could loop.
-const AFTER_REPORT: usize = eix_sites::C_SCRIPT_LOAD_VARIABLE_DECLARATIONS__159;
-const DECLARATIONS_EXIT: usize = eix_sites::C_SCRIPT_LOAD_VARIABLE_DECLARATIONS__324;
+const AFTER_REPORT: Site = eix_sites::C_SCRIPT_LOAD_VARIABLE_DECLARATIONS__159;
+const DECLARATIONS_EXIT: Site = eix_sites::C_SCRIPT_LOAD_VARIABLE_DECLARATIONS__324;
 
 /// `Load`'s `Script` case entry, `lea ecx, [esp+0x88]`, run before the handler (harmless); the case then takes a
 /// token with `GetNext`.
-const SCRIPT_HEADER: usize = eix_sites::C_SCRIPT_LOAD__7C2;
+const SCRIPT_HEADER: Site = eix_sites::C_SCRIPT_LOAD__7C2;
 const SCRIPT_HEADER_BYTES: [u8; 7] = [0x8D, 0x8C, 0x24, 0x88, 0x00, 0x00, 0x00];
 /// Its sibling case: `mov eax, [esp+0x18]; mov ecx, [eax]`, which the handler does instead (the second is the fault).
-const SIBLING: usize = eix_sites::C_SCRIPT_LOAD__6E8;
+const SIBLING: Site = eix_sites::C_SCRIPT_LOAD__6E8;
 const SIBLING_BYTES: [u8; 6] = [0x8B, 0x44, 0x24, 0x18, 0x8B, 0x08];
 /// `Load`'s exit after a report that returned 0, at the switch's locals.
-const LOAD_EXIT: usize = eix_sites::C_SCRIPT_LOAD__9C4;
+const LOAD_EXIT: Site = eix_sites::C_SCRIPT_LOAD__9C4;
 /// In `Load`'s frame: the cursor, and the record whose +0x0C is the current line (as its own report reads it,
 /// 0x4D27CB).
 const LOAD_CURSOR_WORD: usize = 0x18 / 4;
@@ -117,7 +118,7 @@ extern "C" fn declaration(end: usize, ctx: &mut Context) {
     let node = unsafe { word(ctx.edi) };
     if node == 0 {
         note("a variable declaration");
-        ctx.resume = end;
+        ctx.resume = Site::new(end);
         return;
     }
     // SAFETY: a non-null cursor is a live node.
@@ -134,8 +135,7 @@ fn load_ended(ctx: &mut Context) {
     // SAFETY: SCRIPT_ERROR is the game's `ScriptError`, of this type.
     let report = unsafe { hook::as_fn::<ScriptError>(eix_sites::SCRIPT_ERROR) };
     let script = core::ptr::with_exposed_provenance_mut::<c_void>(ctx.esi as usize);
-    let format =
-        core::ptr::with_exposed_provenance::<c_char>(eix_sites::here(eix_sites::DATA_78D740));
+    let format = core::ptr::with_exposed_provenance::<c_char>(eix_sites::DATA_78D740.here());
     // SAFETY: ESI is the script `Load` parses; the format is the game's "Unexpected end of file", which takes no
     // argument; the call is made on the parsing thread, as `Load`'s own.
     unsafe { report(script, line, ERROR_LEVEL, format) };
@@ -179,7 +179,7 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     {
         writes.push(Labelled {
             label: format!("TruncatedScript declaration #{i}"),
-            write: hook::context_hook(site, &DECLARATION_BYTES, Mode::Drop, declaration, end)?,
+            write: hook::context_hook(site, &DECLARATION_BYTES, Mode::Drop, declaration, end.ru())?,
         });
     }
     writes.push(Labelled {

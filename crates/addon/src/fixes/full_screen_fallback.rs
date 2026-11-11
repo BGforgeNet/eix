@@ -13,6 +13,7 @@ use eix_core::engine_fixes::{DisplayMode, fallback_mode};
 use eix_engine::ddraw::{self, Mode};
 use eix_engine::group::SiteWrite;
 use eix_engine::{exec, patch};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::log;
@@ -20,7 +21,7 @@ use crate::setup::Setup;
 
 /// `push edx; push eax; call [ecx+0x54]`: the width and the IDirectDraw7 go on the stack last, then
 /// `IDirectDraw7::SetDisplayMode` (height, depth, refresh and flags are pushed already).
-const SITE: usize = eix_sites::C_TEXTURE_DEVICE_CONSTRUCT_DIRECT_DRAW__186;
+const SITE: Site = eix_sites::C_TEXTURE_DEVICE_CONSTRUCT_DIRECT_DRAW__186;
 const SITE_BYTES: [u8; 5] = [0x52, 0x50, 0xFF, 0x51, 0x54];
 
 /// `pop ecx; push edx; push eax; push ecx`, then a jump to [`set_display_mode`]: the call into the stub left the
@@ -102,7 +103,7 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let target = set_display_mode as *const () as usize;
     let stub = exec::place(STUB_HEAD.len() + 5, |at| {
         let mut code = STUB_HEAD.to_vec();
-        code.extend(patch::jmp_rel32(at + STUB_HEAD.len(), target));
+        code.extend(patch::jmp_rel32(Site::of(at + STUB_HEAD.len()), target));
         Ok::<_, String>(code)
     })?;
     Ok(vec![Labelled {
@@ -122,7 +123,9 @@ mod tests {
         assert_eq!((write.site(), write.expected()), (SITE, &SITE_BYTES[..]));
         let new = write.new_bytes();
         assert_eq!(new[0], 0xE8);
-        let stub = (SITE + 5)
+        let stub = SITE
+            .offset(5)
+            .ru()
             .wrapping_add_signed(i32::from_le_bytes(new[1..5].try_into().unwrap()) as isize);
         // SAFETY: the stub was placed in the pool, readable, nine bytes long.
         let code = unsafe { core::slice::from_raw_parts(stub as *const u8, 9) };

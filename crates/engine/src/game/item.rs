@@ -86,7 +86,7 @@ impl Item {
     /// arguments; a jump table on [`EngineObject::kind`]).
     ///
     /// # Safety
-    /// `this` must be a live item of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live item of a supported game.exe, on the game's thread.
     pub unsafe fn prototype(this: *mut Self) -> *mut c_void {
         // SAFETY: 0x6A0110 is `void* __thiscall ()`.
         let f = unsafe {

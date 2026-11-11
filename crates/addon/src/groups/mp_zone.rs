@@ -20,31 +20,31 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
         pointer(
             "MPZone Gipath #1",
             eix_sites::GAME_FLOW_BUILD_ZONE_TABLE__159,
-            eix_sites::K_ALLOD_MAPS,
+            eix_sites::K_ALLOD_MAPS.ru(),
             gipath,
         ),
         pointer(
             "MPZone Gipath #2",
             eix_sites::GAME_FLOW_BUILD_ZONE_TABLE__162,
-            eix_sites::K_ALLOD_MAPS,
+            eix_sites::K_ALLOD_MAPS.ru(),
             gipath,
         ),
         pointer(
             "MPZone Ingos #1",
             eix_sites::GAME_FLOW_BUILD_ZONE_TABLE__186,
-            eix_sites::DATA_790298,
+            eix_sites::DATA_790298.ru(),
             ingos,
         ),
         pointer(
             "MPZone Ingos #2",
             eix_sites::GAME_FLOW_BUILD_ZONE_TABLE__18B,
-            eix_sites::DATA_790298,
+            eix_sites::DATA_790298.ru(),
             ingos,
         ),
         pointer(
             "MPZone Suslanger",
             eix_sites::GAME_FLOW_BUILD_ZONE_TABLE__1BD,
-            eix_sites::DATA_7902C0,
+            eix_sites::DATA_7902C0.ru(),
             suslanger,
         ),
     ])

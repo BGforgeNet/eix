@@ -22,6 +22,7 @@ use eix_core::mod_files::{ResConfig, lower};
 use eix_engine::game::res::{self, GET_FILE, MappedResource, PathRange, StringArray};
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::arg_path::c_str;
 use super::{BuildError, Labelled, Setup};
@@ -69,7 +70,7 @@ fn ensure_loaded() {
             let archive: &'static mut MappedResource =
                 Box::leak(Box::new(MappedResource::zeroed()));
             let ptr = core::ptr::from_mut(archive);
-            // SAFETY: the build is RU 1.06; `ptr` is a fresh zeroed block of the archive's size, on the game's
+            // SAFETY: the build is a supported one; `ptr` is a fresh zeroed block of the archive's size, on the game's
             // thread (the first archive open or the material manager's set-up).
             unsafe { res::construct(ptr) };
             // SAFETY: as above; `ptr` is now a constructed archive and `c` a NUL-terminated path.
@@ -257,7 +258,7 @@ extern "thiscall" fn list_files(
     unsafe { res::array_destroy(temp) };
 }
 
-const FILE_FIND_MASK: [(usize, [u8; 5]); 4] = [
+const FILE_FIND_MASK: [(Site, [u8; 5]); 4] = [
     (
         eix_sites::TEXT_SOURCES_LIST_KEYS__53,
         [0xE8, 0x28, 0x5E, 0x19, 0x00],
@@ -273,7 +274,7 @@ const FILE_FIND_MASK: [(usize, [u8; 5]); 4] = [
     ),
 ];
 
-const FILE_FIND: [(usize, [u8; 5]); 13] = [
+const FILE_FIND: [(Site, [u8; 5]); 13] = [
     (
         eix_sites::LEVER_RECORD_TABLE_LOAD__E4,
         [0xE8, 0xC7, 0xE6, 0x20, 0x00],
@@ -320,7 +321,7 @@ const FILE_FIND: [(usize, [u8; 5]); 13] = [
 ];
 
 /// The archive vtable's `GetFile` slot.
-const GET_FILE_SLOT: usize = eix_sites::RDATA_7432F4;
+const GET_FILE_SLOT: Site = eix_sites::RDATA_7432F4;
 
 pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let _ = CONFIG.set(setup.res.clone());
@@ -334,9 +335,10 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     for key in &setup.res.ignored {
         log::info("res", "game archive hidden", &String::from_utf8_lossy(key));
     }
-    let push = |imm: u32| {
+    // `push imm32` of a game address, as the replaced code holds it.
+    let push = |imm: eix_sites::Site| {
         let mut b = [0x68, 0, 0, 0, 0];
-        b[1..].copy_from_slice(&imm.to_le_bytes());
+        b[1..].copy_from_slice(&imm.ru32().to_le_bytes());
         b
     };
     let context =
@@ -350,35 +352,35 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
         context(
             "ResOpen",
             eix_sites::MAPPED_RESOURCE_OPEN_RESOURCE__8,
-            &push(eix_sites::TEXT_7312A0 as u32),
+            &push(eix_sites::TEXT_7312A0),
             Mode::Before,
             on_open,
         )?,
         context(
             "ResClose",
             eix_sites::C_MAPPED_RESOURCE_C_MAPPED_RESOURCE__2,
-            &push(eix_sites::TEXT_731210 as u32),
+            &push(eix_sites::TEXT_731210),
             Mode::Before,
             on_close,
         )?,
         context(
             "ResInit1",
             eix_sites::MATERIAL_MANAGER_CREATE_HOOK__8,
-            &push(eix_sites::TEXT_732D36 as u32),
+            &push(eix_sites::TEXT_732D36),
             Mode::Before,
             on_materials,
         )?,
         context(
             "ResInit2",
             eix_sites::C_FIGURE_MANAGER_CREATE_WITH_ARCHIVES__34,
-            &push(eix_sites::DATA_7AF45C as u32),
+            &push(eix_sites::DATA_7AF45C),
             Mode::Before,
             on_figures,
         )?,
         context(
             "ResInit3(Figure)",
             eix_sites::C_LINK_FIGURE_LOADER_CONSTRUCT__92,
-            &push(eix_sites::DATA_78EC24 as u32),
+            &push(eix_sites::DATA_78EC24),
             Mode::Before,
             on_linked_figures,
         )?,
@@ -407,7 +409,7 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     }
     out.push(Labelled {
         label: "ResFileFind #E".to_owned(),
-        write: SiteWrite::pointer(GET_FILE_SLOT, GET_FILE, get_file as *const () as usize),
+        write: SiteWrite::pointer(GET_FILE_SLOT, GET_FILE.ru(), get_file as *const () as usize),
     });
     Ok(out)
 }

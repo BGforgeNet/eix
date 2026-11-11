@@ -3,6 +3,7 @@
 //! vtable (0x549E2D). Every other missing-target case of the function already answers "not in reach".
 
 use eix_engine::group::SiteWrite;
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
@@ -10,7 +11,7 @@ use crate::setup::Setup;
 /// `jne 0x549E27` after the spell's point-cast flag test (`test [eax + 0x3C], 0x20000000`). Only a null target
 /// reaches it (0x549DC7 sends a set one to 0x549DF0); without the jump the code goes on to the function's
 /// `return false` at 0x549DE8.
-const POINT_CAST_JUMP: usize = eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__A6;
+const POINT_CAST_JUMP: Site = eix_sites::C_UNIT_SERVER_ACTION_IN_REACH__A6;
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     writes()

@@ -12,6 +12,7 @@ use eix_engine::game::mfc::{self, FormatArg, GameString};
 use eix_engine::game::spell::{Spell, SpellRecord};
 use eix_engine::hook::{self, Context, Mode};
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
 use super::memory::word;
 use super::{BuildError, Labelled, Setup};
@@ -245,7 +246,7 @@ extern "C" fn rate_line(_: usize, ctx: &mut Context) {
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let add_lea = |x: u8, d: u8| [0x83, 0xC4, 0x10, 0x8D, x, 0x24, d];
-    let sites: [(usize, [u8; 7], hook::Handler, usize); 8] = [
+    let sites: [(Site, [u8; 7], hook::Handler, usize); 8] = [
         (
             eix_sites::C_ITEM_INFO_PANEL_DESCRIBE_CARRIED_SPELL__34F,
             add_lea(0x4C, 0x38),

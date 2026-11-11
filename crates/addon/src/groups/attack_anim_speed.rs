@@ -77,7 +77,7 @@ extern "thiscall" fn action_speed(unit: *mut Unit, entry: *mut AnimationEntry) -
         _ => {
             // SAFETY: ACTION_SPEED holds the trampoline to the original, stored before the site was written.
             let original: ActionSpeed =
-                unsafe { hook::as_fn(ACTION_SPEED.load(Ordering::Relaxed)) };
+                unsafe { hook::as_fn_at(ACTION_SPEED.load(Ordering::Relaxed)) };
             // SAFETY: the game's arguments, passed on.
             unsafe { original(unit, entry) }
         }

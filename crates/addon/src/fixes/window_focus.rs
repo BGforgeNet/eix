@@ -21,6 +21,7 @@ use eix_core::engine_fixes::{CursorClip, cursor_clip, is_focus_loss};
 use eix_engine::game::surface::is_windowed;
 use eix_engine::hook::{self, Context, Mode};
 use eix_engine::win;
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
@@ -28,10 +29,10 @@ use crate::setup::Setup;
 use super::Warnings;
 
 /// `sub esp, 0x50; push ebx; push esi`: the procedure's first instructions.
-const ENTRY: usize = eix_sites::WINDOW_PROC;
+const ENTRY: Site = eix_sites::WINDOW_PROC;
 const ENTRY_BYTES: [u8; 5] = [0x83, 0xEC, 0x50, 0x53, 0x56];
 /// `mov eax, ebx; pop esi; pop ebx; add esp, 0x50; ret 0x10`: the procedure's `return 1`.
-const RETURN_HANDLED: usize = eix_sites::WINDOW_PROC__152;
+const RETURN_HANDLED: Site = eix_sites::WINDOW_PROC__152;
 /// Where the hook sees the arguments, in stack words from the stack's top: the entry's 0x50 and two pushes, the return
 /// address, then the window, the message, `wParam` and `lParam`.
 const WINDOW_WORD: usize = (0x50 + 8) / 4 + 1;

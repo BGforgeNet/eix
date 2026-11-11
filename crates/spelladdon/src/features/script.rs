@@ -23,6 +23,7 @@ use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, FpuContext, Handler, Mode};
 use eix_engine::patch;
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
 use super::common::{self, Bytes, Obj, read};
 use super::{Build, BuildError, Ctx};
@@ -69,7 +70,7 @@ pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
     ),
 ];
 
-fn bytes(site: usize, expected: &[u8], new: &[u8]) -> Result<SiteWrite, BuildError> {
+fn bytes(site: Site, expected: &[u8], new: &[u8]) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(site, expected, new)?)
 }
 
@@ -78,46 +79,50 @@ fn bytes(site: usize, expected: &[u8], new: &[u8]) -> Result<SiteWrite, BuildErr
 /// The keyword entries whose signatures the features change, and the field each changes (`ScriptKeyword`: +0x8 a
 /// function's, +0xC a command's).
 mod keyword {
+    use eix_sites::Site;
+
     pub(super) const FUNCTION: usize = 0x8;
     pub(super) const COMMAND: usize = 0xC;
-    pub(super) const CAST: usize = eix_sites::DATA_78BE20;
-    pub(super) const CRAWL: usize = eix_sites::DATA_78BEA0;
-    pub(super) const FIX_WORLD_TIME: usize = eix_sites::DATA_78BFB0;
-    pub(super) const KILL_UNIT: usize = eix_sites::DATA_78C0F0;
-    pub(super) const MOVE_TO_OBJECT: usize = eix_sites::DATA_78C150;
-    pub(super) const RUN: usize = eix_sites::DATA_78C320;
-    pub(super) const HP: usize = eix_sites::DATA_78C7B0;
-    pub(super) const MANA: usize = eix_sites::DATA_78C7D0;
-    pub(super) const UNIT_SEE: usize = eix_sites::DATA_78C8F0;
-    pub(super) const GET_PLAYER: usize = eix_sites::DATA_78C9B0;
-    pub(super) const SET_PLAYER: usize = eix_sites::DATA_78C410;
-    pub(super) const GIVE_QUEST_ITEM: usize = eix_sites::DATA_78C030;
-    pub(super) const MAX_HP: usize = eix_sites::DATA_78C7C0;
-    pub(super) const MAX_MANA: usize = eix_sites::DATA_78C7E0;
-    pub(super) const GROUP_SEE: usize = eix_sites::DATA_78C900;
-    pub(super) const WAS_LOOTED: usize = eix_sites::DATA_78CA70;
+    pub(super) const CAST: Site = eix_sites::DATA_78BE20;
+    pub(super) const CRAWL: Site = eix_sites::DATA_78BEA0;
+    pub(super) const FIX_WORLD_TIME: Site = eix_sites::DATA_78BFB0;
+    pub(super) const KILL_UNIT: Site = eix_sites::DATA_78C0F0;
+    pub(super) const MOVE_TO_OBJECT: Site = eix_sites::DATA_78C150;
+    pub(super) const RUN: Site = eix_sites::DATA_78C320;
+    pub(super) const HP: Site = eix_sites::DATA_78C7B0;
+    pub(super) const MANA: Site = eix_sites::DATA_78C7D0;
+    pub(super) const UNIT_SEE: Site = eix_sites::DATA_78C8F0;
+    pub(super) const GET_PLAYER: Site = eix_sites::DATA_78C9B0;
+    pub(super) const SET_PLAYER: Site = eix_sites::DATA_78C410;
+    pub(super) const GIVE_QUEST_ITEM: Site = eix_sites::DATA_78C030;
+    pub(super) const MAX_HP: Site = eix_sites::DATA_78C7C0;
+    pub(super) const MAX_MANA: Site = eix_sites::DATA_78C7E0;
+    pub(super) const GROUP_SEE: Site = eix_sites::DATA_78C900;
+    pub(super) const WAS_LOOTED: Site = eix_sites::DATA_78CA70;
 }
 
 /// The game's signature strings the features point keywords at: `"f"`, `"o"`, `"of"`, `"ff"`, `"Fo"`, `"Fof"`,
 /// `"off"`, `"offf"`, `"oo"`, `"Gg"`.
 mod signature {
-    pub(super) const F: usize = eix_sites::DATA_78BBD8;
-    pub(super) const FS: usize = eix_sites::DATA_78D4F4;
-    pub(super) const O: usize = eix_sites::DATA_78BBD0;
-    pub(super) const OF: usize = eix_sites::DATA_78D6C4;
-    pub(super) const FF: usize = eix_sites::DATA_78D614;
-    pub(super) const FN_O: usize = eix_sites::DATA_78CD44;
-    pub(super) const FN_OF: usize = eix_sites::DATA_78CCB8;
-    pub(super) const OFF: usize = eix_sites::DATA_78D5E0;
-    pub(super) const OFFF: usize = eix_sites::DATA_78D34C;
-    pub(super) const OO: usize = eix_sites::DATA_78D5F8;
-    pub(super) const FN_GG: usize = eix_sites::DATA_78CC28;
-    pub(super) const FN_GO: usize = eix_sites::DATA_78CC38;
+    use eix_sites::Site;
+
+    pub(super) const F: Site = eix_sites::DATA_78BBD8;
+    pub(super) const FS: Site = eix_sites::DATA_78D4F4;
+    pub(super) const O: Site = eix_sites::DATA_78BBD0;
+    pub(super) const OF: Site = eix_sites::DATA_78D6C4;
+    pub(super) const FF: Site = eix_sites::DATA_78D614;
+    pub(super) const FN_O: Site = eix_sites::DATA_78CD44;
+    pub(super) const FN_OF: Site = eix_sites::DATA_78CCB8;
+    pub(super) const OFF: Site = eix_sites::DATA_78D5E0;
+    pub(super) const OFFF: Site = eix_sites::DATA_78D34C;
+    pub(super) const OO: Site = eix_sites::DATA_78D5F8;
+    pub(super) const FN_GG: Site = eix_sites::DATA_78CC28;
+    pub(super) const FN_GO: Site = eix_sites::DATA_78CC38;
 }
 
 /// The keyword at `entry` takes the signature at `now` instead of `was` in its `field`.
-fn resign(entry: usize, field: usize, was: usize, now: usize) -> SiteWrite {
-    SiteWrite::pointer(entry + field, was, now)
+fn resign(entry: Site, field: usize, was: Site, now: Site) -> SiteWrite {
+    SiteWrite::pointer(entry.offset(field), was.ru(), now.ru())
 }
 
 /// The `ScriptCommand` at `at`, which a hooked command or function runs on.
@@ -301,9 +306,9 @@ fn save_forbidden() -> bool {
 /// hover or the click goes to `arg`, past the entry's action.
 extern "C" fn menu_save(arg: usize, ctx: &mut Context) {
     if save_forbidden() {
-        ctx.resume = arg;
+        ctx.resume = Site::new(arg);
     } else {
-        ctx.ecx = eix_sites::DATA_7AFE20 as u32;
+        ctx.ecx = eix_sites::DATA_7AFE20.here32();
     }
 }
 
@@ -316,7 +321,7 @@ extern "C" fn key_save(_: usize, ctx: &mut Context) {
         return;
     }
     ctx.edx &= !0xFF;
-    ctx.ecx = eix_sites::DATA_7933AC as u32;
+    ctx.ecx = eix_sites::DATA_7933AC.here32();
     ctx.resume = eix_sites::BATTLE_SCREEN_KEY_DOWN__BFE;
 }
 
@@ -331,14 +336,14 @@ fn save_control(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
         &MENU_ECX,
         0,
         menu_save,
-        eix_sites::TEXT_62AD77,
+        eix_sites::TEXT_62AD77.ru(),
     )?;
     writes.extend(common::call_at(
         eix_sites::TEXT_62AEED,
         &MENU_ECX,
         0,
         menu_save,
-        eix_sites::TEXT_62B11F,
+        eix_sites::TEXT_62B11F.ru(),
     )?);
     writes.extend(common::jump_at(
         eix_sites::BATTLE_SCREEN_KEY_DOWN__BF7,
@@ -390,7 +395,7 @@ fn notify_deaths(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 /// 2, a hero looter's id goes into the body's variable;
 /// 3, the body's id goes into a hero looter's variable.
 extern "C" fn notify_looting(arg: usize, ctx: &mut Context) {
-    ctx.ecx = eix_sites::DATA_7AFF60 as u32;
+    ctx.ecx = eix_sites::DATA_7AFF60.here32();
     // SAFETY: EDI is the looted unit, live.
     let body = unsafe { object_id(ctx.edi) };
     // SAFETY: ESI is the looter's live server controller.
@@ -521,7 +526,7 @@ extern "C" fn genocide_hit(arg: usize, ctx: &mut Context) {
     ctx.eax = unsafe { object_id(ctx.edi) } as u32;
     // SAFETY: both are live map objects.
     let recorded = unsafe { genocide_record(rule, c"Hits", ctx.edi, victim) };
-    ctx.ecx = if recorded { victim } else { GAME_FLOW };
+    ctx.ecx = if recorded { victim } else { GAME_FLOW.here32() };
 }
 
 /// `CUnitServer::OnDamaged`'s death path (0x553B7E, `mov ebp, [edi + 0x240]`, EDI the killer, EAX the victim):
@@ -536,20 +541,20 @@ extern "C" fn genocide_kill(arg: usize, ctx: &mut Context) {
 }
 
 /// The game flow object, which TakeHit's debug line reads when the original's genocide code skips.
-const GAME_FLOW: u32 = eix_sites::DATA_7AFE20 as u32;
+const GAME_FLOW: Site = eix_sites::DATA_7AFE20;
 
 /// `TakeHit`'s and `OnDamaged`'s sites, which the genocide hooks are called from.
-const TAKE_HIT: (usize, &[u8]) = (
+const TAKE_HIT: (Site, &[u8]) = (
     eix_sites::C_UNIT_SERVER_TAKE_HIT__7B,
     &[0x8B, 0x4E, 0x1C, 0x8B, 0x47, 0x0C],
 );
-const ON_DAMAGED: (usize, &[u8]) = (
+const ON_DAMAGED: (Site, &[u8]) = (
     eix_sites::C_UNIT_SERVER_ON_DAMAGED__BE,
     &[0x8B, 0xAF, 0x40, 0x02, 0x00, 0x00],
 );
 
 fn genocide_hook(
-    at: (usize, &[u8]),
+    at: (Site, &[u8]),
     handler: Handler,
     rule: Genocide,
 ) -> Result<Vec<SiteWrite>, BuildError> {
@@ -661,13 +666,14 @@ extern "C" fn was_looted_bit(_: usize, ctx: &mut Context) {
 
 /// `waslootedtrans`: 1 `WasLooted` returns the unit's whole flag word; 2 the bit its second argument names.
 fn was_looted_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
-    const SITE: usize = eix_sites::SSC_CMD_CALC_FLOAT__49F;
+    const SITE: Site = eix_sites::SSC_CMD_CALC_FLOAT__49F;
     const SHIFT: [u8; 6] = [0xC1, 0xEA, 0x14, 0x83, 0xE2, 0x01];
     match value {
         1 => Ok(vec![SiteWrite::nop(SITE, &SHIFT)]),
         2 => {
             // The original pushes ECX before its jump and pops it in the added code; the stub pops it first.
-            let stub = common::jump_stub(SITE, &[0x59], was_looted_bit, 0, SITE + SHIFT.len())?;
+            let stub =
+                common::jump_stub(SITE, &[0x59], was_looted_bit, 0, SITE.offset(SHIFT.len()))?;
             Ok(vec![
                 common::branch(SITE, &SHIFT, &[0x51, 0xE9, 0, 0, 0, 0], 1, stub)?,
                 resign(
@@ -804,7 +810,7 @@ fn group_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
     if value != 1 {
         return Ok(Vec::new());
     }
-    const GGF: usize = eix_sites::SSC_CMD_CALC_GROUP__3C9;
+    const GGF: Site = eix_sites::SSC_CMD_CALC_GROUP__3C9;
     Ok(vec![
         bytes(GGF, &[0x90; 4], b"Ggf\0")?,
         resign(keyword::GROUP_SEE, keyword::FUNCTION, signature::FN_GG, GGF),
@@ -816,7 +822,7 @@ fn group_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 /// through a null ESI and any offset; ours returns 0 there, as the game does for a non-unit.
 extern "C" fn player_word(_: usize, ctx: &mut FpuContext) {
     /// `GetPlayer`'s exit with the result 0, which the case already stored.
-    const ZERO: usize = eix_sites::SSC_CMD_CALC_FLOAT__12C3;
+    const ZERO: Site = eix_sites::SSC_CMD_CALC_FLOAT__12C3;
     let regs = &mut ctx.regs;
     if regs.esi == 0 {
         regs.resume = ZERO;
@@ -876,7 +882,7 @@ fn get_player_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
 /// neither.
 extern "C" fn set_player_word(_: usize, ctx: &mut FpuContext) {
     /// The end of the command, past the game's `SetPlayer`.
-    const DONE: usize = eix_sites::TEXT_4B9BC5;
+    const DONE: Site = eix_sites::TEXT_4B9BC5;
     let regs = &mut ctx.regs;
     // SAFETY: ESI is the command `ScriptRun::Execute` runs.
     let cmd = unsafe { command(regs.esi) };
@@ -1065,7 +1071,7 @@ fn legendary_spell_system(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Buil
     }
     const MAX_HP: [u8; 6] = [0xD9, 0x40, 0x2C, 0x8B, 0x55, 0x10];
     const CHECK: [u8; 7] = [0x8B, 0x07, 0x8B, 0xCF, 0xFF, 0x50, 0x30];
-    const FN_FFFFFFF: usize = eix_sites::DATA_78CD8C;
+    const FN_FFFFFFF: Site = eix_sites::DATA_78CD8C;
     let mut writes = common::fixed(&[
         (
             eix_sites::SSC_CMD_CALC_FLOAT__280,
@@ -1135,7 +1141,7 @@ fn unit_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
     if value != 1 {
         return Ok(Vec::new());
     }
-    const GOF: usize = eix_sites::SSC_CMD_CALC_GROUP__3C5;
+    const GOF: Site = eix_sites::SSC_CMD_CALC_GROUP__3C5;
     let mut writes = common::call_at(
         eix_sites::SSC_CMD_CALC_GROUP__139,
         &[0x8B, 0xB0, 0x94, 0x0A, 0x00, 0x00],
@@ -1186,8 +1192,8 @@ extern "C" fn cast_spell_number(_: usize, ctx: &mut Context) {
 /// `AIBrain`'s cast orders (thiscall, `ret 0xC`): at a point, and on an object.
 type CastAt = unsafe extern "thiscall" fn(brain: u32, spell: i32, point: u32, flag: i32);
 type CastOn = unsafe extern "thiscall" fn(brain: u32, spell: i32, target: u32, flag: i32);
-const CAST_AT: usize = eix_sites::AI_BRAIN_CAST_AT;
-const CAST_ON: usize = eix_sites::AI_BRAIN_CAST_AT__40;
+const CAST_AT: Site = eix_sites::AI_BRAIN_CAST_AT;
+const CAST_ON: Site = eix_sites::AI_BRAIN_CAST_AT__40;
 
 /// `Cast`'s case after the ground height's call (0x4B753C; EBX the script run, ESI the float block, EDI the caster's
 /// controller, `st(0)` the height): the caster casts its spell numbered by the third float on the object argument 1 when it
@@ -1195,7 +1201,7 @@ const CAST_ON: usize = eix_sites::AI_BRAIN_CAST_AT__40;
 /// x87 stack on the object's way; ours takes the run's current command and pops the height on both ways.
 extern "C" fn cast_on_object(_: usize, ctx: &mut FpuContext) {
     /// The end of the case.
-    const DONE: usize = eix_sites::SCRIPT_RUN_EXECUTE__E04;
+    const DONE: Site = eix_sites::SCRIPT_RUN_EXECUTE__E04;
     let height = ctx.fpu.pop().map_or(0.0, Ext::to_f32);
     let regs = &mut ctx.regs;
     regs.resume = DONE;
@@ -1232,7 +1238,7 @@ extern "C" fn cast_on_object(_: usize, ctx: &mut FpuContext) {
 /// ([`cast_on_object`]), the signature `"offfo"` written into padding at 0x4DA1FA as the original does.
 fn cast_script_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     /// The padding the original writes the new signature into.
-    const OFFFO: usize = eix_sites::GAME_BUFFER_READ_PAST_END__8A;
+    const OFFFO: Site = eix_sites::GAME_BUFFER_READ_PAST_END__8A;
     match value {
         1 => Ok(vec![
             common::branch_before(
@@ -1340,22 +1346,22 @@ fn give_unit_spell_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
             eix_sites::SCRIPT_RUN_EXECUTE__2DD7,
             &patch::call_rel32(
                 eix_sites::SCRIPT_RUN_EXECUTE__2DD7,
-                eix_sites::C_WORLD_SERVER_CREATE_SPELL_NAMED,
+                eix_sites::C_WORLD_SERVER_CREATE_SPELL_NAMED.ru(),
             ),
             &patch::call_rel32(
                 eix_sites::SCRIPT_RUN_EXECUTE__2DD7,
-                eix_sites::C_WORLD_SERVER_CREATE_ITEM_NAMED,
+                eix_sites::C_WORLD_SERVER_CREATE_ITEM_NAMED.ru(),
             ),
         )?,
         bytes(
             eix_sites::SCRIPT_RUN_EXECUTE__2DE7,
             &patch::call_rel32(
                 eix_sites::SCRIPT_RUN_EXECUTE__2DE7,
-                eix_sites::C_UNIT_ADD_SPELL,
+                eix_sites::C_UNIT_ADD_SPELL.ru(),
             ),
             &patch::call_rel32(
                 eix_sites::SCRIPT_RUN_EXECUTE__2DE7,
-                eix_sites::C_UNIT_ADD_QUICK_ITEM,
+                eix_sites::C_UNIT_ADD_QUICK_ITEM.ru(),
             ),
         )?,
     ])
@@ -1387,17 +1393,17 @@ extern "C" fn move_by_argument(arg: usize, ctx: &mut Context) {
 
 /// The cases' `push n; mov ecx, eax; call SetMoveStyle` become `nop x2; mov ecx, eax; call` [`move_by_argument`].
 fn move_trans(
-    site: usize,
+    site: Site,
     style: u8,
-    entry: usize,
+    entry: Site,
     arg: MoveArg,
 ) -> Result<Vec<SiteWrite>, BuildError> {
     let mut was = [0x6A, style, 0x8B, 0xC8, 0xE8, 0, 0, 0, 0];
     was[4..].copy_from_slice(&patch::call_rel32(
-        site + 4,
-        eix_sites::C_UNIT_SERVER_SET_MOVE_STYLE,
+        site.offset(4),
+        eix_sites::C_UNIT_SERVER_SET_MOVE_STYLE.ru(),
     ));
-    let stub = common::call_stub(move_by_argument, arg as usize, site + was.len())?;
+    let stub = common::call_stub(move_by_argument, arg as usize, site.offset(was.len()))?;
     Ok(vec![
         common::branch(
             site,
@@ -1473,7 +1479,7 @@ extern "C" fn world_time_speed(_: usize, ctx: &mut Context) {
     // SAFETY: ESI is the command `ScriptRun::Execute` runs.
     let speed = float_arg(unsafe { command(ctx.esi) }, 1).map_or(0, f32::to_bits);
     ctx.set_stack_word(0, speed);
-    ctx.ecx = eix_sites::DATA_7AFF60 as u32;
+    ctx.ecx = eix_sites::DATA_7AFF60.here32();
 }
 
 /// `fixworldtimetrans` = 1: `FixWorldTime(time, speed)`, the signature `"ff"`.
@@ -1526,8 +1532,8 @@ const MOVE_TO_OBJECT_ITEM: [u8; 67] = [
 /// `movetoobjecttrans` >= 1: `MoveToObject` makes the unit use thieving on its target. 1 walks, 2 runs; 3 and up take
 /// the argument list `"ooffff"`, written into `Terrain::GroundAndWaterDepth`'s padding.
 fn move_to_object_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
-    const SITE: usize = eix_sites::SCRIPT_RUN_EXECUTE__B37;
-    const OOFFFF: usize = eix_sites::TERRAIN_GROUND_AND_WATER_DEPTH__3E9;
+    const SITE: Site = eix_sites::SCRIPT_RUN_EXECUTE__B37;
+    const OOFFFF: Site = eix_sites::TERRAIN_GROUND_AND_WATER_DEPTH__3E9;
     match value {
         1 | 2 => {
             let mut new = MOVE_TO_OBJECT_STEAL;
@@ -1698,7 +1704,7 @@ fn script_checking(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 }
 
 /// The eight load-error branches (`je rel32`) of `CScript::Load*` that `scriptchecking` 5 lets pass.
-const LOAD_ERRORS: [(usize, &[u8]); 8] = [
+const LOAD_ERRORS: [(Site, &[u8]); 8] = [
     (
         eix_sites::C_SCRIPT_LOAD_FUNCTION__8E0,
         &[0x0F, 0x84, 0x4F, 0x04, 0x00, 0x00],
@@ -1738,7 +1744,7 @@ mod tests {
     use super::super::testing::{Original, assert_original, no_log, plain, values};
     use super::*;
 
-    fn sites(writes: &[SiteWrite]) -> Vec<(usize, usize)> {
+    fn sites(writes: &[SiteWrite]) -> Vec<(Site, usize)> {
         writes.iter().map(|w| (w.site(), w.size())).collect()
     }
 
@@ -2204,32 +2210,32 @@ mod tests {
         assert!(play_music_trans(&ctx, 3).unwrap().is_empty());
     }
 
-    const SA_LOG_NAME: (usize, &str) = (eix_sites::TEXT_4CF106, "53 41 6C 6F 67 2E 74 78 74 00");
-    const LOADING: [(usize, &str); 2] = [
+    const SA_LOG_NAME: (Site, &str) = (eix_sites::TEXT_4CF106, "53 41 6C 6F 67 2E 74 78 74 00");
+    const LOADING: [(Site, &str); 2] = [
         (eix_sites::TEXT_481575, "4C 6F 61 64 69 6E 67 20 25 73 00"),
         (eix_sites::LOAD_MOB_FILE__2E, "90 E9 ?? ?? ?? ??"),
     ];
     /// Values 1 and 2 replace ScriptError's tail with the original's own code; ours with a jump into ours.
-    const ERROR_TAIL: (usize, &str) = (
+    const ERROR_TAIL: (Site, &str) = (
         eix_sites::SCRIPT_ERROR__1F,
         "?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? \
          ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ?? ??",
     );
-    const ERROR_JUMP: (usize, &str) = (eix_sites::SCRIPT_ERROR__1F, "90 90 E9 ?? ?? ?? ??");
-    const CHECKING_2: &[(usize, &str)] = &[SA_LOG_NAME, LOADING[0], LOADING[1], ERROR_TAIL];
-    const CHECKING_3: &[(usize, &str)] = &[
+    const ERROR_JUMP: (Site, &str) = (eix_sites::SCRIPT_ERROR__1F, "90 90 E9 ?? ?? ?? ??");
+    const CHECKING_2: &[(Site, &str)] = &[SA_LOG_NAME, LOADING[0], LOADING[1], ERROR_TAIL];
+    const CHECKING_3: &[(Site, &str)] = &[
         SA_LOG_NAME,
         ERROR_JUMP,
         (eix_sites::SCRIPT_ERROR__4A, "90 90"),
     ];
-    const CHECKING_4: &[(usize, &str)] = &[
+    const CHECKING_4: &[(Site, &str)] = &[
         SA_LOG_NAME,
         LOADING[0],
         LOADING[1],
         ERROR_JUMP,
         (eix_sites::SCRIPT_ERROR__4A, "90 90"),
     ];
-    const CHECKING_5: &[(usize, &str)] = &[
+    const CHECKING_5: &[(Site, &str)] = &[
         SA_LOG_NAME,
         LOADING[0],
         LOADING[1],

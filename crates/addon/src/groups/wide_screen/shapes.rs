@@ -12,6 +12,7 @@ use eix_engine::game::ui::{Rect, UiMesh, UiRegion, layout};
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, FpuContext, Mode};
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
 use super::{Numbered, panel_offset};
 use crate::groups::BuildError;
@@ -19,17 +20,17 @@ use crate::log;
 
 /// `CUiRegion::SetRect` 0x5FC9E0 (`push esi; mov esi, ecx; mov eax, ...`): replaced whole; its body from 0x5FC9F4
 /// holds the weapon bar's two floats (panels).
-const SET_RECT: (usize, [u8; 5]) = (
+const SET_RECT: (Site, [u8; 5]) = (
     eix_sites::C_UI_REGION_SET_RECT,
     [0x56, 0x8B, 0xF1, 0x8B, 0x46],
 );
 
 /// `CUiRegion::AddPoint` 0x5FCA70: `sub esp, 0xC; push ebx; mov ebx, ecx; push edi; xor edi, edi`.
-const ADD_POINT: usize = eix_sites::C_UI_REGION_ADD_POINT;
+const ADD_POINT: Site = eix_sites::C_UI_REGION_ADD_POINT;
 const ADD_POINT_PROLOGUE: [u8; 9] = [0x83, 0xEC, 0x0C, 0x53, 0x8B, 0xD9, 0x57, 0x33, 0xFF];
 
 /// `CUiMesh::PlaceBody` 0x5E6FA0 (`sub esp, 0xC; fld dword ptr [esp + 0x10]`), replaced whole.
-const PLACE_BODY: (usize, [u8; 5]) = (
+const PLACE_BODY: (Site, [u8; 5]) = (
     eix_sites::C_UI_MESH_PLACE_BODY,
     [0x83, 0xEC, 0x0C, 0xD9, 0x44],
 );
@@ -37,7 +38,7 @@ const PLACE_BODY: (usize, [u8; 5]) = (
 /// `fld dword ptr [esp + 0x34]; fmul dword ptr [0x74015C]`: a vertex's x to view units, in `CUiMesh::SetTriangle`
 /// (#1) and `SetGrid` (#2).
 const LOAD_X: [u8; 10] = [0xD9, 0x44, 0x24, 0x34, 0xD8, 0x0D, 0x5C, 0x01, 0x74, 0x00];
-const LOAD_X_SITES: [(usize, usize); 2] = [
+const LOAD_X_SITES: [(usize, Site); 2] = [
     (1, eix_sites::C_UI_MESH_SET_TRIANGLE__4A7),
     (2, eix_sites::C_UI_MESH_SET_GRID_VANILLA__60D),
 ];
@@ -47,7 +48,7 @@ const LOAD_X_WORD: usize = 13;
 /// `fmul dword ptr [0x740164]` on the sum of the left and right x, in `CUiMesh::SetRectangle` (#3) and `SetFrame`
 /// (#4).
 const SCALE_SUM: [u8; 6] = [0xD8, 0x0D, 0x64, 0x01, 0x74, 0x00];
-const SCALE_SUM_SITES: [(usize, usize); 2] = [
+const SCALE_SUM_SITES: [(usize, Site); 2] = [
     (3, eix_sites::C_UI_MESH_SET_RECTANGLE__4F1),
     (4, eix_sites::C_UI_MESH_SET_FRAME__5FE),
 ];

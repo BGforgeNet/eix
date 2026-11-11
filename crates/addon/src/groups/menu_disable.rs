@@ -3,10 +3,17 @@
 //! (`InputForward<&CMainMenu::OnLButtonDown>` and `<&CMainMenu::OnMouseMove>`) point at the tables' do-nothing
 //! cases, 0x6331FA and 0x6334E6.
 
-use super::{BuildError, Labelled, Setup, pointer};
+use eix_sites::Site;
 
-const CLICK_NOTHING: usize = eix_sites::TEXT_6331FA;
-const HOVER_NOTHING: usize = eix_sites::TEXT_6334E6;
+use super::{BuildError, Labelled, Setup};
+
+/// The jump table entry at `site` goes from case `was` to case `now`.
+fn pointer(label: &str, site: Site, was: Site, now: Site) -> Labelled {
+    super::pointer(label, site, was.ru(), now.ru())
+}
+
+const CLICK_NOTHING: Site = eix_sites::TEXT_6331FA;
+const HOVER_NOTHING: Site = eix_sites::TEXT_6334E6;
 
 pub(super) fn multi(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     Ok(vec![

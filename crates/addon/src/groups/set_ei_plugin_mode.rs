@@ -2,10 +2,11 @@
 //! plugin's own script commands off, since AddNewScriptCommands and PlayerNumbers stand in for them.
 
 use eix_engine::group::SiteWrite;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
-const SITE: usize = eix_sites::TEXT_73AF10;
+const SITE: Site = eix_sites::TEXT_73AF10;
 const MODE: u32 = 0xAADD_0080;
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {

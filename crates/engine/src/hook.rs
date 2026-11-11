@@ -16,6 +16,8 @@ use alloc::vec::Vec;
 use core::fmt;
 use core::mem::offset_of;
 
+use eix_sites::Site;
+
 use crate::exec;
 use crate::group::SiteWrite;
 use crate::patch::{self, PatchError};
@@ -50,7 +52,7 @@ pub struct Context {
     /// EFLAGS.
     pub eflags: u32,
     /// Where execution continues: by default the first byte after the hooked instructions.
-    pub resume: usize,
+    pub resume: Site,
 }
 
 const _: () = {
@@ -171,28 +173,28 @@ pub enum HookError {
     /// A jump needs 5 bytes; the site has fewer.
     TooShort {
         /// The site.
-        site: usize,
+        site: Site,
         /// Its length.
         len: usize,
     },
     /// A call redirection's site is not a `call rel32`.
     NotCall {
         /// The site.
-        site: usize,
+        site: Site,
         /// Its first byte.
         found: u8,
     },
     /// The replaced instructions cannot be copied.
     Code {
         /// The site.
-        site: usize,
+        site: Site,
         /// What stops the copy.
         error: CodeError,
     },
     /// The instructions a hook covers do not start with the bytes it writes over.
     NotCovering {
         /// The site.
-        site: usize,
+        site: Site,
     },
     /// No executable memory for the stub.
     Memory(String),
@@ -237,7 +239,7 @@ impl From<PatchError> for HookError {
     }
 }
 
-fn check_len(site: usize, original: &[u8]) -> Result<(), HookError> {
+fn check_len(site: Site, original: &[u8]) -> Result<(), HookError> {
     if original.len() < 5 {
         return Err(HookError::TooShort {
             site,
@@ -247,8 +249,8 @@ fn check_len(site: usize, original: &[u8]) -> Result<(), HookError> {
     Ok(())
 }
 
-fn relocate(site: usize, original: &[u8], to: usize) -> Result<Vec<u8>, HookError> {
-    x86::relocate(original, site, to).map_err(|error| HookError::Code { site, error })
+fn relocate(site: Site, original: &[u8], to: usize) -> Result<Vec<u8>, HookError> {
+    x86::relocate(original, site.here(), to).map_err(|error| HookError::Code { site, error })
 }
 
 fn push(code: &mut Vec<u8>, value: usize) {
@@ -370,7 +372,7 @@ enum Entry {
 /// A context hook at `site`, whose instructions are `original` (at least 5 bytes, whole instructions for
 /// [`Mode::Before`] and [`Mode::After`]). The site becomes a jump to a stub that calls `handler(arg, context)`.
 pub fn context_hook(
-    site: usize,
+    site: Site,
     original: &[u8],
     mode: Mode,
     handler: Handler,
@@ -386,7 +388,7 @@ pub fn context_hook(
 /// This is the form for a site whose length cuts an instruction: the jump keeps the site's length, and the stub runs
 /// or replaces the instruction whole.
 pub fn context_hook_covering(
-    site: usize,
+    site: Site,
     written: &[u8],
     covered: &[u8],
     mode: Mode,
@@ -403,7 +405,7 @@ pub fn context_hook_covering(
 /// So a handler can read and replace the values the game's code keeps on the x87 stack, push the value an
 /// instruction it replaces would load, or pop one, and its own x87 use never disturbs the game's stack.
 pub fn fpu_hook(
-    site: usize,
+    site: Site,
     written: &[u8],
     covered: &[u8],
     mode: Mode,
@@ -414,7 +416,7 @@ pub fn fpu_hook(
 }
 
 fn hook_covering(
-    site: usize,
+    site: Site,
     written: &[u8],
     covered: &[u8],
     mode: Mode,
@@ -425,7 +427,15 @@ fn hook_covering(
     if !covered.starts_with(written) {
         return Err(HookError::NotCovering { site });
     }
-    let stub = context_stub(site, covered, mode, entry, arg, site + covered.len(), false)?;
+    let stub = context_stub(
+        site,
+        covered,
+        mode,
+        entry,
+        arg,
+        site.offset(covered.len()),
+        false,
+    )?;
     SiteWrite::jmp(site, written, stub)
 }
 
@@ -435,7 +445,7 @@ fn hook_covering(
 /// This is the form for a site whose original is a call into the addon, so the patched bytes keep the instruction
 /// kind; the bytes after the call become NOPs.
 pub fn context_call(
-    site: usize,
+    site: Site,
     original: &[u8],
     mode: Mode,
     handler: Handler,
@@ -448,7 +458,7 @@ pub fn context_call(
         mode,
         Entry::Context(handler),
         arg,
-        site + original.len(),
+        site.offset(original.len()),
         true,
     )?;
     SiteWrite::call(site, original, stub)
@@ -457,7 +467,7 @@ pub fn context_call(
 /// [`context_call`] with an FPU stub, as [`fpu_hook`] is to [`context_hook`]: for a handler that reads or changes
 /// the game's x87 stack.
 pub fn fpu_call(
-    site: usize,
+    site: Site,
     original: &[u8],
     mode: Mode,
     handler: FpuHandler,
@@ -470,7 +480,7 @@ pub fn fpu_call(
         mode,
         Entry::Fpu(handler),
         arg,
-        site + original.len(),
+        site.offset(original.len()),
         true,
     )?;
     SiteWrite::call(site, original, stub)
@@ -482,11 +492,11 @@ pub fn fpu_call(
 /// The handler sees the call's return address at stack word 0 and its arguments from word 1 on; it may change
 /// them and the registers. `resume` starts at the old target. Returns the site write and the old target.
 pub fn call_hook(
-    site: usize,
+    site: Site,
     original: [u8; 5],
     handler: Handler,
     arg: usize,
-) -> Result<(SiteWrite, usize), HookError> {
+) -> Result<(SiteWrite, Site), HookError> {
     let old = call_target(site, original)?;
     let stub = context_stub(
         site,
@@ -504,7 +514,7 @@ pub fn call_hook(
 }
 
 /// The target of the `call rel32` at `site` whose bytes are `original`.
-fn call_target(site: usize, original: [u8; 5]) -> Result<usize, HookError> {
+fn call_target(site: Site, original: [u8; 5]) -> Result<Site, HookError> {
     if original[0] != 0xE8 {
         return Err(HookError::NotCall {
             site,
@@ -513,18 +523,20 @@ fn call_target(site: usize, original: [u8; 5]) -> Result<usize, HookError> {
     }
     let mut rel = [0u8; 4];
     rel.copy_from_slice(&original[1..]);
-    Ok((site as u32 + 5).wrapping_add(u32::from_le_bytes(rel)) as usize)
+    Ok(Site::new(
+        (site.ru32() + 5).wrapping_add(u32::from_le_bytes(rel)) as usize,
+    ))
 }
 
 /// Places a context or FPU stub and returns its address. `pop_return` makes it start with `lea esp, [esp + 4]`,
 /// which drops the return address of a call into it and keeps the flags.
 fn context_stub(
-    site: usize,
+    site: Site,
     original: &[u8],
     mode: Mode,
     entry: Entry,
     arg: usize,
-    resume: usize,
+    resume: Site,
     pop_return: bool,
 ) -> Result<usize, HookError> {
     let (before, after): (&[u8], &[u8]) = match mode {
@@ -538,12 +550,12 @@ fn context_stub(
 /// A context or FPU stub that runs `before`, then the handler, then `after` (both taken from address `origin`),
 /// then goes to the handler's `resume`.
 fn stub_around(
-    origin: usize,
+    origin: Site,
     before: &[u8],
     after: &[u8],
     entry: Entry,
     arg: usize,
-    resume: usize,
+    resume: Site,
     pop_return: bool,
 ) -> Result<usize, HookError> {
     const POP_RETURN: [u8; 4] = [0x8D, 0x64, 0x24, 0x04];
@@ -562,12 +574,7 @@ fn stub_around(
     let prefix: &[u8] = if pop_return { &POP_RETURN } else { &[] };
     // Another build: the copies are what the site holds, the handler sees RU 1.06 resume addresses.
     let (before, after) = (for_build(origin, before), for_build(origin, after));
-    let (before, after, origin, resume) = (
-        &before[..],
-        &after[..],
-        eix_sites::here(origin),
-        eix_sites::here(resume),
-    );
+    let (before, after) = (&before[..], &after[..]);
     let entry = if eix_sites::translating() {
         shimmed(entry, arg)
     } else {
@@ -598,7 +605,7 @@ fn stub_around(
         let mut code = Vec::with_capacity(len);
         code.extend_from_slice(prefix);
         code.extend(relocate(origin, before, at + code.len())?);
-        push(&mut code, resume);
+        push(&mut code, resume.here());
         code.extend_from_slice(&[0x9C, 0x60]);
         code.extend_from_slice(save);
         if tail {
@@ -606,7 +613,7 @@ fn stub_around(
             push(&mut code, slot);
             push(&mut code, handler);
             push(&mut code, arg);
-            let from = at + code.len();
+            let from = Site::of(at + code.len());
             code.extend(patch::call_rel32(from, entry_after));
             let copy_at = at + code.len();
             code.extend(relocate(origin, after, copy_at)?);
@@ -616,7 +623,7 @@ fn stub_around(
         } else {
             push(&mut code, handler);
             push(&mut code, arg);
-            let from = at + code.len();
+            let from = Site::of(at + code.len());
             code.extend(patch::jmp_rel32(from, entry_drop));
         }
         Ok::<_, HookError>(code)
@@ -630,13 +637,13 @@ fn stub_around(
 ///
 /// With `after`, the [`Mode::After`] caveat holds. Returns the stub's address.
 pub fn stub(
-    origin: usize,
+    origin: Site,
     before: &[u8],
     after: &[u8],
     entered_by_call: bool,
     handler: Handler,
     arg: usize,
-    resume: usize,
+    resume: Site,
 ) -> Result<usize, HookError> {
     stub_around(
         origin,
@@ -652,13 +659,13 @@ pub fn stub(
 /// [`stub`] with an FPU stub, as [`fpu_hook`] is to [`context_hook`]: for a handler that reads or changes the game's
 /// x87 stack.
 pub fn fpu_stub(
-    origin: usize,
+    origin: Site,
     before: &[u8],
     after: &[u8],
     entered_by_call: bool,
     handler: FpuHandler,
     arg: usize,
-    resume: usize,
+    resume: Site,
 ) -> Result<usize, HookError> {
     stub_around(
         origin,
@@ -677,7 +684,7 @@ pub fn fpu_stub(
 ///
 /// Returns the site write and a trampoline that runs the original function.
 pub fn replace_function(
-    site: usize,
+    site: Site,
     original: &[u8],
     replacement: usize,
 ) -> Result<(SiteWrite, usize), HookError> {
@@ -686,22 +693,22 @@ pub fn replace_function(
 }
 
 /// A copy of `original` from `site` that goes on at `site + original.len()`: runs the code a hook replaces.
-pub fn trampoline(site: usize, original: &[u8]) -> Result<usize, HookError> {
+pub fn trampoline(site: Site, original: &[u8]) -> Result<usize, HookError> {
     check_len(site, original)?;
     let len = original.len() + 5;
     let copy = for_build(site, original);
-    let (site, original) = (eix_sites::here(site), &copy[..]);
+    let original = &copy[..];
     exec::place(len, |at| {
         let mut code = relocate(site, original, at)?;
-        let from = at + code.len();
-        code.extend(patch::jmp_rel32(from, site + original.len()));
+        let from = Site::of(at + code.len());
+        code.extend(patch::jmp_rel32(from, site.offset(original.len()).here()));
         Ok::<_, HookError>(code)
     })
 }
 
 /// The code at RU 1.06 address `site` whose bytes are `original`, as the running build holds it: the bytes found
 /// there when they are `original` translated, else `original` (the site's write then fails its check).
-fn for_build(site: usize, original: &[u8]) -> alloc::borrow::Cow<'_, [u8]> {
+fn for_build(site: Site, original: &[u8]) -> alloc::borrow::Cow<'_, [u8]> {
     if !eix_sites::translating() || original.is_empty() {
         return alloc::borrow::Cow::Borrowed(original);
     }
@@ -729,26 +736,36 @@ fn shimmed(entry: Entry, arg: usize) -> (Entry, usize) {
 extern "C" fn shim_context(pair: usize, ctx: &mut Context) {
     // SAFETY: `shimmed` leaked the pair, so it lives for the process.
     let &(handler, arg) = unsafe { &*(pair as *const (Handler, usize)) };
-    ctx.resume = eix_sites::ru(ctx.resume);
+    ctx.resume = from_stub(ctx.resume);
     handler(arg, ctx);
-    ctx.resume = eix_sites::here(ctx.resume);
+    ctx.resume = to_stub(ctx.resume);
 }
 
 extern "C" fn shim_fpu(pair: usize, ctx: &mut FpuContext) {
     // SAFETY: as in `shim_context`.
     let &(handler, arg) = unsafe { &*(pair as *const (FpuHandler, usize)) };
-    ctx.regs.resume = eix_sites::ru(ctx.regs.resume);
+    ctx.regs.resume = from_stub(ctx.regs.resume);
     handler(arg, ctx);
-    ctx.regs.resume = eix_sites::here(ctx.regs.resume);
+    ctx.regs.resume = to_stub(ctx.regs.resume);
+}
+
+/// The resume slot as the stub fills it, the running build's address, as the site a handler sees.
+fn from_stub(slot: Site) -> Site {
+    Site::of(slot.ru())
+}
+
+/// A handler's resume site as the stub's slot takes it: the running build's address.
+fn to_stub(resume: Site) -> Site {
+    Site::new(resume.here())
 }
 
 /// Points the `call rel32` at `site` (its bytes are `original`) at `to`. Returns the site write and the call's old
 /// target.
 pub fn redirect_call(
-    site: usize,
+    site: Site,
     original: [u8; 5],
     to: usize,
-) -> Result<(SiteWrite, usize), HookError> {
+) -> Result<(SiteWrite, Site), HookError> {
     let old = call_target(site, original)?;
     Ok((
         SiteWrite::bytes(site, &original, &patch::call_rel32(site, to))?,
@@ -756,13 +773,22 @@ pub fn redirect_call(
     ))
 }
 
-/// `address` (an RU 1.06 address in game.exe, or any other) as a function pointer of type `F`, in the running build.
+/// The game function at `site` as a function pointer of type `F`, in the running build.
+///
+/// # Safety
+/// `site` must be a function of exactly type `F`, which must be a function pointer type.
+pub unsafe fn as_fn<F: Copy>(site: Site) -> F {
+    // SAFETY: the caller's guarantee.
+    unsafe { as_fn_at(site.here()) }
+}
+
+/// The function at `address` of the running process (a trampoline, a stub, a DLL's export, a call's old target the
+/// running build holds) as a function pointer of type `F`.
 ///
 /// # Safety
 /// `address` must be a function of exactly type `F`, which must be a function pointer type.
-pub unsafe fn as_fn<F: Copy>(address: usize) -> F {
+pub unsafe fn as_fn_at<F: Copy>(address: usize) -> F {
     const { assert!(size_of::<F>() == size_of::<usize>()) };
-    let address = eix_sites::here(address);
     // SAFETY: both are pointer-sized; the caller guarantees `F` is the function's type.
     unsafe { core::mem::transmute_copy(&address) }
 }
@@ -814,23 +840,28 @@ mod tests {
         unsafe { group::apply(name, true, || Ok(vec![write?])) }.outcome
     }
 
-    fn address(f: Fastcall) -> usize {
-        f as usize
+    /// A test function as a site: it lies outside game.exe, so it is its own address in every build.
+    fn own(address: usize) -> Site {
+        Site::of(address)
     }
 
-    extern "C" fn drop_handler(site: usize, ctx: &mut Context) {
+    fn address(f: Fastcall) -> Site {
+        own(f as usize)
+    }
+
+    extern "C" fn drop_handler(at: usize, ctx: &mut Context) {
         ctx.eax = ctx.ecx * 2;
-        ctx.resume = site + 10;
+        ctx.resume = own(at).offset(10);
     }
 
-    extern "C" fn before_handler(site: usize, ctx: &mut Context) {
+    extern "C" fn before_handler(at: usize, ctx: &mut Context) {
         ctx.eax *= 3;
-        ctx.resume = site + 10;
+        ctx.resume = own(at).offset(10);
     }
 
-    extern "C" fn after_handler(site: usize, ctx: &mut Context) {
+    extern "C" fn after_handler(at: usize, ctx: &mut Context) {
         ctx.ecx *= 5;
-        ctx.resume = site + 10;
+        ctx.resume = own(at).offset(10);
     }
 
     extern "C" fn after_default_handler(_: usize, ctx: &mut Context) {
@@ -859,7 +890,7 @@ mod tests {
         for (f, mode, handler, want) in cases {
             let site = address(f);
             assert_eq!(black_box(f)(7), 7 + 0x110);
-            let write = context_hook(site, &CONTEXT_SITE, mode, handler, site);
+            let write = context_hook(site, &CONTEXT_SITE, mode, handler, site.here());
             assert_eq!(install("context", write), Outcome::Applied, "{mode:?}");
             for x in [0, 7, 1000] {
                 assert_eq!(black_box(f)(x), want(x), "{mode:?} with {x}");
@@ -878,7 +909,7 @@ mod tests {
             false,
             after_default_handler,
             0,
-            site + 5,
+            site.offset(5),
         )
         .unwrap();
         let write = SiteWrite::jmp(site, &CONTEXT_SITE, stub);
@@ -906,7 +937,7 @@ mod tests {
                 "ret"
             );
         }
-        let site = at!(target);
+        let site = own(at!(target));
         let write = context_hook(
             site,
             &[0x53, 0x56, 0x57, 0x55, 0x90],
@@ -938,7 +969,7 @@ mod tests {
 
     #[test]
     fn call_entered_context_hook_sees_the_sites_stack() {
-        let site = at!(first_arg);
+        let site = own(at!(first_arg));
         let write = context_call(
             site,
             &[0x8B, 0x44, 0x24, 0x04, 0x90],
@@ -953,7 +984,7 @@ mod tests {
         );
         assert_eq!(install("context call", write), Outcome::Applied);
         // SAFETY: the function's first byte is mapped and nothing writes it.
-        assert_eq!(unsafe { *(site as *const u8) }, 0xE8);
+        assert_eq!(unsafe { *site.ptr::<u8>() }, 0xE8);
         assert_eq!(black_box(first_arg as Stdcall)(41), 42);
         assert_eq!(FIRST_ARG_SEEN.load(Ordering::SeqCst), 41);
     }
@@ -990,13 +1021,16 @@ mod tests {
 
     #[test]
     fn call_hook_changes_the_arguments_then_runs_the_old_target() {
-        let site = at!(calls_doubled) + 4;
+        let site = own(at!(calls_doubled)).offset(4);
         let original = patch::call_rel32(site, at!(doubled_stdcall));
         let (write, old) = call_hook(site, original, add_ten_to_first_arg, 0).unwrap();
-        assert_eq!(old, at!(doubled_stdcall));
+        assert_eq!(old.here(), at!(doubled_stdcall));
         assert_eq!(install("call hook", Ok(write)), Outcome::Applied);
         assert_eq!(black_box(calls_doubled as Stdcall)(5), 30);
-        assert_eq!(CALL_RETURN_SEEN.load(Ordering::SeqCst), site + 5);
+        assert_eq!(
+            CALL_RETURN_SEEN.load(Ordering::SeqCst),
+            site.offset(5).here()
+        );
         assert_eq!(BOUNDS_SEEN.load(Ordering::SeqCst), 0b111);
         assert_eq!(
             call_hook(site, [0x90; 5], add_ten_to_first_arg, 0).map(|(_, old)| old),
@@ -1014,13 +1048,13 @@ mod tests {
 
     extern "thiscall" fn add_times_ten(this: u32, a: u32) -> u32 {
         // SAFETY: the trampoline runs the original `add`, which has this type.
-        let original: Thiscall = unsafe { as_fn(ADD_TRAMPOLINE.load(Ordering::SeqCst)) };
+        let original: Thiscall = unsafe { as_fn_at(ADD_TRAMPOLINE.load(Ordering::SeqCst)) };
         original(this, a) * 10
     }
 
     #[test]
     fn function_replacement_calls_through_its_trampoline() {
-        let site = at!(add);
+        let site = own(at!(add));
         assert_eq!(black_box(add as Thiscall)(3, 4), 7);
         let (write, trampoline) = replace_function(
             site,
@@ -1078,26 +1112,26 @@ mod tests {
 
     extern "fastcall" fn calls_seven_plus(x: u32) -> u32 {
         // SAFETY: the trampoline runs the original, which has this type.
-        let f: Fastcall = unsafe { as_fn(CALLS_SEVEN.load(Ordering::SeqCst)) };
+        let f: Fastcall = unsafe { as_fn_at(CALLS_SEVEN.load(Ordering::SeqCst)) };
         f(x) + 1000
     }
 
     extern "fastcall" fn is_zero_plus(x: u32) -> u32 {
         // SAFETY: as above.
-        let f: Fastcall = unsafe { as_fn(IS_ZERO.load(Ordering::SeqCst)) };
+        let f: Fastcall = unsafe { as_fn_at(IS_ZERO.load(Ordering::SeqCst)) };
         f(x) + 100
     }
 
     extern "fastcall" fn nine_plus() -> u32 {
         // SAFETY: as above.
-        let f: extern "fastcall" fn() -> u32 = unsafe { as_fn(NINE.load(Ordering::SeqCst)) };
+        let f: extern "fastcall" fn() -> u32 = unsafe { as_fn_at(NINE.load(Ordering::SeqCst)) };
         f() + 1
     }
 
     #[test]
     fn trampolines_run_relocated_branches() {
         // E8: the copied call still reaches `seven`.
-        let site = at!(calls_seven);
+        let site = own(at!(calls_seven));
         let original = patch::call_rel32(site, at!(seven));
         let (write, t) = replace_function(site, &original, at!(calls_seven_plus)).unwrap();
         CALLS_SEVEN.store(t, Ordering::SeqCst);
@@ -1105,7 +1139,7 @@ mod tests {
         assert_eq!(black_box(calls_seven as Fastcall)(5), 1012);
 
         // 0F 84, taken and not taken: both paths leave the copy.
-        let site = at!(is_zero);
+        let site = own(at!(is_zero));
         let original = [0x85, 0xC9, 0x0F, 0x84, 6, 0, 0, 0];
         let (write, t) = replace_function(site, &original, at!(is_zero_plus)).unwrap();
         IS_ZERO.store(t, Ordering::SeqCst);
@@ -1114,7 +1148,7 @@ mod tests {
         assert_eq!(black_box(is_zero as Fastcall)(5), 101);
 
         // E9.
-        let site = at!(nine);
+        let site = own(at!(nine));
         let (write, t) = replace_function(site, &[0xE9, 2, 0, 0, 0], at!(nine_plus)).unwrap();
         NINE.store(t, Ordering::SeqCst);
         assert_eq!(install("e9", Ok(write)), Outcome::Applied);
@@ -1136,18 +1170,18 @@ mod tests {
 
     extern "fastcall" fn doubled(x: u32) -> u32 {
         // SAFETY: the old target is `plus_one`, of this type.
-        let f: Fastcall = unsafe { as_fn(OLD_CALL.load(Ordering::SeqCst)) };
+        let f: Fastcall = unsafe { as_fn_at(OLD_CALL.load(Ordering::SeqCst)) };
         f(x) * 2
     }
 
     #[test]
     fn call_redirection_keeps_the_old_target_callable() {
-        let site = at!(calls_plus_one);
+        let site = own(at!(calls_plus_one));
         assert_eq!(black_box(calls_plus_one as Fastcall)(4), 5);
         let original = patch::call_rel32(site, at!(plus_one));
         let (write, old) = redirect_call(site, original, at!(doubled)).unwrap();
-        assert_eq!(old, at!(plus_one));
-        OLD_CALL.store(old, Ordering::SeqCst);
+        assert_eq!(old.here(), at!(plus_one));
+        OLD_CALL.store(old.here(), Ordering::SeqCst);
         assert_eq!(install("redirect", Ok(write)), Outcome::Applied);
         assert_eq!(black_box(calls_plus_one as Fastcall)(4), 10);
         assert_eq!(
@@ -1160,9 +1194,9 @@ mod tests {
     fn refused_install_leaves_the_code_alone() {
         let site = address(target_refused);
         // SAFETY: the function's first five bytes are mapped and nothing writes them.
-        let before = unsafe { core::slice::from_raw_parts(site as *const u8, 5) }.to_vec();
+        let before = unsafe { core::slice::from_raw_parts(site.ptr::<u8>(), 5) }.to_vec();
         let wrong = [0x89, 0xC8, 0x83, 0xC0, 0x11];
-        let write = context_hook(site, &wrong, Mode::Before, drop_handler, site);
+        let write = context_hook(site, &wrong, Mode::Before, drop_handler, site.here());
         match install("refused", write) {
             Outcome::Failed {
                 error: HookError::Patch(PatchError::Mismatch { found, .. }),
@@ -1176,38 +1210,36 @@ mod tests {
             }
         }
         // SAFETY: as above.
-        let after = unsafe { core::slice::from_raw_parts(site as *const u8, 5) };
+        let after = unsafe { core::slice::from_raw_parts(site.ptr::<u8>(), 5) };
         assert_eq!(after, before);
         assert_eq!(black_box(target_refused as Fastcall)(7), 7 + 0x110);
     }
 
     #[test]
     fn short_or_uncopyable_sites_are_refused() {
+        let site = own(0x1000);
         assert_eq!(
-            context_hook(0x1000, &[0x90; 4], Mode::Drop, drop_handler, 0),
-            Err(HookError::TooShort {
-                site: 0x1000,
-                len: 4
-            })
+            context_hook(site, &[0x90; 4], Mode::Drop, drop_handler, 0),
+            Err(HookError::TooShort { site, len: 4 })
         );
         // cmp eax, 0x6B; je +9: a short branch cannot be copied.
         assert_eq!(
             context_hook(
-                0x1000,
+                site,
                 &[0x83, 0xF8, 0x6B, 0x74, 0x09],
                 Mode::Before,
                 drop_handler,
                 0
             ),
             Err(HookError::Code {
-                site: 0x1000,
+                site,
                 error: CodeError::ShortBranch { offset: 3 }
             })
         );
         // Dropped instructions are never copied, so any bytes do.
         assert!(
             context_hook(
-                0x1000,
+                site,
                 &[0x83, 0xF8, 0x6B, 0x74, 0x09],
                 Mode::Drop,
                 drop_handler,
@@ -1217,8 +1249,8 @@ mod tests {
         );
         // The covered instructions must start with the written bytes.
         assert_eq!(
-            context_hook_covering(0x1000, &[0x90; 5], &[0x91; 6], Mode::Drop, drop_handler, 0),
-            Err(HookError::NotCovering { site: 0x1000 })
+            context_hook_covering(site, &[0x90; 5], &[0x91; 6], Mode::Drop, drop_handler, 0),
+            Err(HookError::NotCovering { site })
         );
     }
 
@@ -1293,11 +1325,11 @@ mod tests {
 
     #[test]
     fn an_fpu_call_pushes_onto_the_games_stack() {
-        let site = at!(fpu_call_target) + 4;
+        let site = own(at!(fpu_call_target)).offset(4);
         let write = fpu_call(site, &[0x90; 5], Mode::Drop, push_twenty, 0);
         assert_eq!(install("fpu call", write), Outcome::Applied);
         // SAFETY: the site is mapped and nothing writes it.
-        assert_eq!(unsafe { *(site as *const u8) }, 0xE8);
+        assert_eq!(unsafe { *site.ptr::<u8>() }, 0xE8);
         assert_eq!(
             black_box(fpu_call_target as extern "C" fn(f32) -> f32)(2.5),
             22.5
@@ -1306,7 +1338,7 @@ mod tests {
 
     #[test]
     fn an_fpu_hook_pushes_onto_the_games_stack() {
-        let site = at!(fpu_push_target) + 4;
+        let site = own(at!(fpu_push_target)).offset(4);
         let write = fpu_hook(site, &[0x90; 5], &[0x90; 5], Mode::Drop, push_ten, 0);
         assert_eq!(install("fpu push", write), Outcome::Applied);
         assert_eq!(
@@ -1344,13 +1376,13 @@ mod tests {
 
     /// Where `bytes` first occur in the 64 bytes at `f`: a site in a test function whose assembled length before the
     /// site is the assembler's choice.
-    fn find(f: usize, bytes: &[u8]) -> usize {
+    fn find(f: usize, bytes: &[u8]) -> Site {
         // SAFETY: the test functions are longer than 64 bytes or followed by more of the test binary's code.
         let code = unsafe { core::slice::from_raw_parts(f as *const u8, 64) };
-        f + code
+        own(f + code
             .windows(bytes.len())
             .position(|w| w == bytes)
-            .unwrap_or(usize::MAX - f)
+            .unwrap_or(usize::MAX - f))
     }
 
     extern "C" fn add_five_in_single_precision(_: usize, ctx: &mut FpuContext) {
@@ -1428,7 +1460,7 @@ mod tests {
 
     #[test]
     fn an_fpu_hook_runs_covered_code_after_or_pops_in_its_place() {
-        let site = at!(fpu_after_target) + 4;
+        let site = own(at!(fpu_after_target)).offset(4);
         let covered = [0xD8, 0xC0, 0x90, 0x90, 0x90];
         let write = fpu_hook(site, &covered, &covered, Mode::After, add_one, 0);
         assert_eq!(install("fpu after", write), Outcome::Applied);
@@ -1437,7 +1469,7 @@ mod tests {
             8.0
         );
 
-        let site = at!(fpu_pop_target) + 8;
+        let site = own(at!(fpu_pop_target)).offset(8);
         let covered = [0xDD, 0xD8, 0x90, 0x90, 0x90];
         let write = fpu_hook(site, &covered, &covered, Mode::Drop, pop_instead, 0);
         assert_eq!(install("fpu pop", write), Outcome::Applied);

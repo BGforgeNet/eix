@@ -19,13 +19,14 @@ use eix_engine::group::{self, Outcome, SiteWrite};
 use eix_engine::hook::{self, Context, Mode};
 use eix_engine::sse::{F32x4, F64x4, Mask32, Mask64};
 use eix_engine::{exe, patch, x87};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::log;
 use crate::setup::Setup;
 
 /// `mov esi, [ebp-0x18]; mov [esi+0x10], eax`: EAX holds what `LoadLibraryA` returned for the transform library.
-const LOADED: usize = eix_sites::C_TRANSFORM_PIPELINE_TRANSFORM_PIPELINE_CONSTRUCT__108;
+const LOADED: Site = eix_sites::C_TRANSFORM_PIPELINE_TRANSFORM_PIPELINE_CONSTRUCT__108;
 const LOADED_BYTES: [u8; 6] = [0x8B, 0x75, 0xE8, 0x89, 0x46, 0x10];
 
 /// The library's build: its image size and link time stamp (2000-01-25).
@@ -381,7 +382,7 @@ unsafe extern "thiscall" fn light(
                 );
             }
             // SAFETY: ORIGINAL holds the method `install` replaced, of this type.
-            let original: Method = unsafe { hook::as_fn(ORIGINAL.load(Ordering::SeqCst)) };
+            let original: Method = unsafe { hook::as_fn_at(ORIGINAL.load(Ordering::SeqCst)) };
             // SAFETY: the game's arguments.
             unsafe {
                 original(
@@ -417,7 +418,7 @@ unsafe fn other_build(module: usize) -> Option<String> {
         ));
     }
     // SAFETY: the method lies inside the image, whose size was checked.
-    let mut code = unsafe { patch::read(module + METHOD, METHOD_LEN) };
+    let mut code = unsafe { patch::read(Site::of(module + METHOD), METHOD_LEN) };
     for (offset, rva) in OPERANDS {
         let operand = &mut code[offset..offset + 4];
         if *operand != ((module + rva) as u32).to_le_bytes() {
@@ -439,7 +440,7 @@ unsafe fn other_build(module: usize) -> Option<String> {
         return Some(format!("the method's code differs (FNV {fnv:#018x})"));
     }
     // SAFETY: the constants lie inside the image.
-    unsafe { patch::verify(module + CONSTANTS, &CONSTANT_BYTES) }
+    unsafe { patch::verify(Site::of(module + CONSTANTS), &CONSTANT_BYTES) }
         .err()
         .map(|e| format!("the method's constants differ: {e}"))
 }
@@ -466,7 +467,7 @@ extern "C" fn loaded(_: usize, ctx: &mut Context) {
     let report = unsafe {
         group::apply("VertexLighting", true, || {
             Ok(vec![SiteWrite::pointer(
-                slot,
+                Site::of(slot),
                 method,
                 light as *const () as usize,
             )])
@@ -768,7 +769,7 @@ mod tests {
         let path: Vec<u16> = format!("{dir}\\3dfpfpu.dll").encode_utf16().collect();
         let dll = Dll::load(&path).expect("3dfpfpu.dll loads");
         // SAFETY: the method's address in the loaded library, of this type.
-        let original: Method = unsafe { hook::as_fn(dll.handle() + METHOD) };
+        let original: Method = unsafe { hook::as_fn_at(dll.handle() + METHOD) };
         let mut rng = Rng(7);
         let mut scenes: Vec<Scene> = (0..200).map(|_| scene(&mut rng)).collect();
         for precision in [0, 2] {
@@ -805,8 +806,8 @@ mod tests {
         let dir = std::env::var("EIX_GAME_DIR").expect("EIX_GAME_DIR names the game folder");
         let path: Vec<u16> = format!("{dir}\\3dfpfpu.dll").encode_utf16().collect();
         let dll = Dll::load(&path).expect("3dfpfpu.dll loads");
-        let method = dll.handle() + METHOD;
-        let jump = patch::jmp_rel32(method, method + 0x1000);
+        let method = Site::of(dll.handle() + METHOD);
+        let jump = patch::jmp_rel32(method, method.here() + 0x1000);
         // SAFETY: the method's entry in the loaded library, which no other test runs while LIBRARY is held.
         unsafe { patch::write(method, &ENTRY, &jump) }.expect("the jump is written");
         // SAFETY: the library is loaded.
@@ -835,7 +836,7 @@ mod tests {
         assert_eq!(unsafe { other_build(module) }, None);
         ORIGINAL.store(module + METHOD, Ordering::SeqCst);
         // SAFETY: the method's address in the loaded library, of this type.
-        let original: Method = unsafe { hook::as_fn(module + METHOD) };
+        let original: Method = unsafe { hook::as_fn_at(module + METHOD) };
         let ours: Method = light;
         // The precisions give different colours only where a channel lands on a rounding tie, about one vertex in
         // 140 000 of the random scenes: these show that each precision's path is the one that matches.

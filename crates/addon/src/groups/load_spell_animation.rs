@@ -8,11 +8,12 @@
 use eix_engine::game::spell::Spell;
 use eix_engine::game::unit::OrderPlan;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 /// Where `PlanAction` goes on once the cast kind is stored.
-const AFTER_CAST_KIND: usize = eix_sites::C_UNIT_SERVER_PLAN_ACTION__6D0;
+const AFTER_CAST_KIND: Site = eix_sites::C_UNIT_SERVER_PLAN_ACTION__6D0;
 
 /// At 0x54D0DC: the spell is `PlanAction`'s local at EBP-0x84, the plan is ESI.
 extern "C" fn cast_kind(_: usize, ctx: &mut Context) {

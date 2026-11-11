@@ -10,8 +10,9 @@ use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, FpuContext, Mode};
 use eix_engine::patch;
 use eix_engine::x87::{C0, C3, Ext};
+use eix_sites::Site;
 
-use super::common::{self, Bytes, read, write};
+use super::common::{self, Bytes, NOWHERE, read, write};
 use super::{Build, BuildError, Ctx};
 use crate::Level;
 
@@ -44,14 +45,14 @@ pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
 ];
 
 /// `AIAttention::SpellKind`'s bound, the operand of `cmp eax, 0x29` at 0x5CEDD1: the number of spell types.
-const SPELL_KIND_BOUND: usize = eix_sites::AI_ATTENTION_SPELL_KIND__13;
+const SPELL_KIND_BOUND: Site = eix_sites::AI_ATTENTION_SPELL_KIND__13;
 /// The number of entries the caster table gets: `[aicastertable] 0` to `53`.
 const CASTER_ENTRIES: u8 = 0x36;
 /// The low byte of the table address in `mov cl, [eax + 0x5CEE4C]` at 0x5CEDD8.
-const SPELL_KIND_TABLE_LOW: usize = eix_sites::AI_ATTENTION_SPELL_KIND__1A;
+const SPELL_KIND_TABLE_LOW: Site = eix_sites::AI_ATTENTION_SPELL_KIND__1A;
 /// Where the caster table is written: from the last entry of the jump table before the game's byte table, over that
 /// table, into the padding after it.
-const SPELL_KIND_TABLE: usize = eix_sites::AI_ATTENTION_SPELL_KIND__88;
+const SPELL_KIND_TABLE: Site = eix_sites::AI_ATTENTION_SPELL_KIND__88;
 const SPELL_KIND_TABLE_BYTES: [u8; CASTER_ENTRIES as usize] = [
     0x1D, 0xEE, 0x5C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x02, 0x02, 0x03, 0x03, 0x03,
     0x04, 0x04, 0x04, 0x04, 0x04, 0x04, 0x05, 0x05, 0x08, 0x08, 0x08, 0x08, 0x06, 0x07, 0x03, 0x08,
@@ -59,9 +60,9 @@ const SPELL_KIND_TABLE_BYTES: [u8; CASTER_ENTRIES as usize] = [
     0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
 ];
 /// `CSpell::IsOffensive`'s bound, the operand of `cmp eax, 0x26` at 0x68B776.
-const IS_OFFENSIVE_BOUND: usize = eix_sites::C_SPELL_IS_OFFENSIVE__8;
+const IS_OFFENSIVE_BOUND: Site = eix_sites::C_SPELL_IS_OFFENSIVE__8;
 /// `CSpell::IsOffensive`'s byte table, one entry per spell type: `[aioffendtable] 0` to `37`.
-const IS_OFFENSIVE_TABLE: usize = eix_sites::C_SPELL_IS_OFFENSIVE__28;
+const IS_OFFENSIVE_TABLE: Site = eix_sites::C_SPELL_IS_OFFENSIVE__28;
 const IS_OFFENSIVE_TABLE_BYTES: [u8; 38] = [
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
     0x01, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01,
@@ -90,7 +91,7 @@ fn caster_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
     let low = if new_big_tables_on(ctx)? {
         NEW_BIG_TABLES
     } else {
-        SPELL_KIND_TABLE as u8
+        SPELL_KIND_TABLE.ru() as u8
     };
     Ok(vec![
         SiteWrite::bytes(SPELL_KIND_BOUND, &[0x29], &[CASTER_ENTRIES])?,
@@ -131,12 +132,12 @@ fn offend_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 }
 
 /// `je 0x5CAE03` at `AIViewer::Update`+0x2A0, the "lost from sight" jump after the radius test.
-const VIEWER_RADIUS_JE: (usize, &[u8]) = (
+const VIEWER_RADIUS_JE: (Site, &[u8]) = (
     eix_sites::AI_VIEWER_UPDATE__2A0,
     &[0x0F, 0x84, 0x5D, 0x01, 0x00, 0x00],
 );
 /// `je 0x5CAE03` at `AIViewer::Update`+0x2FC.
-const VIEWER_SECOND_JE: (usize, &[u8]) = (
+const VIEWER_SECOND_JE: (Site, &[u8]) = (
     eix_sites::AI_VIEWER_UPDATE__2FC,
     &[0x0F, 0x84, 0x01, 0x01, 0x00, 0x00],
 );
@@ -170,7 +171,7 @@ fn spells_priorities(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
     }
     ROW.iter()
         .enumerate()
-        .map(|(i, &(key, was))| common::float(ctx, key, eix_sites::RDATA_73FF04 + 4 * i, was))
+        .map(|(i, &(key, was))| common::float(ctx, key, eix_sites::RDATA_73FF04.offset(4 * i), was))
         .collect()
 }
 
@@ -212,7 +213,7 @@ fn fear_patch(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// The five `fcomp dword ptr [0x73CDB8]` (2.0) of `CPlayerServer::SendPartyState`: their operand addresses.
-const PARTY_STATE_COMPARES: [usize; 5] = [
+const PARTY_STATE_COMPARES: [Site; 5] = [
     eix_sites::C_PLAYER_SERVER_SEND_PARTY_STATE__7F,
     eix_sites::C_PLAYER_SERVER_SEND_PARTY_STATE__92,
     eix_sites::C_PLAYER_SERVER_SEND_PARTY_STATE__A5,
@@ -220,7 +221,7 @@ const PARTY_STATE_COMPARES: [usize; 5] = [
     eix_sites::C_PLAYER_SERVER_SEND_PARTY_STATE__CB,
 ];
 /// Padding after `SendPartyState` that takes `safetymuldist`.
-const SAFETY_DISTANCE: usize = eix_sites::C_PLAYER_SERVER_SEND_PARTY_STATE__36C;
+const SAFETY_DISTANCE: Site = eix_sites::C_PLAYER_SERVER_SEND_PARTY_STATE__36C;
 
 /// `newplayersafetyconditions` = 1: the party-state distance tests compare with `safetymuldist`, kept in padding,
 /// and the visibility factor at 0x73FE90 becomes `maxvisibilitymul`.
@@ -230,7 +231,7 @@ fn player_safety(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
     }
     let mut writes = PARTY_STATE_COMPARES
         .iter()
-        .map(|&site| SiteWrite::pointer(site, eix_sites::RDATA_73CDB8, SAFETY_DISTANCE))
+        .map(|&site| SiteWrite::pointer(site, eix_sites::RDATA_73CDB8.ru(), SAFETY_DISTANCE.ru()))
         .collect::<Vec<_>>();
     writes.push(common::float(
         ctx,
@@ -248,7 +249,7 @@ fn player_safety(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 }
 
 /// The NPC-only branches of the stats code, and the store of the NPC marker 0xC0000000 into `[ebx+0x44]`.
-const NPC_BRANCHES: [(usize, &[u8]); 4] = [
+const NPC_BRANCHES: [(Site, &[u8]); 4] = [
     (
         eix_sites::UNIT_STATS_RECOMPUTE_HIT_POINTS__18,
         &[0x0F, 0x84, 0xB4, 0x00, 0x00, 0x00],
@@ -264,12 +265,12 @@ const NPC_BRANCHES: [(usize, &[u8]); 4] = [
     (eix_sites::UNIT_STATS_RECOMPUTE__6F3, &[0x74, 0x15]),
 ];
 /// `jne` in `AttackParams::ScaleForDifficulty`: value 1 only.
-const NPC_DIFFICULTY: (usize, &[u8]) = (
+const NPC_DIFFICULTY: (Site, &[u8]) = (
     eix_sites::ATTACK_PARAMS_SCALE_FOR_DIFFICULTY__9,
     &[0x75, 0x2F],
 );
 /// `jne` in `AIAttention::Build`.
-const NPC_ATTENTION: (usize, &[u8]) = (
+const NPC_ATTENTION: (Site, &[u8]) = (
     eix_sites::AI_ATTENTION_BUILD__58,
     &[0x0F, 0x85, 0x89, 0x01, 0x00, 0x00],
 );
@@ -295,7 +296,7 @@ fn remove_npcs_block(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 
 /// `call IsTextKey` sites that value 2 turns into `mov eax, 1`; the `bool` says whether value 3 does too (it keeps
 /// the difficulty scaling of `CUnitClientSpecific::GetAttackParams` and `CUnitServer::GetAttackParams`).
-const HERO_CALLS: [(usize, [u8; 5], bool); 14] = [
+const HERO_CALLS: [(Site, [u8; 5], bool); 14] = [
     (
         eix_sites::HOOVER_COLLECT_LOOT__D,
         [0xE8, 0xDE, 0xF6, 0xFF, 0xFF],
@@ -384,7 +385,7 @@ fn everyone_is_hero(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
 }
 
 /// `call CUnit::HasPlayer` at `AIViewer::See`+0x21.
-const SEE_HAS_PLAYER: usize = eix_sites::AI_VIEWER_SEE__21;
+const SEE_HAS_PLAYER: Site = eix_sites::AI_VIEWER_SEE__21;
 const SEE_HAS_PLAYER_CALL: [u8; 5] = [0xE8, 0xDA, 0x5B, 0xF6, 0xFF];
 /// `AIViewer::See`'s "has a player" call under value 4 (ECX and EDI the seen unit): EAX 1 for an id from 1000000000
 /// up to 2000000000, else 0, and ECX the unit. The original writes this test into `HooverCollectLoot`+0x50, bytes
@@ -423,8 +424,11 @@ fn allies_see_each_other(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
             Ok(writes)
         }
         4 => {
-            let stub =
-                common::call_stub(id_has_player, 0, SEE_HAS_PLAYER + SEE_HAS_PLAYER_CALL.len())?;
+            let stub = common::call_stub(
+                id_has_player,
+                0,
+                SEE_HAS_PLAYER.offset(SEE_HAS_PLAYER_CALL.len()),
+            )?;
             Ok(vec![common::branch(
                 SEE_HAS_PLAYER,
                 &SEE_HAS_PLAYER_CALL,
@@ -530,16 +534,16 @@ fn hyper_reactions(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 
 /// `fadd dword ptr [ebx+0x104]` at 0x5248BA in the stats refresh, with the Stench effect's value `[ebp-0x74]` in
 /// ST0; `fstp dword ptr [ebx+0x104]` at 0x5248C5 stores the sum.
-const STENCH_ADD: usize = eix_sites::UNIT_STATS_RECOMPUTE__35A;
+const STENCH_ADD: Site = eix_sites::UNIT_STATS_RECOMPUTE__35A;
 const STENCH_ADD_BYTES: [u8; 6] = [0xD8, 0x83, 0x04, 0x01, 0x00, 0x00];
-const STENCH_STORE: (usize, &[u8], &[u8]) = (
+const STENCH_STORE: (Site, &[u8], &[u8]) = (
     eix_sites::UNIT_STATS_RECOMPUTE__365,
     &[0xD9, 0x9B, 0x04, 0x01, 0x00, 0x00],
     // fstp st(0); nop x4
     &[0xDD, 0xD8, 0x90, 0x90, 0x90, 0x90],
 );
 /// `UnitStats::RateValue`'s padding that keeps `stenchmul`.
-const STENCH_MUL: usize = eix_sites::UNIT_STATS_RATE_VALUE__A8;
+const STENCH_MUL: Site = eix_sites::UNIT_STATS_RATE_VALUE__A8;
 /// The four sense stats Stench raises, in the original's order.
 const STENCH_STATS: [u32; 4] = [0x10C, 0xFC, 0xF4, 0xE4];
 
@@ -547,7 +551,7 @@ const STENCH_STATS: [u32; 4] = [0x10C, 0xFC, 0xF4, 0xE4];
 /// `+0x104`, and stays in ST0 for the `fstp st(0)` that replaces the store.
 extern "C" fn stench(_: usize, ctx: &mut FpuContext) {
     // SAFETY: the factor the build wrote.
-    let mul = f64::from(unsafe { read::<f32>(STENCH_MUL as u32) });
+    let mul = f64::from(unsafe { read::<f32>(STENCH_MUL.here32()) });
     // The stats refresh left the Stench value in ST0.
     let value = ctx.fpu.pop().unwrap_or(Ext::new(0.0)).fmul(mul);
     for offset in STENCH_STATS {
@@ -586,52 +590,52 @@ const VIEWER_ENEMY_JE: Bytes = (eix_sites::AI_VIEWER_UPDATE__280, &[0x74], &[0xE
 /// `je 0x5CADCD` at `AIViewer::Update`+0x353, which `follow` makes a `jmp`.
 const VIEWER_FOLLOW_JE: Bytes = (eix_sites::AI_VIEWER_UPDATE__353, &[0x74], &[0xEB]);
 /// The viewer's distance factor for units without a player (1.05 at 0x73FEAC), `visiondependence`.
-const VISION_DEPENDENCE: usize = eix_sites::RDATA_73FEAC;
+const VISION_DEPENDENCE: Site = eix_sites::RDATA_73FEAC;
 /// `mov eax, [ebp-0x14]; test eax, eax` at `AIViewer::Update`+0x403, the "lost from sight" path.
-const VIEWER_LOST: usize = eix_sites::AI_VIEWER_UPDATE__403;
+const VIEWER_LOST: Site = eix_sites::AI_VIEWER_UPDATE__403;
 const VIEWER_LOST_BYTES: [u8; 5] = [0x8B, 0x45, 0xEC, 0x85, 0xC0];
 /// `AIViewer::Update`+0x302: the path that goes on with the seen unit.
-const VIEWER_SEEN: usize = eix_sites::AI_VIEWER_UPDATE__302;
+const VIEWER_SEEN: Site = eix_sites::AI_VIEWER_UPDATE__302;
 /// `fmul dword ptr [edx+0x294]` at `AIViewer::Update`+0x2BB: the viewer's radius times its vision factor.
-const VIEWER_RADIUS_MUL: usize = eix_sites::AI_VIEWER_UPDATE__2BB;
+const VIEWER_RADIUS_MUL: Site = eix_sites::AI_VIEWER_UPDATE__2BB;
 const VIEWER_RADIUS_MUL_BYTES: [u8; 6] = [0xD8, 0x8A, 0x94, 0x02, 0x00, 0x00];
 /// Where value 1 keeps the last EAX of the lost path, and `aggrrangemulmodifier` (both read by nothing).
-const AGGR_LAST_EAX: u32 = eix_sites::DATA_799CF8 as u32;
-const AGGR_RANGE_MUL: usize = eix_sites::DATA_799CF0;
+const AGGR_LAST_EAX: Site = eix_sites::DATA_799CF8;
+const AGGR_RANGE_MUL: Site = eix_sites::DATA_799CF0;
 /// Where the original keeps the parameters of values 2, 4 and 5, in game.exe's data padding: `losehardcore` (i32),
 /// `losefactor1` (i32), `losefactor2` (a shift count).
-const LOSE_HARDCORE_32: usize = eix_sites::DATA_799D8A;
-const LOSE_FACTOR1_32: usize = eix_sites::DATA_799D70;
-const LOSE_FACTOR2_SHIFT: usize = eix_sites::DATA_799D88;
+const LOSE_HARDCORE_32: Site = eix_sites::DATA_799D8A;
+const LOSE_FACTOR1_32: Site = eix_sites::DATA_799D70;
+const LOSE_FACTOR2_SHIFT: Site = eix_sites::DATA_799D88;
 /// The fixed divisor of values 4 and 5's tick remainder.
 const LOSE_TICK_MODULUS: u32 = 45_000;
 /// `g_updatePeriod`, the game's update period in milliseconds.
-const UPDATE_PERIOD: u32 = eix_sites::DATA_78FF34 as u32;
+const UPDATE_PERIOD: Site = eix_sites::DATA_78FF34;
 /// `GetTickCount` in game.exe's import table, which the original calls.
-const GET_TICK_COUNT_IAT: u32 = eix_sites::RDATA_73B344 as u32;
+const GET_TICK_COUNT_IAT: Site = eix_sites::RDATA_73B344;
 /// Where the original keeps values 6 and 7's parameters, in game.exe's data padding: `losehardcore` (u16), then one
 /// signed byte each for `losefactor1`, `losefactor2`, `losefactor3`, `difffactor`, `maxadd`; `maxadd` once more at
 /// 0x799DB0, in an instruction whose result is dropped.
-const COUNTER_LIMIT: usize = eix_sites::DATA_799D64;
-const COUNTER_FACTOR1: usize = eix_sites::DATA_799D91;
-const COUNTER_FACTOR2: usize = eix_sites::DATA_799D94;
-const COUNTER_FACTOR3: usize = eix_sites::DATA_799D97;
-const COUNTER_DIFF_FACTOR: usize = eix_sites::DATA_799DA4;
-const COUNTER_MAX_ADD: usize = eix_sites::DATA_799DA7;
-const COUNTER_MAX_ADD_UNUSED: usize = eix_sites::DATA_799DB0;
+const COUNTER_LIMIT: Site = eix_sites::DATA_799D64;
+const COUNTER_FACTOR1: Site = eix_sites::DATA_799D91;
+const COUNTER_FACTOR2: Site = eix_sites::DATA_799D94;
+const COUNTER_FACTOR3: Site = eix_sites::DATA_799D97;
+const COUNTER_DIFF_FACTOR: Site = eix_sites::DATA_799DA4;
+const COUNTER_MAX_ADD: Site = eix_sites::DATA_799DA7;
+const COUNTER_MAX_ADD_UNUSED: Site = eix_sites::DATA_799DB0;
 /// The difficulty word scripts read as `GSGetVar("Diff")`.
-const DIFFICULTY: u32 = eix_sites::DATA_79BEC0 as u32;
+const DIFFICULTY: Site = eix_sites::DATA_79BEC0;
 /// The viewer's 16-bit aggression counter, in its AI object (`[ebp+8]`).
 const AGGRESSION_COUNTER: u32 = 0x8E0;
 /// `CUnit::Level` 0x532D40 (thiscall, no arguments).
-const UNIT_LEVEL: usize = eix_sites::C_UNIT_LEVEL;
+const UNIT_LEVEL: Site = eix_sites::C_UNIT_LEVEL;
 type UnitLevel = unsafe extern "thiscall" fn(unit: u32) -> i32;
 /// `mov ecx, [edi+0x1C]; push 0x2E` at `StepAlarm`+0xB8, which `improve` hooks.
-const STEP_ALARM_IMPROVE: usize = eix_sites::STEP_ALARM__B8;
+const STEP_ALARM_IMPROVE: Site = eix_sites::STEP_ALARM__B8;
 
 /// Values 6 and 7's rewrite of `AIViewer::Update`+0x2CC (54 bytes; 7 leaves the last two as they were): the radius
 /// tests end in a jump to the counter at offset [`COUNTER_JUMP`], or at [`COUNTER_JUMP_FAST`] with `loseallyfast`.
-const COUNTER_TESTS: usize = eix_sites::AI_VIEWER_UPDATE__2CC;
+const COUNTER_TESTS: Site = eix_sites::AI_VIEWER_UPDATE__2CC;
 const COUNTER_TESTS_WAS: [u8; 54] = [
     0x0F, 0x84, 0x31, 0x01, 0x00, 0x00, 0xD9, 0x81, 0xD4, 0x02, 0x00, 0x00, 0xD8, 0x8A, 0xA4, 0x02,
     0x00, 0x00, 0xD8, 0x4D, 0xF4, 0xD8, 0x5D, 0xF8, 0xDF, 0xE0, 0xF6, 0xC4, 0x41, 0x0F, 0x84, 0x14,
@@ -666,7 +670,7 @@ const FAST_PUSH: Bytes = (
 /// original also copies a word of the main thread's stack at the fixed address 0x18F2F8, which nothing reads.
 extern "C" fn aggression_record(_: usize, ctx: &mut Context) {
     // SAFETY: a word of game.exe's `.data` padding that only this feature uses.
-    unsafe { write::<u32>(AGGR_LAST_EAX, ctx.eax) };
+    unsafe { write::<u32>(AGGR_LAST_EAX.here32(), ctx.eax) };
 }
 
 /// The value of `fistp word`: `x` rounded under the control word, or 0x8000 outside the 16-bit range.
@@ -678,9 +682,9 @@ fn fistp_word(x: Ext) -> u16 {
 /// `GetTickCount` through the game's import, as the original calls it.
 fn tick_count() -> u32 {
     // SAFETY: the import table entry game.exe's loader filled.
-    let at = unsafe { read::<u32>(GET_TICK_COUNT_IAT) } as usize;
+    let at = unsafe { read::<u32>(GET_TICK_COUNT_IAT.here32()) } as usize;
     // SAFETY: that entry is `GetTickCount`, `DWORD WINAPI (void)`.
-    let f: unsafe extern "system" fn() -> u32 = unsafe { hook::as_fn(at) };
+    let f: unsafe extern "system" fn() -> u32 = unsafe { hook::as_fn_at(at) };
     // SAFETY: `GetTickCount` takes nothing and cannot fail.
     unsafe { f() }
 }
@@ -698,7 +702,7 @@ extern "C" fn lose_by_chance(value: usize, ctx: &mut FpuContext) {
     }
     let r = if value == 2 {
         // SAFETY: the parameter the build wrote.
-        let modulus = unsafe { read::<u32>(LOSE_HARDCORE_32 as u32) };
+        let modulus = unsafe { read::<u32>(LOSE_HARDCORE_32.here32()) };
         // SAFETY: `rdtsc` reads the time stamp counter; it has no other effect.
         let tsc = unsafe { core::arch::x86::_rdtsc() } as u32;
         // The original faults on a zero `losehardcore`; here the draw is 0 and the unit stays.
@@ -706,11 +710,11 @@ extern "C" fn lose_by_chance(value: usize, ctx: &mut FpuContext) {
     } else {
         let ticks = tick_count();
         // SAFETY: the parameters the build wrote.
-        let factor = unsafe { read::<i32>(LOSE_FACTOR1_32 as u32) };
+        let factor = unsafe { read::<i32>(LOSE_FACTOR1_32.here32()) };
         // SAFETY: as above.
-        let shift = unsafe { read::<u8>(LOSE_FACTOR2_SHIFT as u32) };
+        let shift = unsafe { read::<u8>(LOSE_FACTOR2_SHIFT.here32()) };
         // SAFETY: a word of game.exe's `.data`.
-        let period = unsafe { read::<i32>(UPDATE_PERIOD) };
+        let period = unsafe { read::<i32>(UPDATE_PERIOD.here32()) };
         let product = factor.wrapping_mul(period) as u32;
         // The original faults when the shifted product is zero; here that case draws.
         if let Some(steps) = ticks.checked_div(product)
@@ -745,7 +749,7 @@ extern "C" fn aggression_counter(_: usize, ctx: &mut Context) {
     // SAFETY: EDX is the viewer's AI object (`[ebp+8]`).
     let count = unsafe { read::<u16>(counter) };
     // SAFETY: the parameter the build wrote.
-    let limit = unsafe { read::<u16>(COUNTER_LIMIT as u32) };
+    let limit = unsafe { read::<u16>(COUNTER_LIMIT.here32()) };
     if count >= limit {
         // SAFETY: as above.
         unsafe { write::<u16>(counter, 0) };
@@ -759,7 +763,7 @@ extern "C" fn aggression_counter(_: usize, ctx: &mut Context) {
         COUNTER_DIFF_FACTOR,
         COUNTER_MAX_ADD,
     ]
-    .map(|at| i32::from(unsafe { read::<i8>(at as u32) }));
+    .map(|at| i32::from(unsafe { read::<i8>(at.here32()) }));
     // SAFETY: the distance in the frame, as in `lose_by_chance`.
     let dist = fistp_word(Ext::new(f64::from(unsafe { read::<f32>(ctx.ebp - 8) })));
     // SAFETY: 0x532D40 is `int __thiscall CUnit::Level()`.
@@ -774,7 +778,7 @@ extern "C" fn aggression_counter(_: usize, ctx: &mut Context) {
         .checked_div((level as u32).wrapping_add(f2 as u32))
         .unwrap_or(0);
     // SAFETY: a word of game.exe's `.data`.
-    let mut add = unsafe { read::<u32>(DIFFICULTY) }.wrapping_add(diff as u32);
+    let mut add = unsafe { read::<u32>(DIFFICULTY.here32()) }.wrapping_add(diff as u32);
     if (q as i32) >= max_add {
         add = add.wrapping_mul(q);
     }
@@ -784,13 +788,13 @@ extern "C" fn aggression_counter(_: usize, ctx: &mut Context) {
 }
 
 /// The low byte of the integer `[gameplay] key` at `site`, over the zero byte there.
-fn param_byte(ctx: &Ctx<'_>, key: &str, site: usize) -> Result<SiteWrite, BuildError> {
+fn param_byte(ctx: &Ctx<'_>, key: &str, site: Site) -> Result<SiteWrite, BuildError> {
     let low = ctx.values.int("gameplay", key)?.to_le_bytes()[0];
     Ok(SiteWrite::bytes(site, &[0], &[low])?)
 }
 
 /// The 32-bit `[gameplay] key` at `site`, over the zero bytes there.
-fn param_int(ctx: &Ctx<'_>, key: &str, site: usize) -> Result<SiteWrite, BuildError> {
+fn param_int(ctx: &Ctx<'_>, key: &str, site: Site) -> Result<SiteWrite, BuildError> {
     let v = ctx.values.int("gameplay", key)?;
     Ok(SiteWrite::bytes(site, &[0; 4], &v.to_le_bytes())?)
 }
@@ -931,22 +935,22 @@ const NOISE_ORDER_MOVE: Bytes = (
     &[0x02, 0x89, 0x44, 0x24, 0x18, 0x8B, 0x44],
     &[0x44, 0x24, 0x64, 0x89, 0x44, 0x24, 0x24],
 );
-const NOISE_ORDER_CALL: usize = eix_sites::AI_VIEWER_NOISE__1D2;
+const NOISE_ORDER_CALL: Site = eix_sites::AI_VIEWER_NOISE__1D2;
 const NOISE_ORDER_CALL_BYTES: [u8; 13] = [
     0x24, 0x64, 0x8B, 0x4A, 0x04, 0x89, 0x44, 0x24, 0x24, 0x89, 0x4C, 0x24, 0x1C,
 ];
 /// `AIViewer::Noise`'s padding that keeps `runtosoundsmul` and `randsoundfactor`.
-const RUN_TO_SOUNDS_MUL: usize = eix_sites::AI_VIEWER_NOISE__278;
-const RAND_SOUND_FACTOR: usize = eix_sites::AI_VIEWER_NOISE__27C;
+const RUN_TO_SOUNDS_MUL: Site = eix_sites::AI_VIEWER_NOISE__278;
+const RAND_SOUND_FACTOR: Site = eix_sites::AI_VIEWER_NOISE__27C;
 
 /// Value 2's call: the order's x and y are `p + runtosoundsmul * (p - heard)`, with `p` the point at `[esp+0x5C]`
 /// (`Noise`'s argument) and `heard` EDX, each plus `randsoundfactor * (r - 32768)` for `r` the low 16 bits of the time
 /// stamp counter.
 extern "C" fn noise_target(_: usize, ctx: &mut Context) {
     // SAFETY: the factors the build wrote into `Noise`'s padding.
-    let mul = f64::from(unsafe { read::<f32>(RUN_TO_SOUNDS_MUL as u32) });
+    let mul = f64::from(unsafe { read::<f32>(RUN_TO_SOUNDS_MUL.here32()) });
     // SAFETY: as above.
-    let rand = f64::from(unsafe { read::<f32>(RAND_SOUND_FACTOR as u32) });
+    let rand = f64::from(unsafe { read::<f32>(RAND_SOUND_FACTOR.here32()) });
     let Some(point) = ctx.stack_word(0x5C / 4) else {
         return;
     };
@@ -997,21 +1001,21 @@ fn hearing_reactions(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 }
 
 /// `jne +8; pop edi; xor al, al` at `CUnitServer::CanCast`+0xD7, the "not enough mana" exit.
-const CAN_CAST_MANA: usize = eix_sites::C_UNIT_SERVER_CAN_CAST__D7;
+const CAN_CAST_MANA: Site = eix_sites::C_UNIT_SERVER_CAN_CAST__D7;
 const CAN_CAST_MANA_BYTES: [u8; 5] = [0x75, 0x08, 0x5F, 0x32, 0xC0];
 /// `CanCast`'s "can cast" exit, and its "cannot" exit at the `pop edi`.
-const CAN_CAST_YES: usize = eix_sites::C_UNIT_SERVER_CAN_CAST__E1;
-const CAN_CAST_NO: usize = eix_sites::C_UNIT_SERVER_CAN_CAST__D9;
+const CAN_CAST_YES: Site = eix_sites::C_UNIT_SERVER_CAN_CAST__E1;
+const CAN_CAST_NO: Site = eix_sites::C_UNIT_SERVER_CAN_CAST__D9;
 /// `test eax, eax; je` and the first byte of the AI class test at `CUnitServer::UpdateSpellBlockFlag`+0xD.
-const SPELL_BLOCK: usize = eix_sites::C_UNIT_SERVER_UPDATE_SPELL_BLOCK_FLAG__D;
+const SPELL_BLOCK: Site = eix_sites::C_UNIT_SERVER_UPDATE_SPELL_BLOCK_FLAG__D;
 const SPELL_BLOCK_BYTES: [u8; 5] = [0x85, 0xC0, 0x74, 0x19, 0x83];
 /// `UpdateSpellBlockFlag`'s tails: set the unit's "no spells" flag, or clear it.
-const SPELL_BLOCK_SET: usize = eix_sites::C_UNIT_SERVER_UPDATE_SPELL_BLOCK_FLAG__1A;
-const SPELL_BLOCK_CLEAR: usize = eix_sites::C_UNIT_SERVER_UPDATE_SPELL_BLOCK_FLAG__2A;
+const SPELL_BLOCK_SET: Site = eix_sites::C_UNIT_SERVER_UPDATE_SPELL_BLOCK_FLAG__1A;
+const SPELL_BLOCK_CLEAR: Site = eix_sites::C_UNIT_SERVER_UPDATE_SPELL_BLOCK_FLAG__2A;
 /// The unit's "no spells" flag in `[unit+8]`.
 const NO_SPELLS: u32 = 0x1000_0000;
 /// The 1.0 `UnitStats::Period20` divides by the stats' +0x20.
-const PERIOD_NUMERATOR: u32 = eix_sites::RDATA_73E124 as u32;
+const PERIOD_NUMERATOR: Site = eix_sites::RDATA_73E124;
 
 /// `CanCast` without the mana for the spell: a unit that is no hero gets the "no spells" flag, so it fights with its
 /// weapons; both return false as before.
@@ -1067,7 +1071,7 @@ extern "C" fn spell_block_mana(_: usize, ctx: &mut Context) {
     // SAFETY: the controller's stats (+0x1E0), whose +0x20 `Period20` divides by.
     let period = unsafe { read::<f32>(ctx.esi + 0x1E0 + 0x20) };
     // SAFETY: a constant of game.exe's `.rdata`.
-    let numerator = unsafe { read::<f32>(PERIOD_NUMERATOR) };
+    let numerator = unsafe { read::<f32>(PERIOD_NUMERATOR.here32()) };
     let need = Ext::new(f64::from(numerator))
         .fdiv(f64::from(period))
         .fmul(f64::from(cost));
@@ -1112,10 +1116,10 @@ fn size_rebalance(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `fcom dword ptr [0x73CCF8]` (20.0, evening) at `CWorld::NightLevel`+0x15: its operand.
-const NIGHT_EVENING_OPERAND: usize = eix_sites::C_WORLD_NIGHT_LEVEL__17;
+const NIGHT_EVENING_OPERAND: Site = eix_sites::C_WORLD_NIGHT_LEVEL__17;
 /// `CWorld::NightLevel`+0x29 rewritten in place: the branches of the hour test, whose jumps at +1 and +0x1D go to
 /// the two ramps, then the five parameters.
-const NIGHT_CODE: usize = eix_sites::C_WORLD_NIGHT_LEVEL__29;
+const NIGHT_CODE: Site = eix_sites::C_WORLD_NIGHT_LEVEL__29;
 const NIGHT_CODE_WAS: [u8; 35] = [
     0x0E, 0xD8, 0x25, 0xF8, 0xCC, 0x73, 0x00, 0xD8, 0x0D, 0xB0, 0xC3, 0x73, 0x00, 0x59, 0xC3, 0xD8,
     0x1D, 0x50, 0xCE, 0x73, 0x00, 0xDF, 0xE0, 0xF6, 0xC4, 0x01, 0x74, 0x08, 0xD9, 0x05, 0x4C, 0xB8,
@@ -1129,7 +1133,7 @@ const NIGHT_CODE_NOW: [u8; 35] = [
 const NIGHT_EVENING_JUMP: usize = 1;
 const NIGHT_MORNING_JUMP: usize = 0x1D;
 /// `(key, address, the game's bytes there)`: the hours and the ramp's slope.
-const NIGHT_PARAMS: [(&str, usize, [u8; 4]); 5] = [
+const NIGHT_PARAMS: [(&str, Site, [u8; 4]); 5] = [
     (
         "visionevening",
         eix_sites::C_WORLD_NIGHT_LEVEL__4C,
@@ -1153,8 +1157,8 @@ const NIGHT_PARAMS: [(&str, usize, [u8; 4]); 5] = [
     ),
 ];
 /// game.exe's 1.0 and 0.0.
-const ONE: u32 = eix_sites::RDATA_73B84C as u32;
-const ZERO: u32 = eix_sites::RDATA_73B858 as u32;
+const ONE: Site = eix_sites::RDATA_73B84C;
+const ZERO: Site = eix_sites::RDATA_73B858;
 
 /// The two ramps, entered with the hour in ST0 and leaving `NightLevel` with the level there: after the evening
 /// (`arg` 0) `(hour - evening) * slope` until the night hour, then 1; from the morning hour (`arg` 1)
@@ -1162,7 +1166,7 @@ const ZERO: u32 = eix_sites::RDATA_73B858 as u32;
 extern "C" fn night_ramp(arg: usize, ctx: &mut FpuContext) {
     let [evening, night, day, _, slope] = NIGHT_PARAMS.map(|(_, at, _)| {
         // SAFETY: the parameters the build wrote into `NightLevel`'s bytes.
-        f64::from(unsafe { read::<f32>(at as u32) })
+        f64::from(unsafe { read::<f32>(at.here32()) })
     });
     // The hour `NightLevel` computed, in ST0 at both jumps.
     let hour = ctx.fpu.pop().unwrap_or(Ext::new(0.0));
@@ -1175,7 +1179,7 @@ extern "C" fn night_ramp(arg: usize, ctx: &mut FpuContext) {
         }
     } else {
         // SAFETY: a constant of game.exe's `.rdata`.
-        Ext::new(f64::from(unsafe { read::<f32>(past) }))
+        Ext::new(f64::from(unsafe { read::<f32>(past.here32()) }))
     };
     // `NightLevel` returns its level in ST0; the pop above left room.
     let _ = ctx.fpu.push(level);
@@ -1190,14 +1194,14 @@ fn night_power_vision(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
     const RETURN: [u8; 2] = [0x59, 0xC3];
     let mut code = NIGHT_CODE_NOW;
     for (at, arg) in [(NIGHT_EVENING_JUMP, 0), (NIGHT_MORNING_JUMP, 1)] {
-        let stub = hook::fpu_stub(0, &[], &RETURN, false, night_ramp, arg, 0)?;
-        code[at..at + 5].copy_from_slice(&patch::jmp_rel32(NIGHT_CODE + at, stub));
+        let stub = hook::fpu_stub(NOWHERE, &[], &RETURN, false, night_ramp, arg, NOWHERE)?;
+        code[at..at + 5].copy_from_slice(&patch::jmp_rel32(NIGHT_CODE.offset(at), stub));
     }
     let mut writes = vec![
         SiteWrite::pointer(
             NIGHT_EVENING_OPERAND,
-            eix_sites::RDATA_73CCF8,
-            NIGHT_PARAMS[0].1,
+            eix_sites::RDATA_73CCF8.ru(),
+            NIGHT_PARAMS[0].1.ru(),
         ),
         SiteWrite::bytes(NIGHT_CODE, &NIGHT_CODE_WAS, &code)?,
     ];
@@ -1269,7 +1273,7 @@ mod tests {
             ("gameplay", "aggrrangemulmodifier", "7.5"),
         ]);
         let ctx = Ctx::new(&v, no_log);
-        let at = |value: i8, site: usize| {
+        let at = |value: i8, site: Site| {
             plain(&aggrmod(&ctx, value).unwrap())
                 .into_iter()
                 .find(|w| w.0 == site)

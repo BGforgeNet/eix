@@ -15,7 +15,7 @@ fn the_1056x768_mode_moves_the_panels_by_13() {
 
 /// The WideScreen sites of the 1056x768 mode: number, address, length, and the bytes
 /// written where they do not depend on where our code lies.
-const SITES: [(usize, usize, usize, Option<&[u8]>); 100] = [
+const SITES: [(usize, Site, usize, Option<&[u8]>); 100] = [
     (0, eix_sites::C_UI_REGION_SET_RECT, 5, None),
     (1, eix_sites::C_UI_MESH_SET_TRIANGLE__4A7, 5, None),
     (2, eix_sites::C_UI_MESH_SET_GRID_VANILLA__60D, 5, None),

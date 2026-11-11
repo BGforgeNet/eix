@@ -15,6 +15,7 @@ use eix_engine::game::unit::UnitStats;
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
 use super::common::{self, Obj, read};
 use super::{Build, BuildError, Ctx, rebalance};
@@ -58,7 +59,7 @@ pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
     ("gameplay", "newoptions", new_options),
 ];
 
-fn bytes(site: usize, expected: &[u8], new: &[u8]) -> Result<SiteWrite, BuildError> {
+fn bytes(site: Site, expected: &[u8], new: &[u8]) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(site, expected, new)?)
 }
 
@@ -83,7 +84,7 @@ enum SkillCap {
 struct Cap {
     form: SkillCap,
     limit: u32,
-    resume: usize,
+    resume: Site,
 }
 
 extern "C" fn skill_cap(arg: usize, ctx: &mut Context) {
@@ -114,7 +115,7 @@ extern "C" fn skill_cap(arg: usize, ctx: &mut Context) {
 }
 
 /// The three caps of one block: `(site, game bytes, NOPs before the jump, form, resume)`.
-type CapSite = (usize, &'static [u8], usize, SkillCap, usize);
+type CapSite = (Site, &'static [u8], usize, SkillCap, Site);
 
 fn skill_caps(sites: &[CapSite], limit: u8) -> Result<Vec<SiteWrite>, BuildError> {
     let mut writes = Vec::new();
@@ -229,14 +230,14 @@ fn save_all(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// The operands of `CWorldClient::DrawPass`'s `fadd`/`fsub dword ptr [0x73BAB0]` that `extendedmerc` repoints.
-const DRAW_PASS_RANGE: [usize; 4] = [
+const DRAW_PASS_RANGE: [Site; 4] = [
     eix_sites::C_WORLD_CLIENT_DRAW_PASS__10A,
     eix_sites::C_WORLD_CLIENT_DRAW_PASS__15C,
     eix_sites::C_WORLD_CLIENT_DRAW_PASS__19A,
     eix_sites::C_WORLD_CLIENT_DRAW_PASS__201,
 ];
 /// `CWorldClient::Render`'s `push 0x42C80000` (100.0) operands, one of which the repointed operands then read.
-const RENDER_RANGE: [usize; 2] = [
+const RENDER_RANGE: [Site; 2] = [
     eix_sites::C_WORLD_CLIENT_RENDER__279,
     eix_sites::C_WORLD_CLIENT_RENDER__1ED,
 ];
@@ -258,8 +259,8 @@ fn extended_merc(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
         for site in DRAW_PASS_RANGE {
             writes.push(SiteWrite::pointer(
                 site,
-                eix_sites::RDATA_73BAB0,
-                RENDER_RANGE[0],
+                eix_sites::RDATA_73BAB0.ru(),
+                RENDER_RANGE[0].ru(),
             ));
         }
         for site in RENDER_RANGE {
@@ -291,7 +292,7 @@ fn dmg_types(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// The item highlight colours in `.rdata`: eight RGBA entries.
-const LIGHTS: usize = eix_sites::K_SCHOOL_GLOW;
+const LIGHTS: Site = eix_sites::K_SCHOOL_GLOW;
 const LIGHTS_GAME: [f32; 32] = [
     1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0,
     1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0,
@@ -319,7 +320,7 @@ fn items_light_changes(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
 
 /// The stock generators' `push max; push min` pairs: weapons, armours, wands, potions (`ClassTemplateGenerateItems`),
 /// prototypes, runes (`ClassTemplateGenerateMagic`), each with game.exe's `(max, min)`.
-const STOCK_RANGES: [(usize, &str, &str, u8, u8); 6] = [
+const STOCK_RANGES: [(Site, &str, &str, u8, u8); 6] = [
     (
         eix_sites::CLASS_TEMPLATE_GENERATE_ITEMS__AE,
         "maxsweapons",
@@ -365,14 +366,14 @@ const STOCK_RANGES: [(usize, &str, &str, u8, u8); 6] = [
 ];
 
 /// The traders' price factors: the `mov ecx, imm32` operands in `ClassTemplatesBuild`, each 0.5.
-const PRICE_FACTORS: [(usize, &str); 4] = [
+const PRICE_FACTORS: [(Site, &str); 4] = [
     (eix_sites::CLASS_TEMPLATES_BUILD__5F0, "ingos"),
     (eix_sites::CLASS_TEMPLATES_BUILD__506, "gipatz"),
     (eix_sites::CLASS_TEMPLATES_BUILD__415, "gipatb"),
     (eix_sites::CLASS_TEMPLATES_BUILD__6DA, "suslanger"),
 ];
 /// Where the original keeps `jigran`, in game.exe's `.data` padding.
-const JIGRAN_SLOT: usize = eix_sites::DATA_79A356;
+const JIGRAN_SLOT: Site = eix_sites::DATA_79A356;
 /// That slot's value before `shopsnewnormalchanges` writes it: 0.1.
 const SHOP_FIELD_DEFAULT: f32 = f32::from_bits(0x3DCC_CCCD);
 
@@ -389,7 +390,7 @@ fn shops_new_normal_changes(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, 
             &[ctx.values.byte("gameplay", max)?],
         )?);
         writes.push(bytes(
-            site + 2,
+            site.offset(2),
             &[game_min],
             &[ctx.values.byte("gameplay", min)?],
         )?);
@@ -631,14 +632,14 @@ fn lift_debuffs(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 }
 
 /// Header slack where `encumbrancemovespeed` keeps `encumbrancemovemul`.
-const MOVE_MUL: u32 = 0x40_02D8;
+const MOVE_MUL: Site = Site::new(0x40_02D8);
 /// Where it keeps `speedslowmovemul` with `speedslowremaster` = 2.
-const SLOW_MOVE_MUL: u32 = 0x40_02CC;
+const SLOW_MOVE_MUL: Site = Site::new(0x40_02CC);
 /// Padding in `GameBuffer::ReadBytes` where it keeps `defaultspeedmul` and `minimumspeedmul`.
-const DEFAULT_SPEED_MUL: u32 = eix_sites::GAME_BUFFER_READ_BYTES__64 as u32;
-const MINIMUM_SPEED_MUL: u32 = eix_sites::GAME_BUFFER_READ_BYTES__68 as u32;
+const DEFAULT_SPEED_MUL: Site = eix_sites::GAME_BUFFER_READ_BYTES__64;
+const MINIMUM_SPEED_MUL: Site = eix_sites::GAME_BUFFER_READ_BYTES__68;
 /// Header slack where `encumbranceattackspeed` keeps `encumbranceattackmul`.
-const ATTACK_MUL: u32 = 0x40_02DC;
+const ATTACK_MUL: Site = Site::new(0x40_02DC);
 
 /// The multipliers `encumbrancemovespeed` keeps in game.exe.
 #[derive(Debug, Clone, Copy)]
@@ -654,7 +655,7 @@ impl Muls {
     /// The image must be mapped, as it is whenever game code runs.
     unsafe fn read() -> Self {
         // SAFETY: header slack and padding of game.exe's mapped image, which only the build writes.
-        let at = |a: u32| unsafe { read::<f32>(a) };
+        let at = |a: Site| unsafe { read::<f32>(a.here32()) };
         Self {
             movement: at(MOVE_MUL),
             slow: at(SLOW_MOVE_MUL),
@@ -742,13 +743,13 @@ fn encumbrance_move_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bu
     )?];
     if remaster {
         writes.push(bytes(
-            SLOW_MOVE_MUL as usize,
+            SLOW_MOVE_MUL,
             &[0; 4],
             &v.float("gameplay", "speedslowmovemul")?.to_le_bytes(),
         )?);
     }
     writes.push(bytes(
-        MOVE_MUL as usize,
+        MOVE_MUL,
         &[0; 4],
         &v.float("gameplay", "encumbrancemovemul")?.to_le_bytes(),
     )?);
@@ -757,7 +758,7 @@ fn encumbrance_move_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bu
         .to_le_bytes()
         .to_vec();
     muls.extend_from_slice(&v.float("gameplay", "minimumspeedmul")?.to_le_bytes());
-    writes.push(bytes(DEFAULT_SPEED_MUL as usize, &[0x90; 8], &muls)?);
+    writes.push(bytes(DEFAULT_SPEED_MUL, &[0x90; 8], &muls)?);
     Ok(writes)
 }
 
@@ -769,7 +770,7 @@ extern "C" fn attack_factor(_: usize, ctx: &mut Context) {
     // SAFETY: the unit's +0x240 is its server half, whose `UnitStats` at +0x1E0 hold the load at +0x50 (+0x230).
     let stats = unsafe { Obj::new(unit.get::<u32>(0x240).wrapping_add(0x1E0), UNIT_STATS) };
     // SAFETY: the header slack this feature's build wrote `encumbranceattackmul` to.
-    let mul = unsafe { read::<f32>(ATTACK_MUL) };
+    let mul = unsafe { read::<f32>(ATTACK_MUL.here32()) };
     let v = Ext::new(common::st0().into())
         .fsub(load_cubed(stats.get(0x50), stats.get(0x54)))
         .fmul(mul.into())
@@ -783,7 +784,7 @@ extern "C" fn attack_rate(_: usize, ctx: &mut Context) {
     // SAFETY: EBX is the `UnitStats` the refresh computes, as in `move_speed_hook`.
     let s = unsafe { Obj::new(ctx.ebx, UNIT_STATS) };
     // SAFETY: the header slack this feature's build wrote `encumbranceattackmul` to.
-    let mul = unsafe { read::<f32>(ATTACK_MUL) };
+    let mul = unsafe { read::<f32>(ATTACK_MUL.here32()) };
     let factor = Ext::new(s.get::<f32>(0x24).into())
         .fsub(
             Ext::new(load_cubed(s.get(0x50), s.get(0x54)))
@@ -814,14 +815,14 @@ fn encumbrance_attack_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, 
                     &[0x01, 0x74],
                 )?,
                 hook::context_call(site, &load, Mode::Before, attack_factor, 0)?,
-                bytes(ATTACK_MUL as usize, &[0; 4], &mul)?,
+                bytes(ATTACK_MUL, &[0; 4], &mul)?,
             ])
         }
         2 => {
             let actions = ctx.values.flag("gameplay", "actionspatch")?;
             let (site, add) = rebalance::actions_add(actions);
             Ok(vec![
-                bytes(ATTACK_MUL as usize, &[0; 4], &mul)?,
+                bytes(ATTACK_MUL, &[0; 4], &mul)?,
                 hook::context_call(site, &add, Mode::Before, attack_rate, 0)?,
             ])
         }
@@ -836,17 +837,17 @@ type PlaySound = extern "thiscall" fn(interface: u32, name: u32, arg: u32) -> u3
 type LocalView = extern "thiscall" fn(world: u32) -> u32;
 type SetWeapon = extern "thiscall" fn(client: u32, unit: u32, slot: i32) -> u32;
 
-const HIGHLIGHT: usize = eix_sites::C_HUD_WEAPON_BAR_HIGHLIGHT;
-const PLAY_SOUND: usize = eix_sites::C_INTERFACE_3D_PLAY_SOUND;
-const LOCAL_VIEW: usize = eix_sites::C_WORLD_CLIENT_LOCAL_VIEW;
-const SET_WEAPON: usize = eix_sites::C_PLAYER_CLIENT_SET_WEAPON;
+const HIGHLIGHT: Site = eix_sites::C_HUD_WEAPON_BAR_HIGHLIGHT;
+const PLAY_SOUND: Site = eix_sites::C_INTERFACE_3D_PLAY_SOUND;
+const LOCAL_VIEW: Site = eix_sites::C_WORLD_CLIENT_LOCAL_VIEW;
+const SET_WEAPON: Site = eix_sites::C_PLAYER_CLIENT_SET_WEAPON;
 /// `CWorldClient`'s static instance, `LocalView`'s `this` in the bar's own code.
-const CLIENT_WORLD: u32 = eix_sites::DATA_7AF5B8 as u32;
+const CLIENT_WORLD: Site = eix_sites::DATA_7AF5B8;
 /// The weapon-select sound's name, as the bar passes it.
-const SELECT_SOUND: u32 = eix_sites::DATA_794444 as u32;
+const SELECT_SOUND: Site = eix_sites::DATA_794444;
 /// `BattleScreenKeyDown`'s common exit, and the jump to it after the bar's `SetWeapon`.
-const KEY_DOWN_EXIT: usize = eix_sites::BATTLE_SCREEN_KEY_DOWN__F64;
-const KEY_DOWN_AFTER_SET_WEAPON: usize = eix_sites::BATTLE_SCREEN_KEY_DOWN__764;
+const KEY_DOWN_EXIT: Site = eix_sites::BATTLE_SCREEN_KEY_DOWN__F64;
+const KEY_DOWN_AFTER_SET_WEAPON: Site = eix_sites::BATTLE_SCREEN_KEY_DOWN__764;
 
 /// The weapon keys 1-4 of `BattleScreenKeyDown`, taken when the key's slot is already selected: the original
 /// unhighlights it, plays the select sound, stores slot 1 as the bar's selection (`mov [esi + 0x150], 1`) and has the
@@ -869,14 +870,14 @@ extern "C" fn sheathe_by_key(_: usize, ctx: &mut Context) {
     highlight(bar.addr(), -1, 1);
     let interface = bar.get::<u32>(0x98);
     bar.set::<i32>(0x150, 1);
-    ctx.eax = play_sound(interface, SELECT_SOUND, 0);
+    ctx.eax = play_sound(interface, SELECT_SOUND.here32(), 0);
     ctx.edi = u32::MAX;
     ctx.esi = bar.get(0x154);
     if ctx.esi == 0 {
         ctx.resume = KEY_DOWN_EXIT;
         return;
     }
-    let client = local_view(CLIENT_WORLD);
+    let client = local_view(CLIENT_WORLD.here32());
     ctx.ecx = client;
     ctx.eax = set_weapon(client, ctx.esi, -1);
     ctx.resume = KEY_DOWN_AFTER_SET_WEAPON;
@@ -892,7 +893,7 @@ extern "C" fn sheathe_by_click(_: usize, ctx: &mut Context) {
 }
 
 /// The `je 0x63B4C4` of each weapon key when its slot is selected: `(the jump's rel32 address, its game bytes)`.
-const KEY_SELECTED_JUMPS: [(usize, [u8; 4]); 4] = [
+const KEY_SELECTED_JUMPS: [(Site, [u8; 4]); 4] = [
     (
         eix_sites::BATTLE_SCREEN_KEY_DOWN__70F,
         [0x51, 0x08, 0x00, 0x00],
@@ -929,7 +930,7 @@ fn heroes_can_hide_weapons(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
     ];
     let entry = common::entry(sheathe_by_key, 0)?;
     for (at, game) in KEY_SELECTED_JUMPS {
-        writes.push(bytes(at, &game, &common::rel32(at + 4, entry))?);
+        writes.push(bytes(at, &game, &common::rel32(at.offset(4), entry))?);
     }
     Ok(writes)
 }
@@ -939,14 +940,14 @@ fn heroes_can_hide_weapons(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
 /// `HooverCollectLoot` 0x461CB0 (`ret 0x18`; EBP's frame: +0x8 the world, +0xC the unit, +0x10 the drop list, +0x1C
 /// the gold, -0x1 the unit's hero test, -0x8 the item source): the looted test's `xor eax, eax`, which ours turns
 /// into a jump to the `push ebx; push edi` the other way takes.
-const HOOVER_LOOTED: usize = eix_sites::HOOVER_COLLECT_LOOT__1F;
+const HOOVER_LOOTED: Site = eix_sites::HOOVER_COLLECT_LOOT__1F;
 /// `mov eax, [ecx]; call [eax + 0x48]` (ECX the world, ESI the unit): the item source.
-const HOOVER_SOURCE: usize = eix_sites::HOOVER_COLLECT_LOOT__2D;
+const HOOVER_SOURCE: Site = eix_sites::HOOVER_COLLECT_LOOT__2D;
 const HOOVER_SOURCE_WAS: [u8; 5] = [0x8B, 0x01, 0xFF, 0x50, 0x48];
 /// The epilogue after `pop esi`, where the looted test returns 0.
-const HOOVER_RETURN: usize = eix_sites::HOOVER_COLLECT_LOOT__22;
+const HOOVER_RETURN: Site = eix_sites::HOOVER_COLLECT_LOOT__22;
 /// The hero test before a hero's armour and weapons (`mov al, [ebp - 1]`; ESI the drop list, ECX the unit).
-const HOOVER_ARMOUR: usize = eix_sites::HOOVER_COLLECT_LOOT__366;
+const HOOVER_ARMOUR: Site = eix_sites::HOOVER_COLLECT_LOOT__366;
 /// The unit's looted flag in its +0x8, which the routine's end sets.
 const LOOTED: u32 = 0x10_0000;
 
@@ -977,7 +978,7 @@ extern "C" fn hoover_case(_: usize, ctx: &mut Context) {
     // SAFETY: the vtable's slot 0x48, which the routine calls.
     let slot = unsafe { read::<u32>(vtable + 0x48) };
     // SAFETY: that slot's function takes the world and nothing else.
-    let source = unsafe { hook::as_fn::<ItemSource>(slot as usize) };
+    let source = unsafe { hook::as_fn_at::<ItemSource>(slot as usize) };
     // SAFETY: the world the routine was given, on the game's thread.
     ctx.eax = unsafe { source(world) };
     match (looted, dead) {
@@ -1033,10 +1034,10 @@ const AVG_ARMORS_NOW: [u8; 51] = [
     0xD8, 0x8B, 0x5C, 0x24, 0x08, 0x83, 0xFB, 0x00, 0x74, 0x05, 0xE8, 0, 0, 0, 0, 0x90, 0x90, 0x90,
     0x90,
 ];
-const AVG_ARMORS: usize = eix_sites::C_HERO_STATS_PANEL_DRAW_PART__150;
+const AVG_ARMORS: Site = eix_sites::C_HERO_STATS_PANEL_DRAW_PART__150;
 /// Where the rewrite calls `newperks`' helper (+42) and the instruction after the call.
 const AVG_ARMORS_CALL: usize = 42;
-const AVG_ARMORS_AFTER_CALL: usize = AVG_ARMORS + AVG_ARMORS_CALL + 5;
+const AVG_ARMORS_AFTER_CALL: Site = AVG_ARMORS.offset(AVG_ARMORS_CALL).offset(5);
 /// The toughness perk that `newperks` adds.
 const TOUGHNESS_PERK: u32 = 0x17;
 
@@ -1223,7 +1224,7 @@ fn quest_item_slots() -> Result<Vec<SiteWrite>, BuildError> {
 /// unrelated register, builds its string below the stack pointer and calls without a music system; ours checks both.
 extern "C" fn camp_music(_: usize, _: &mut Context) {
     // SAFETY: the client world's +0x6E0, a word of game.exe's `.data` (0x7AF5B8 + 0x6E0).
-    let zone = unsafe { read::<u32>(eix_sites::DATA_7AF5B8 as u32 + 0x6E0) };
+    let zone = unsafe { read::<u32>(eix_sites::DATA_7AF5B8.offset(0x6E0).here32()) };
     common::zone_music(4, i32::from(zone == 1), zone, 1);
 }
 
@@ -1260,7 +1261,7 @@ fn quest_item_hooks() -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// The end of `BattleScreenKeyDown`'s action switch.
-const KEY_DOWN_END: usize = eix_sites::BATTLE_SCREEN_KEY_DOWN__F64;
+const KEY_DOWN_END: Site = eix_sites::BATTLE_SCREEN_KEY_DOWN__F64;
 
 /// `BattleScreenKeyDown`'s action 11 (`camera_track`, by default the Home key), after the game's own work on the unit
 /// it found (0x63B3D9, `jmp` to the end): the key also opens the camp ([`camp_if_open`]). The original returns into
@@ -1294,11 +1295,11 @@ extern "C" fn camp_action(strip: usize, ctx: &mut Context) {
     // SAFETY: `CCamera` 0x40D420 (thiscall, `ret 4`), the call action 11 makes without a unit.
     let reset = unsafe { hook::as_fn::<Reset>(eix_sites::C_CAMERA_SET_TARGET_ID) };
     // SAFETY: the game's camera, on its thread.
-    unsafe { reset(CAMERA, -1) };
+    unsafe { reset(CAMERA.here32(), -1) };
 }
 
 /// The game's camera (`TheCamera`).
-const CAMERA: u32 = eix_sites::DATA_79B2A8 as u32;
+const CAMERA: Site = eix_sites::DATA_79B2A8;
 
 /// `CHudActionColumn::SetUnit`'s end (ESI the column): one more action, the camp ("initqi1item", the icon
 /// "skill0008"), with its tip (text 0x2910) on its region, as the original's arena code adds it.
@@ -1312,8 +1313,8 @@ extern "C" fn camp_button(_: usize, ctx: &mut Context) {
     unsafe {
         add(
             column,
-            eix_sites::DATA_79457C as u32,
-            eix_sites::DATA_794564 as u32,
+            eix_sites::DATA_79457C.here32(),
+            eix_sites::DATA_794564.here32(),
             -1,
         )
     };
@@ -1333,8 +1334,8 @@ extern "C" fn camp_button(_: usize, ctx: &mut Context) {
 /// camera on the unit, and no selection either way.
 extern "C" fn camp_click(strip: usize, ctx: &mut Context) {
     /// The selection of the clicked action, and the function's end past it.
-    const SELECT: usize = eix_sites::ACTION_COLUMN_MOUSE_UP_VERIFY__4E;
-    const END: usize = eix_sites::ACTION_COLUMN_MOUSE_UP_VERIFY__5B;
+    const SELECT: Site = eix_sites::ACTION_COLUMN_MOUSE_UP_VERIFY__4E;
+    const END: Site = eix_sites::ACTION_COLUMN_MOUSE_UP_VERIFY__5B;
     if common::player_zero().is_none() {
         ctx.resume = SELECT;
         return;
@@ -1349,12 +1350,12 @@ extern "C" fn camp_click(strip: usize, ctx: &mut Context) {
     // SAFETY: `CCamera::SetTarget` 0x40D3B0 (`ret 4`).
     let set_target = unsafe { hook::as_fn::<SetTarget>(eix_sites::C_CAMERA_SET_TARGET) };
     // SAFETY: the game's camera, on its thread.
-    unsafe { set_target(CAMERA, unit) };
+    unsafe { set_target(CAMERA.here32(), unit) };
 }
 
 /// The battle screen's action jump table's entries for actions 60 and 61, NOP padding after the game's 59.
-const ACTION_60: usize = eix_sites::BATTLE_SCREEN_KEY_DOWN__1068;
-const ACTION_61: usize = eix_sites::BATTLE_SCREEN_KEY_DOWN__106C;
+const ACTION_60: Site = eix_sites::BATTLE_SCREEN_KEY_DOWN__1068;
+const ACTION_61: Site = eix_sites::BATTLE_SCREEN_KEY_DOWN__106C;
 const ACTION_PADDING: usize = 0x9090_9090;
 
 /// What `camp` 2 and 5 to 12 add with `newoptions` >= 1: action 60's case ([`camp_action`]), the camp button at the end
@@ -1383,7 +1384,7 @@ fn camp_controls(strip: usize) -> Result<Vec<SiteWrite>, BuildError> {
     ];
     let action = common::entry(camp_action, strip)?;
     let button = common::jump_stub(
-        0,
+        common::NOWHERE,
         &[],
         camp_button,
         0,
@@ -1479,47 +1480,47 @@ fn camp(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 /// window walk): each action's id, its name, its options group and its row there.
 #[rustfmt::skip]
 const KEY_ACTIONS: [[u32; 4]; 60] = [
-    [0, eix_sites::K_EMPTY_TEXT as u32, 0, 0], [1, eix_sites::DATA_787A30 as u32, 3, 4], [2, eix_sites::DATA_787A28 as u32, 3, 3], [3, eix_sites::DATA_787A20 as u32, 3, 2], [4, eix_sites::DATA_787A1C as u32, 3, 6],
-    [5, eix_sites::DATA_787A10 as u32, 6, 1], [6, eix_sites::DATA_787A04 as u32, 6, 2], [7, eix_sites::DATA_7879F8 as u32, 6, 3], [8, eix_sites::DATA_7879E8 as u32, 6, 4], [9, eix_sites::DATA_7879D8 as u32, 6, 5],
-    [10, eix_sites::DATA_7879C8 as u32, 6, 6], [11, eix_sites::DATA_7879B8 as u32, 6, 0], [12, eix_sites::DATA_7879AC as u32, 6, 8], [13, eix_sites::DATA_7879A4 as u32, 6, 9], [14, eix_sites::DATA_78799C as u32, 6, 10],
-    [15, eix_sites::DATA_787994 as u32, 6, 11], [16, eix_sites::DATA_78798C as u32, 6, 12], [17, eix_sites::DATA_787984 as u32, 9, 0], [18, eix_sites::DATA_78797C as u32, 9, 1], [19, eix_sites::DATA_787974 as u32, 9, 2],
-    [20, eix_sites::DATA_78796C as u32, 9, 3], [21, eix_sites::DATA_787964 as u32, 9, 4], [22, eix_sites::DATA_78795C as u32, 9, 5], [23, eix_sites::DATA_787954 as u32, 5, 7], [24, eix_sites::DATA_78794C as u32, 5, 6],
-    [25, eix_sites::DATA_787944 as u32, 5, 5], [26, eix_sites::DATA_787940 as u32, 5, 4], [27, eix_sites::DATA_787938 as u32, 5, 2], [28, eix_sites::DATA_787930 as u32, 5, 0], [29, eix_sites::DATA_787924 as u32, 5, 1],
-    [30, eix_sites::DATA_78791C as u32, 8, 0], [31, eix_sites::DATA_787914 as u32, 8, 1], [32, eix_sites::DATA_78790C as u32, 8, 2], [33, eix_sites::DATA_787904 as u32, 8, 3], [34, eix_sites::DATA_7878FC as u32, 8, 4],
-    [35, eix_sites::DATA_7878F4 as u32, 8, 5], [36, eix_sites::DATA_7878EC as u32, 8, 6], [37, eix_sites::DATA_7878E4 as u32, 8, 7], [38, eix_sites::DATA_7878DC as u32, 7, 0], [39, eix_sites::DATA_7878D4 as u32, 7, 1],
-    [40, eix_sites::DATA_7878CC as u32, 7, 2], [41, eix_sites::DATA_7878C4 as u32, 7, 3], [42, eix_sites::DATA_7878BC as u32, 7, 5], [43, eix_sites::DATA_7878B4 as u32, 7, 6], [44, eix_sites::DATA_7878AC as u32, 7, 7],
-    [45, eix_sites::DATA_7878A4 as u32, 7, 8], [46, eix_sites::DATA_787898 as u32, 10, 3], [47, eix_sites::DATA_78788C as u32, 10, 4], [48, eix_sites::DATA_787880 as u32, 10, 5], [49, eix_sites::DATA_787874 as u32, 10, 6],
-    [50, eix_sites::DATA_787868 as u32, 10, 0], [51, eix_sites::DATA_78785C as u32, 10, 1], [52, eix_sites::DATA_787850 as u32, 10, 8], [53, eix_sites::DATA_787844 as u32, 3, 8], [54, eix_sites::DATA_787838 as u32, 3, 9],
-    [55, eix_sites::DATA_78782C as u32, 4, 0], [56, eix_sites::DATA_787820 as u32, 4, 1], [57, eix_sites::DATA_787814 as u32, 4, 2], [58, eix_sites::DATA_787808 as u32, 4, 4], [59, eix_sites::DATA_7877F8 as u32, 10, 10],
+    [0, eix_sites::K_EMPTY_TEXT.ru32(), 0, 0], [1, eix_sites::DATA_787A30.ru32(), 3, 4], [2, eix_sites::DATA_787A28.ru32(), 3, 3], [3, eix_sites::DATA_787A20.ru32(), 3, 2], [4, eix_sites::DATA_787A1C.ru32(), 3, 6],
+    [5, eix_sites::DATA_787A10.ru32(), 6, 1], [6, eix_sites::DATA_787A04.ru32(), 6, 2], [7, eix_sites::DATA_7879F8.ru32(), 6, 3], [8, eix_sites::DATA_7879E8.ru32(), 6, 4], [9, eix_sites::DATA_7879D8.ru32(), 6, 5],
+    [10, eix_sites::DATA_7879C8.ru32(), 6, 6], [11, eix_sites::DATA_7879B8.ru32(), 6, 0], [12, eix_sites::DATA_7879AC.ru32(), 6, 8], [13, eix_sites::DATA_7879A4.ru32(), 6, 9], [14, eix_sites::DATA_78799C.ru32(), 6, 10],
+    [15, eix_sites::DATA_787994.ru32(), 6, 11], [16, eix_sites::DATA_78798C.ru32(), 6, 12], [17, eix_sites::DATA_787984.ru32(), 9, 0], [18, eix_sites::DATA_78797C.ru32(), 9, 1], [19, eix_sites::DATA_787974.ru32(), 9, 2],
+    [20, eix_sites::DATA_78796C.ru32(), 9, 3], [21, eix_sites::DATA_787964.ru32(), 9, 4], [22, eix_sites::DATA_78795C.ru32(), 9, 5], [23, eix_sites::DATA_787954.ru32(), 5, 7], [24, eix_sites::DATA_78794C.ru32(), 5, 6],
+    [25, eix_sites::DATA_787944.ru32(), 5, 5], [26, eix_sites::DATA_787940.ru32(), 5, 4], [27, eix_sites::DATA_787938.ru32(), 5, 2], [28, eix_sites::DATA_787930.ru32(), 5, 0], [29, eix_sites::DATA_787924.ru32(), 5, 1],
+    [30, eix_sites::DATA_78791C.ru32(), 8, 0], [31, eix_sites::DATA_787914.ru32(), 8, 1], [32, eix_sites::DATA_78790C.ru32(), 8, 2], [33, eix_sites::DATA_787904.ru32(), 8, 3], [34, eix_sites::DATA_7878FC.ru32(), 8, 4],
+    [35, eix_sites::DATA_7878F4.ru32(), 8, 5], [36, eix_sites::DATA_7878EC.ru32(), 8, 6], [37, eix_sites::DATA_7878E4.ru32(), 8, 7], [38, eix_sites::DATA_7878DC.ru32(), 7, 0], [39, eix_sites::DATA_7878D4.ru32(), 7, 1],
+    [40, eix_sites::DATA_7878CC.ru32(), 7, 2], [41, eix_sites::DATA_7878C4.ru32(), 7, 3], [42, eix_sites::DATA_7878BC.ru32(), 7, 5], [43, eix_sites::DATA_7878B4.ru32(), 7, 6], [44, eix_sites::DATA_7878AC.ru32(), 7, 7],
+    [45, eix_sites::DATA_7878A4.ru32(), 7, 8], [46, eix_sites::DATA_787898.ru32(), 10, 3], [47, eix_sites::DATA_78788C.ru32(), 10, 4], [48, eix_sites::DATA_787880.ru32(), 10, 5], [49, eix_sites::DATA_787874.ru32(), 10, 6],
+    [50, eix_sites::DATA_787868.ru32(), 10, 0], [51, eix_sites::DATA_78785C.ru32(), 10, 1], [52, eix_sites::DATA_787850.ru32(), 10, 8], [53, eix_sites::DATA_787844.ru32(), 3, 8], [54, eix_sites::DATA_787838.ru32(), 3, 9],
+    [55, eix_sites::DATA_78782C.ru32(), 4, 0], [56, eix_sites::DATA_787820.ru32(), 4, 1], [57, eix_sites::DATA_787814.ru32(), 4, 2], [58, eix_sites::DATA_787808.ru32(), 4, 4], [59, eix_sites::DATA_7877F8.ru32(), 10, 10],
 ];
 
 /// Where `newoptions` writes the new actions' names, padding in `CSceneRenderer::SetFogColourStateImpl`, as the
 /// original: "camp" and "kick".
-const KEY_NAMES: usize = eix_sites::C_SCENE_RENDERER_SET_FOG_COLOUR_STATE_IMPL__33;
+const KEY_NAMES: Site = eix_sites::C_SCENE_RENDERER_SET_FOG_COLOUR_STATE_IMPL__33;
 
 /// The key actions with `newoptions`: the game's 60, then "camp" (60), "kick" (61) and "kick" again (62), in the
-/// options' group 5, rows 9 to 11, as the original's table. Writable, as the game's own table is.
-static KEY_TABLE: [AtomicU32; 63 * 4] = {
-    let mut table = [const { AtomicU32::new(0) }; 63 * 4];
+/// options' group 5, rows 9 to 11, as the original's table, its names at their RU 1.06 addresses.
+const KEY_TABLE_RU: [u32; 63 * 4] = {
+    let mut table = [0; 63 * 4];
     let mut i = 0;
     while i < 60 {
         let mut j = 0;
         while j < 4 {
-            table[4 * i + j] = AtomicU32::new(KEY_ACTIONS[i][j]);
+            table[4 * i + j] = KEY_ACTIONS[i][j];
             j += 1;
         }
         i += 1;
     }
     let added = [
-        [60, KEY_NAMES as u32, 5, 9],
-        [61, KEY_NAMES as u32 + 5, 5, 10],
-        [62, KEY_NAMES as u32 + 5, 5, 11],
+        [60, KEY_NAMES.ru32(), 5, 9],
+        [61, KEY_NAMES.offset(5).ru32(), 5, 10],
+        [62, KEY_NAMES.offset(5).ru32(), 5, 11],
     ];
     let mut k = 0;
     while k < 3 {
         let mut j = 0;
         while j < 4 {
-            table[4 * (60 + k) + j] = AtomicU32::new(added[k][j]);
+            table[4 * (60 + k) + j] = added[k][j];
             j += 1;
         }
         k += 1;
@@ -1527,11 +1528,30 @@ static KEY_TABLE: [AtomicU32; 63 * 4] = {
     table
 };
 
+/// [`KEY_TABLE_RU`] as the game reads it once `newoptions` points it here, the names at their place in the running
+/// build ([`name_key_table`]). Writable, as the game's own table is.
+static KEY_TABLE: [AtomicU32; 63 * 4] = {
+    let mut table = [const { AtomicU32::new(0) }; 63 * 4];
+    let mut i = 0;
+    while i < 63 * 4 {
+        table[i] = AtomicU32::new(KEY_TABLE_RU[i]);
+        i += 1;
+    }
+    table
+};
+
+/// Points each action's name word of [`KEY_TABLE`] at the name in the running build.
+fn name_key_table() {
+    for (slot, &ru) in KEY_TABLE.iter().zip(&KEY_TABLE_RU).skip(1).step_by(4) {
+        slot.store(Site::new(ru as usize).here32(), Ordering::Relaxed);
+    }
+}
+
 /// The game's table, and each reference to it that `newoptions` moves: the site of the address and the offset it then
 /// points at in [`KEY_TABLE`] (the original's ends: 63 entries for the bindings and the options' build, 62 for the
 /// options' group display).
-const KEY_TABLE_GAME: usize = eix_sites::K_ACTION_DEFINITIONS;
-const KEY_TABLE_REFS: [(usize, usize, usize); 10] = [
+const KEY_TABLE_GAME: Site = eix_sites::K_ACTION_DEFINITIONS;
+const KEY_TABLE_REFS: [(Site, Site, usize); 10] = [
     (
         eix_sites::LOAD_KEY_BINDINGS__12B,
         eix_sites::DATA_787074,
@@ -1583,7 +1603,7 @@ const KEY_TABLE_REFS: [(usize, usize, usize); 10] = [
         0x3EC,
     ),
 ];
-const _: () = assert!(KEY_TABLE_GAME == KEY_TABLE_REFS[2].1);
+const _: () = assert!(KEY_TABLE_GAME.ru() == KEY_TABLE_REFS[2].1.ru());
 
 /// `newoptions` = 1: the key bindings gain "camp" and "kick", and the battle screen passes actions up to 61 to its
 /// switch (`cmp eax, 0x3A` -> `0x3C`). Actions 60 and 61's entries of the switch's table are NOP padding in the
@@ -1592,10 +1612,11 @@ fn new_options(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
+    name_key_table();
     let table = KEY_TABLE.as_ptr() as usize;
     let mut writes: Vec<SiteWrite> = KEY_TABLE_REFS
         .iter()
-        .map(|&(site, was, offset)| SiteWrite::pointer(site, was, table + offset))
+        .map(|&(site, was, offset)| SiteWrite::pointer(site, was.ru(), table + offset))
         .collect();
     writes.push(bytes(KEY_NAMES, &[0x90; 13], b"camp\0kick\0\0\0\0")?);
     writes.push(bytes(
@@ -1605,9 +1626,17 @@ fn new_options(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     )?);
     let camp_builds_it = ctx.values.flag("gameplay", "camp")? >= 2;
     if !camp_builds_it {
-        writes.push(SiteWrite::pointer(ACTION_60, ACTION_PADDING, KEY_DOWN_END));
+        writes.push(SiteWrite::pointer(
+            ACTION_60,
+            ACTION_PADDING,
+            KEY_DOWN_END.ru(),
+        ));
     }
-    writes.push(SiteWrite::pointer(ACTION_61, ACTION_PADDING, KEY_DOWN_END));
+    writes.push(SiteWrite::pointer(
+        ACTION_61,
+        ACTION_PADDING,
+        KEY_DOWN_END.ru(),
+    ));
     Ok(writes)
 }
 
@@ -1616,7 +1645,7 @@ mod tests {
     use super::super::testing::{assert_original, no_log, plain, values};
     use super::*;
 
-    fn sites(writes: &[SiteWrite]) -> Vec<(usize, usize)> {
+    fn sites(writes: &[SiteWrite]) -> Vec<(Site, usize)> {
         writes.iter().map(|w| (w.site(), w.size())).collect()
     }
 
@@ -1629,7 +1658,7 @@ mod tests {
         for (writes, capped) in [(&skills, true), (&stealing, false)] {
             let w = &writes[0];
             let rel = u32::from_le_bytes(w.new_bytes()[1..5].try_into().unwrap());
-            let stub = (w.site() as u32).wrapping_add(5).wrapping_add(rel);
+            let stub = w.site().ru32().wrapping_add(5).wrapping_add(rel);
             // SAFETY: this builder's jump targets its context stub: resume, flags, registers, handler, argument.
             let arg = unsafe { common::read::<u32>(stub + 13) } as usize;
             let mut record = [0u32; 5];
@@ -1879,7 +1908,7 @@ mod tests {
 
     /// `newoptions`' table references (ours point at our table) and its names and bound; then actions 60 and 61's
     /// switch entries, which the original leaves as padding and ours ends the switch with.
-    const NEW_OPTIONS: &[(usize, &str)] = &[
+    const NEW_OPTIONS: &[(Site, &str)] = &[
         (eix_sites::LOAD_KEY_BINDINGS__12B, "?? ?? ?? ??"),
         (eix_sites::LOAD_KEY_BINDINGS__14C, "?? ?? ?? ??"),
         (eix_sites::LOAD_KEY_BINDINGS__168, "?? ?? ?? ??"),
@@ -1908,7 +1937,7 @@ mod tests {
     ];
 
     /// `camp` 2's controls with `newoptions`, as the original writes them.
-    const CAMP_CONTROLS: &[(usize, &str)] = &[
+    const CAMP_CONTROLS: &[(Site, &str)] = &[
         (
             eix_sites::C_INTERFACE_3D_ON_STRING_EVENT__7F,
             "E9 ?? ?? ?? ??",
@@ -1928,8 +1957,8 @@ mod tests {
 
     #[test]
     fn new_options_write_the_originals_bytes() {
-        let sites: Vec<(usize, &str)> = NEW_OPTIONS.iter().chain(CAMP_CONTROLS).copied().collect();
-        let both: &'static [(usize, &str)] = sites.leak();
+        let sites: Vec<(Site, &str)> = NEW_OPTIONS.iter().chain(CAMP_CONTROLS).copied().collect();
+        let both: &'static [(Site, &str)] = sites.leak();
         assert_original(&[
             ("gameplay", "newoptions", 1, &[], NEW_OPTIONS),
             (
@@ -1949,12 +1978,12 @@ mod tests {
                 KEY_TABLE[4 * i + j].load(core::sync::atomic::Ordering::Relaxed)
             })
         };
-        assert_eq!(entry(11), [11, eix_sites::DATA_7879B8 as u32, 6, 0]);
+        assert_eq!(entry(11), [11, eix_sites::DATA_7879B8.ru32(), 6, 0]);
         assert_eq!(
             entry(60),
             [
                 60,
-                eix_sites::C_SCENE_RENDERER_SET_FOG_COLOUR_STATE_IMPL__33 as u32,
+                eix_sites::C_SCENE_RENDERER_SET_FOG_COLOUR_STATE_IMPL__33.ru32(),
                 5,
                 9
             ]
@@ -1963,7 +1992,7 @@ mod tests {
             entry(61),
             [
                 61,
-                eix_sites::C_SCENE_RENDERER_SET_FOG_COLOUR_STATE_IMPL__38 as u32,
+                eix_sites::C_SCENE_RENDERER_SET_FOG_COLOUR_STATE_IMPL__38.ru32(),
                 5,
                 10
             ]
@@ -1972,7 +2001,7 @@ mod tests {
             entry(62),
             [
                 62,
-                eix_sites::C_SCENE_RENDERER_SET_FOG_COLOUR_STATE_IMPL__38 as u32,
+                eix_sites::C_SCENE_RENDERER_SET_FOG_COLOUR_STATE_IMPL__38.ru32(),
                 5,
                 11
             ]
@@ -2000,7 +2029,7 @@ mod tests {
     }
 
     /// `camp` 3's quest-item hooks, as the original writes them.
-    const QUEST_HOOKS: &[(usize, &str)] = &[
+    const QUEST_HOOKS: &[(Site, &str)] = &[
         (
             eix_sites::C_WORLD_SERVER_CREATE_ITEM_NAMED__7D,
             "E8 ?? ?? ?? ?? 90",
@@ -2010,7 +2039,7 @@ mod tests {
 
     #[test]
     fn camp_three_writes_the_originals_bytes() {
-        let key: Vec<(usize, &str)> = [
+        let key: Vec<(Site, &str)> = [
             (
                 eix_sites::C_INTERFACE_3D_ON_STRING_EVENT__7F,
                 "E9 ?? ?? ?? ??",
@@ -2020,7 +2049,7 @@ mod tests {
         .into_iter()
         .chain(QUEST_HOOKS.iter().copied())
         .collect();
-        let controls: Vec<(usize, &str)> = NEW_OPTIONS
+        let controls: Vec<(Site, &str)> = NEW_OPTIONS
             .iter()
             .chain(CAMP_CONTROLS)
             .chain(QUEST_HOOKS)
@@ -2048,7 +2077,7 @@ mod tests {
             (eix_sites::BATTLE_SCREEN_KEY_DOWN__E79, "E8 ?? ?? ?? ??"),
             (eix_sites::C_BATTLE_SCREEN_CREATE__7FD, "E9 ?? ?? ?? ?? 90"),
         ];
-        let controls: Vec<(usize, &str)> = key
+        let controls: Vec<(Site, &str)> = key
             .iter()
             .chain(NEW_OPTIONS)
             .chain(
@@ -2189,7 +2218,7 @@ mod tests {
             sites(&encumbrance_move_speed(&ctx, 1).unwrap()),
             [
                 (eix_sites::UNIT_STATS_RECOMPUTE__67A, 6),
-                (0x40_02D8, 4),
+                (MOVE_MUL, 4),
                 (eix_sites::GAME_BUFFER_READ_BYTES__64, 8)
             ]
         );
@@ -2198,12 +2227,12 @@ mod tests {
             [
                 (eix_sites::C_UNIT_CLIENT_SPECIFIC_ADVANCE_TIME__143, 2),
                 (eix_sites::C_UNIT_ACTION_SPEED__13, 6),
-                (0x40_02DC, 4)
+                (ATTACK_MUL, 4)
             ]
         );
         assert_eq!(
             sites(&encumbrance_attack_speed(&ctx, 2).unwrap()),
-            [(0x40_02DC, 4), (eix_sites::UNIT_STATS_RECOMPUTE__69E, 6)]
+            [(ATTACK_MUL, 4), (eix_sites::UNIT_STATS_RECOMPUTE__69E, 6)]
         );
         assert!(encumbrance_attack_speed(&ctx, 3).unwrap().is_empty());
         let w = heroes_can_hide_weapons(&ctx, 1).unwrap();
@@ -2220,7 +2249,7 @@ mod tests {
         );
         // The four keys share one entry.
         let target = |w: &SiteWrite| {
-            (w.site() + 4) as u32 + u32::from_le_bytes(w.new_bytes().try_into().unwrap())
+            w.site().offset(4).ru32() + u32::from_le_bytes(w.new_bytes().try_into().unwrap())
         };
         assert_eq!(target(&w[2]), target(&w[5]));
         let v = values(&[("gameplay", "speedslowremaster", "2")]);
@@ -2229,8 +2258,8 @@ mod tests {
             sites(&encumbrance_move_speed(&ctx, 1).unwrap()),
             [
                 (eix_sites::UNIT_STATS_RECOMPUTE__67A, 6),
-                (0x40_02CC, 4),
-                (0x40_02D8, 4),
+                (SLOW_MOVE_MUL, 4),
+                (MOVE_MUL, 4),
                 (eix_sites::GAME_BUFFER_READ_BYTES__64, 8)
             ]
         );

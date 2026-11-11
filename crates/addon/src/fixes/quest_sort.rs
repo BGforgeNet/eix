@@ -10,23 +10,24 @@
 
 use eix_core::x86_flags;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// Left scan, `while comp(*first, pivot)`: `cmp esi, ebx; je less; cmp edi, ebx` with ESI the record of `*first`,
 /// EDI the pivot's, EBX zero; then `je not_less` (0x64F749) and the key test.
-const LEFT: usize = eix_sites::TEXT_64F743;
+const LEFT: Site = eix_sites::TEXT_64F743;
 const LEFT_BYTES: [u8; 6] = [0x3B, 0xF3, 0x74, 0x13, 0x3B, 0xFB];
-const LEFT_NULL_TEST: usize = eix_sites::TEXT_64F749;
-const LEFT_LESS: usize = eix_sites::TEXT_64F75A;
-const LEFT_NOT_LESS: usize = eix_sites::TEXT_64F762;
+const LEFT_NULL_TEST: Site = eix_sites::TEXT_64F749;
+const LEFT_LESS: Site = eix_sites::TEXT_64F75A;
+const LEFT_NOT_LESS: Site = eix_sites::TEXT_64F762;
 /// Right scan, `while comp(pivot, *--last)`: `cmp esi, ebx; mov [esp+0x7c], bl` with ESI the pivot's record, EDI
 /// that of `*last`; then `je less` (0x64F7E9), and at 0x64F7EF the test of EDI.
-const RIGHT: usize = eix_sites::TEXT_64F7E3;
+const RIGHT: Site = eix_sites::TEXT_64F7E3;
 const RIGHT_BYTES: [u8; 6] = [0x3B, 0xF3, 0x88, 0x5C, 0x24, 0x7C];
-const RIGHT_LESS: usize = eix_sites::TEXT_64F762;
-const RIGHT_NOT_LESS: usize = eix_sites::TEXT_64F806;
+const RIGHT_LESS: Site = eix_sites::TEXT_64F762;
+const RIGHT_NOT_LESS: Site = eix_sites::TEXT_64F806;
 
 /// The left scan's comparator: ESI's quest against EDI's.
 extern "C" fn left(_: usize, ctx: &mut Context) {

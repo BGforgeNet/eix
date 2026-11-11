@@ -25,6 +25,7 @@ use eix_engine::dll::Dll;
 use eix_engine::exe;
 use eix_engine::heap::ProcessHeap;
 use eix_engine::{patch, registry, win};
+use eix_sites::Site;
 
 use messages::TITLE;
 
@@ -64,16 +65,16 @@ type CreateEx = unsafe extern "system" fn(
 type Apply = unsafe extern "C" fn();
 
 /// RU 1.06's entry point.
-const ENTRY: usize = eix_sites::ENTRY;
+const ENTRY: Site = eix_sites::ENTRY;
 /// The entry point's bytes the hook replaces (`push ebp; mov ebp, esp; push -1`).
 const ENTRY_BYTES: [u8; 5] = [0x55, 0x8B, 0xEC, 0x6A, 0xFF];
 /// game.exe's `.text` in memory, through the end of its last page.
-const TEXT: usize = eix_sites::TEXT_SECTION;
+const TEXT: Site = eix_sites::TEXT_SECTION;
 const TEXT_LEN: usize = 0x33_A000;
 /// Slack after `.text`'s code where an addon without `Apply` gets a `jmp [HANDLER_SLOT]`.
-const HANDLER_JMP: usize = eix_sites::TEXT_73A670;
+const HANDLER_JMP: Site = eix_sites::TEXT_73A670;
 /// Slack after `.text`'s code holding the address of the addon's `Handler`.
-const HANDLER_SLOT: usize = eix_sites::TEXT_73A762;
+const HANDLER_SLOT: Site = eix_sites::TEXT_73A762;
 
 /// Resolves the system's export on every call; the game creates DirectInput once or twice.
 ///
@@ -155,7 +156,8 @@ fn hook_bytes() -> [u8; 5] {
 }
 
 /// The entry point in the running build, set before the entry is hooked.
-static ENTRY_HERE: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(ENTRY);
+static ENTRY_HERE: core::sync::atomic::AtomicUsize =
+    core::sync::atomic::AtomicUsize::new(ENTRY.ru());
 
 /// Jumped to from game.exe's entry point: calls `on_entry`, then continues at the restored entry. The call clobbers
 /// only the caller-saved registers, as the original loader's stub does.
@@ -208,7 +210,7 @@ fn start_addon() -> Result<(), alloc::string::String> {
 /// An addon without `Apply`: the original loader leaves `jmp [HANDLER_SLOT]` at HANDLER_JMP and Handler's address
 /// in the slot, and does not call it.
 fn install_handler(handler: usize) -> Result<(), patch::PatchError> {
-    let [s0, s1, s2, s3] = (HANDLER_SLOT as u32).to_le_bytes();
+    let [s0, s1, s2, s3] = HANDLER_SLOT.ru32().to_le_bytes();
     // The original leaves `.text` writable on this path; an addon built for it may write code without unprotecting it.
     // SAFETY: `.text` is game.exe's mapped code section.
     unsafe { patch::unprotect(TEXT, TEXT_LEN) }?;
@@ -225,10 +227,7 @@ fn attach() -> Result<(), alloc::string::String> {
         return Err(messages::invalid_version(&id));
     };
     eix_sites::select(build);
-    ENTRY_HERE.store(
-        eix_sites::here(ENTRY),
-        core::sync::atomic::Ordering::Relaxed,
-    );
+    ENTRY_HERE.store(ENTRY.here(), core::sync::atomic::Ordering::Relaxed);
     // SAFETY: the entry point is mapped code that has not run yet; the loader runs DllMain on this one thread.
     unsafe { patch::write(ENTRY, &ENTRY_BYTES, &hook_bytes()) }
         .map_err(|e| alloc::format!("Cannot hook game.exe's entry point: {e}"))

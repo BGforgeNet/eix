@@ -21,6 +21,7 @@ use eix_core::encumbrance::{Settings, encumbrance, rescaled};
 use eix_engine::game::unit::{UnitServer, UnitStats, UnitVitals};
 use eix_engine::hook::{self, Context, FpuContext, Mode};
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
 use crate::game::BeforeWinMain;
 use crate::groups::{self, BuildError, Labelled, Tally, apply_built};
@@ -28,10 +29,10 @@ use crate::log;
 
 const GATE_LABEL: &str = "Encumbrance gate";
 /// `MovementState`'s `je` past the load test becomes `jmp`.
-const GATE: usize = eix_sites::UNIT_STATS_MOVEMENT_STATE__70;
+const GATE: Site = eix_sites::UNIT_STATS_MOVEMENT_STATE__70;
 /// In `Pack`, after the base speed byte's store at 0x522E1A: `mov eax, [ebx+0x30]; mov [ebp-0x10], eax`. EBX is
 /// the `UnitStats`, EDI the packed params.
-const PACK_SITE: usize = eix_sites::UNIT_STATS_PACK__13D;
+const PACK_SITE: Site = eix_sites::UNIT_STATS_PACK__13D;
 const PACK_BYTES: [u8; 6] = [0x8B, 0x43, 0x30, 0x89, 0x45, 0xF0];
 /// The packed params' run byte (`modeSpeeds[0]`, Pack 0x522D78) and base speed byte (0x522E1A).
 const RUN_BYTE: usize = 0x10;
@@ -40,7 +41,7 @@ const DRAIN_LABEL: &str = "Encumbrance drain";
 /// In `UpdateMotion`, just after the running drain's subtraction (`fst [edi+0x14]; fcomp dword [0x73B858]`): ST0 is
 /// the new mana, [EDI+0x14] still the old, ESI the `UnitServer`, EDI its vitals. SpellAddon's `newrunsystem` patches
 /// end before it, so every run system's drain gets rescaled.
-const DRAIN_SITE: usize = eix_sites::UPDATE_MOTION__A93;
+const DRAIN_SITE: Site = eix_sites::UPDATE_MOTION__A93;
 const DRAIN_BYTES: [u8; 9] = [0xD9, 0x57, 0x14, 0xD8, 0x1D, 0x58, 0xB8, 0x73, 0x00];
 /// The first byte of `Recompute`'s `fld [ebx+0x24]`, the instruction SpellAddon's `encumbrancemovespeed` hooks.
 const RECOMPUTE_SPEED_FIRST: u8 = 0xD9;
@@ -53,8 +54,7 @@ static CHECKED: AtomicBool = AtomicBool::new(false);
 /// the speed `Pack` reads, so both would apply.
 fn check_spelladdon() {
     // SAFETY: game.exe's code section is mapped for the process's lifetime.
-    let first =
-        unsafe { (eix_sites::here(eix_sites::UNIT_STATS_RECOMPUTE__67A) as *const u8).read() };
+    let first = unsafe { (eix_sites::UNIT_STATS_RECOMPUTE__67A.here() as *const u8).read() };
     if first != RECOMPUTE_SPEED_FIRST {
         log::warn(
             "encumbrance",
@@ -205,12 +205,13 @@ mod tests {
     #[test]
     fn spelladdon_writes_nothing_at_the_hooks() {
         for ours in [
-            eix_sites::UNIT_STATS_PACK__13D..eix_sites::UNIT_STATS_PACK__13D + PACK_BYTES.len(),
-            DRAIN_SITE..DRAIN_SITE + DRAIN_BYTES.len(),
+            eix_sites::UNIT_STATS_PACK__13D
+                ..eix_sites::UNIT_STATS_PACK__13D.offset(PACK_BYTES.len()),
+            DRAIN_SITE..DRAIN_SITE.offset(DRAIN_BYTES.len()),
         ] {
             for (name, w) in spelladdon::writes() {
                 assert!(
-                    w.site() + w.size() <= ours.start || ours.end <= w.site(),
+                    w.site().offset(w.size()) <= ours.start || ours.end <= w.site(),
                     "SpellAddon's {name} at {:#X}",
                     w.site()
                 );

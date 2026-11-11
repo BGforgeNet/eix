@@ -31,7 +31,7 @@ extern "system" fn set_volume(movie: *mut c_void, volume: i32) {
         return;
     }
     // SAFETY: `f` is the mod DLL's `_BinkSetVolume@12`, which stays loaded.
-    let f: BinkSetVolume12 = unsafe { eix_engine::hook::as_fn(f) };
+    let f: BinkSetVolume12 = unsafe { eix_engine::hook::as_fn_at(f) };
     // SAFETY: the game's movie and volume, with the track the older signature lacks.
     unsafe { f(movie, 0, volume) }
 }
@@ -75,12 +75,12 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
             dll.address(name)
                 .ok_or_else(|| format!("the mod's binkw32.dll has no {}", name.to_string_lossy()))?
         };
-        // SAFETY: the build is RU 1.06, whose import slots the Windows loader filled before the entry point; this
+        // SAFETY: the build is a supported one, whose import slots the Windows loader filled before the entry point; this
         // runs on the game's thread before WinMain.
         let old = unsafe { slot.read() };
         writes.push(pointer(
             &format!("BinkPatch {}", name.to_string_lossy()),
-            slot.address(),
+            slot.site(),
             old,
             new,
         ));

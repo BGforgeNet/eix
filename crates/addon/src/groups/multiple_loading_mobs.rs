@@ -12,12 +12,13 @@ use eix_core::rules::free_id;
 use eix_engine::game::mob::MobSpec;
 use eix_engine::game::world::{SERVER_WORLD, World};
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::memory::word;
 use super::{BuildError, Labelled, Setup};
 
 /// Where `ReadMobChunks` goes on with the next record once one is filed (it clears ESI first).
-const NEXT_RECORD: usize = eix_sites::READ_MOB_CHUNKS__2B8;
+const NEXT_RECORD: Site = eix_sites::READ_MOB_CHUNKS__2B8;
 
 /// The ids given to records without one. The world holds none of them while their file loads, so without this list
 /// two such records of one file got the same id and only the second appeared, as in the original.

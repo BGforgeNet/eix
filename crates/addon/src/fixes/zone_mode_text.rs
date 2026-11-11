@@ -5,12 +5,13 @@
 #![expect(unsafe_code, reason = "calls the game's FatalError")]
 
 use eix_engine::hook;
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `call FatalError` with the message on the stack.
-const CALL: usize = eix_sites::C_MUSIC_SYSTEM_SET_ZONE_MODE__BC;
+const CALL: Site = eix_sites::C_MUSIC_SYSTEM_SET_ZONE_MODE__BC;
 const CALL_BYTES: [u8; 5] = [0xE8, 0x8F, 0xB1, 0xDC, 0xFF];
 
 /// `FatalError(format, ...)`: cdecl, its result in EAX.
@@ -39,7 +40,7 @@ mod tests {
     fn the_call_went_to_fatal_error() {
         let rel = i32::from_le_bytes(CALL_BYTES[1..].try_into().unwrap());
         assert_eq!(
-            (CALL + 5).wrapping_add_signed(rel as isize),
+            Site::new((CALL.offset(5)).ru().wrapping_add_signed(rel as isize)),
             eix_sites::FATAL_ERROR
         );
     }

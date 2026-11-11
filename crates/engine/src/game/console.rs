@@ -39,7 +39,7 @@ pub const CONSOLE_OUT: Global<Ostream> = Global::at(eix_sites::DATA_7C55A8);
 /// Runs one console line, as typed: `Execute` 0x5DC620 (fastcall, the text in ECX, plain `ret`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread, with the console's statics constructed.
+/// The process must be a supported game.exe, on the game's thread, with the console's statics constructed.
 pub unsafe fn execute(line: &CStr) {
     // SAFETY: 0x5DC620 takes the text in ECX, never reads EDX before writing it, and returns with a plain `ret`.
     let f = unsafe { code::<unsafe extern "fastcall" fn(*const u8)>(eix_sites::TEXT_5DC620) };

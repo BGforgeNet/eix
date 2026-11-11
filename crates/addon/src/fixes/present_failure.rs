@@ -8,22 +8,23 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled, bytes};
 use crate::log;
 use crate::setup::Setup;
 
 /// The flags argument of `IDirectDrawSurface::Flip`: `push 0`.
-const FLIP_FLAGS: usize = eix_sites::DEVICE_PRESENT__1F;
+const FLIP_FLAGS: Site = eix_sites::DEVICE_PRESENT__1F;
 /// `DDFLIP_WAIT`.
 const DDFLIP_WAIT: u8 = 1;
 
 /// BeginScene's error branch (an HRESULT in EAX that is neither 0 nor D3DERR_SCENE_IN_SCENE): `push "Can't begin
 /// scene."`, which the hook replaces.
-const SCENE_ERROR: usize = eix_sites::C_SCENE_RENDERER_BEGIN_SCENE__13D;
+const SCENE_ERROR: Site = eix_sites::C_SCENE_RENDERER_BEGIN_SCENE__13D;
 const SCENE_ERROR_BYTES: [u8; 5] = [0x68, 0xAC, 0xEE, 0x78, 0x00];
 /// After it, `push eax; call 0x4800E0; add esp, 8`, then the function's `return 1` at 0x50408B.
-const REPORT: usize = eix_sites::C_SCENE_RENDERER_BEGIN_SCENE__142;
+const REPORT: Site = eix_sites::C_SCENE_RENDERER_BEGIN_SCENE__142;
 const REPORT_BYTES: [u8; 9] = [0x50, 0xE8, 0x58, 0xC0, 0xF7, 0xFF, 0x83, 0xC4, 0x08];
 /// `pop edi; pop ebp; pop ebx; xor eax, eax; pop esi; ret`: the epilogue of the `return 1` with 0 instead, the
 /// answer of the function's own "not ready" exit (0x503F49).
@@ -72,14 +73,14 @@ mod tests {
         let w = build(&Setup::default()).unwrap();
         assert_eq!(w.len(), 3);
         // The hook's default resume is the byte after the five it covers: the start of the epilogue.
-        assert_eq!(w[1].write.site() + w[1].write.size(), REPORT);
+        assert_eq!(w[1].write.site().offset(w[1].write.size()), REPORT);
         assert_eq!(w[2].write.new_bytes(), &RETURN_NOT_READY);
     }
 
     #[test]
     fn the_report_call_is_the_hresult_fatal_error() {
         let rel = i32::from_le_bytes(REPORT_BYTES[2..6].try_into().unwrap());
-        let target = (REPORT + 6).wrapping_add_signed(rel as isize);
+        let target = Site::new((REPORT.offset(6)).ru().wrapping_add_signed(rel as isize));
         assert_eq!(target, eix_sites::FATAL_ERROR_CODE);
     }
 }

@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use eix_engine::game::unit::UnitStats;
 use eix_engine::patch;
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup, bytes};
 
@@ -20,9 +21,9 @@ use super::{BuildError, Labelled, Setup, bytes};
 static LIMIT: AtomicU32 = AtomicU32::new(0);
 
 /// `UnitStats::AddScaledExperience` 0x523960: the function the sites route to.
-const ADD_SCALED: usize = eix_sites::UNIT_STATS_ADD_SCALED_EXPERIENCE;
+const ADD_SCALED: Site = eix_sites::UNIT_STATS_ADD_SCALED_EXPERIENCE;
 /// `UnitStats::GainExperience`'s inlined copy of it.
-const GAIN_COPY: usize = eix_sites::UNIT_STATS_GAIN_EXPERIENCE__27;
+const GAIN_COPY: Site = eix_sites::UNIT_STATS_GAIN_EXPERIENCE__27;
 
 /// The new `AddScaledExperience(stats, amount)`: the game's sum with the pending experience, then the cap.
 extern "system" fn add_scaled(stats: *mut UnitStats, amount: f32) {
@@ -53,20 +54,20 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
 
     // #0: push dword [ebp+0xc]; mov ecx, esi; call AddScaledExperience; then a jump past the inlined copy's tail,
     // whose `fstp st(0)` at 0x523A19 the original runs on an empty x87 stack.
-    let call_at = GAIN_COPY + 5;
+    let call_at = GAIN_COPY.offset(5);
     let mut gain = vec![0xFF, 0x75, 0x0C, 0x89, 0xF1];
-    gain.extend(patch::call_rel32(call_at, ADD_SCALED));
-    let after = GAIN_COPY + gain.len() + 2;
+    gain.extend(patch::call_rel32(call_at, ADD_SCALED.ru()));
+    let after = GAIN_COPY.offset(gain.len()).offset(2);
     gain.extend([
         0xEB,
-        (eix_sites::UNIT_STATS_GAIN_EXPERIENCE__6B - after) as u8,
+        (eix_sites::UNIT_STATS_GAIN_EXPERIENCE__6B.since(after)) as u8,
     ]);
     gain.resize(66, 0x90);
 
     // #1: pushad; push dword [esp+0x24] (the amount); push ecx (stats); call add_scaled; popad; ret 4.
     let mut start = vec![0x60, 0xFF, 0x74, 0x24, 0x24, 0x51];
     start.extend(patch::call_rel32(
-        ADD_SCALED + start.len(),
+        ADD_SCALED.offset(start.len()),
         add_scaled as *const () as usize,
     ));
     start.extend([0x61, 0xC2, 0x04, 0x00]);

@@ -7,6 +7,7 @@ use eix_core::groups::{Decision, Group};
 use eix_engine::group::{Outcome, SiteWrite};
 use eix_engine::hook::{self, Context, HookError, Mode};
 use eix_engine::patch::PatchError;
+use eix_sites::Site;
 
 use crate::game::BeforeWinMain;
 use crate::log;
@@ -117,7 +118,7 @@ impl From<PatchError> for BuildError {
 /// A plain byte write at `site`: `original` becomes `new`.
 pub(crate) fn bytes(
     label: &str,
-    site: usize,
+    site: Site,
     original: &[u8],
     new: &[u8],
 ) -> Result<Labelled, BuildError> {
@@ -142,7 +143,7 @@ pub(crate) struct Labelled {
 }
 
 /// A 4-byte pointer at `site` (an operand, a table entry) goes from `expected` to `new`, logged as `label`.
-pub(crate) fn pointer(label: &str, site: usize, expected: usize, new: usize) -> Labelled {
+pub(crate) fn pointer(label: &str, site: Site, expected: usize, new: usize) -> Labelled {
     Labelled {
         label: label.to_owned(),
         write: SiteWrite::pointer(site, expected, new),
@@ -164,7 +165,7 @@ extern "C" fn set_eax(arg: usize, ctx: &mut Context) {
 /// The `call` at `site` (bytes `original`) gets `path` as its first argument instead of the game's.
 pub(crate) fn path_as_first_arg(
     label: &str,
-    site: usize,
+    site: Site,
     original: [u8; 5],
     path: &'static std::ffi::CStr,
 ) -> Result<Labelled, BuildError> {
@@ -178,7 +179,7 @@ pub(crate) fn path_as_first_arg(
 /// After the instructions at `site` (bytes `original`), EAX holds `path`, which the next instruction pushes.
 pub(crate) fn path_in_eax(
     label: &str,
-    site: usize,
+    site: Site,
     original: &[u8],
     path: &'static std::ffi::CStr,
 ) -> Result<Labelled, BuildError> {
@@ -380,12 +381,12 @@ pub(crate) fn log_site(label: &str, write: &SiteWrite) {
 
 thread_local! {
     /// The writes of the groups applied so far, by site, in table order.
-    static APPLIED: std::cell::RefCell<Vec<(usize, Vec<u8>)>> = const { std::cell::RefCell::new(Vec::new()) };
+    static APPLIED: std::cell::RefCell<Vec<(Site, Vec<u8>)>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// The bytes the last applied group wrote at exactly `site`, if any: a later group that takes over the site (as the
 /// original's table order lets it) expects them there.
-pub(crate) fn applied_write(site: usize) -> Option<Vec<u8>> {
+pub(crate) fn applied_write(site: Site) -> Option<Vec<u8>> {
     APPLIED.with_borrow(|a| {
         a.iter()
             .rev()
@@ -430,7 +431,7 @@ pub(crate) fn apply_built(
     for l in &labelled {
         log_site(&l.label, &l.write);
     }
-    let written: Vec<(usize, Vec<u8>)> = labelled
+    let written: Vec<(Site, Vec<u8>)> = labelled
         .iter()
         .map(|l| (l.write.site(), l.write.new_bytes().to_vec()))
         .collect();

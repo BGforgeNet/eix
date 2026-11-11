@@ -5,12 +5,13 @@
 //! EAX as the original's stub does.
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 use crate::log;
 
 /// `mov [esp+0xDC], eax`, before the recursive call's `call 0x4D1330`.
-const SITE: usize = eix_sites::C_SCRIPT_LOAD_COMMANDS__2E4;
+const SITE: Site = eix_sites::C_SCRIPT_LOAD_COMMANDS__2E4;
 const ORIGINAL: [u8; 7] = [0x89, 0x84, 0x24, 0xDC, 0x00, 0x00, 0x00];
 
 /// The caller's locals, as a stack word index at the site.

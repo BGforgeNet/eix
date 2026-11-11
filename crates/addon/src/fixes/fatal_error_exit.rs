@@ -6,13 +6,14 @@
 #![expect(unsafe_code, reason = "calls the game's C runtime flush")]
 
 use eix_engine::{hook, win};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::log;
 use crate::setup::Setup;
 
 /// `call exit` in FatalError and in its HRESULT twin, each after `push -1`.
-const EXIT_CALLS: [(usize, [u8; 5]); 2] = [
+const EXIT_CALLS: [(Site, [u8; 5]); 2] = [
     (eix_sites::FATAL_ERROR__4D, [0xE8, 0xD5, 0x8C, 0x26, 0x00]),
     (
         eix_sites::FATAL_ERROR_CODE__7C,
@@ -20,7 +21,7 @@ const EXIT_CALLS: [(usize, [u8; 5]); 2] = [
     ),
 ];
 /// The game's `_flushall`.
-const FLUSH_ALL: usize = eix_sites::TEXT_6ED5ED;
+const FLUSH_ALL: Site = eix_sites::TEXT_6ED5ED;
 
 type FlushAll = unsafe extern "C" fn() -> i32;
 
@@ -64,7 +65,7 @@ mod tests {
         for (site, bytes) in EXIT_CALLS {
             let rel = i32::from_le_bytes(bytes[1..].try_into().unwrap());
             assert_eq!(
-                (site + 5).wrapping_add_signed(rel as isize),
+                Site::new((site.offset(5)).ru().wrapping_add_signed(rel as isize)),
                 eix_sites::TEXT_6E8DA7
             );
         }

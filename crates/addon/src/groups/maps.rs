@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use eix_core::mod_files::MapsIndex;
 use eix_engine::game::mfc::{self, GameString};
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::arg_path::c_str;
 use super::{BuildError, Labelled, Setup, static_c_str};
@@ -41,7 +42,7 @@ enum Name {
 }
 
 /// The nine sites: label, address, replaced bytes, where the name is.
-const SITES: [(&str, usize, &[u8], Name); 9] = [
+const SITES: [(&str, Site, &[u8], Name); 9] = [
     (
         "Maps #1",
         eix_sites::C_WORLD_SERVER_NEW_ZONE__4E,
@@ -99,7 +100,7 @@ const SITES: [(&str, usize, &[u8], Name); 9] = [
 ];
 
 /// `MapsFolder`'s `push 0x7AF460`, the game's maps folder CString.
-const SET_PATH: usize = eix_sites::MAPS_FOLDER__19;
+const SET_PATH: Site = eix_sites::MAPS_FOLDER__19;
 const SET_PATH_BYTES: [u8; 5] = [0x68, 0x60, 0xF4, 0x7A, 0x00];
 
 fn name_address(name: Name, ctx: &Context) -> Option<u32> {
@@ -184,7 +185,7 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
         chars: core::ptr::null_mut(),
     }));
     let address = core::ptr::from_mut(string);
-    // SAFETY: the build is RU 1.06 (checked before the WinMain hook); the slot is fresh, writable and holds no
+    // SAFETY: the build is a supported one (checked before the WinMain hook); the slot is fresh, writable and holds no
     // string; this runs on the game's thread before WinMain.
     unsafe { mfc::construct(address, text) };
     let _ = MOD_FOLDER.set(address.expose_provenance() as u32);

@@ -1,9 +1,11 @@
 //! The ai.reg groups that only change game.exe's bytes: a branch taken or dropped, an immediate, a check NOPed.
 
+use eix_sites::Site;
+
 use super::{BuildError, Labelled, Setup, bytes};
 
 /// NOPs over `original` at `site`.
-fn nops(label: &str, site: usize, original: &[u8]) -> Result<Labelled, BuildError> {
+fn nops(label: &str, site: Site, original: &[u8]) -> Result<Labelled, BuildError> {
     bytes(label, site, original, &vec![0x90; original.len()])
 }
 

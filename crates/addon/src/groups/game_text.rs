@@ -17,7 +17,7 @@ pub(crate) fn game_string(text: Vec<u8>) -> Result<usize, BuildError> {
         chars: core::ptr::null_mut(),
     }));
     let address = core::ptr::from_mut(string);
-    // SAFETY: the build is RU 1.06 (checked before the WinMain hook); the slot is fresh, writable and holds no
+    // SAFETY: the build is a supported one (checked before the WinMain hook); the slot is fresh, writable and holds no
     // string; this runs on the game's thread before WinMain.
     unsafe { mfc::construct(address, text) };
     Ok(address.expose_provenance())

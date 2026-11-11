@@ -13,19 +13,20 @@ use core::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_engine::hook;
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::log;
 use crate::setup::Setup;
 
 /// `mov eax, [ecx+0x25f0]`: the old binding.
-const ON_BINDING: usize = eix_sites::CLIENT_ON_BINDING;
+const ON_BINDING: Site = eix_sites::CLIENT_ON_BINDING;
 const PROLOGUE: [u8; 6] = [0x8B, 0x81, 0xF0, 0x25, 0x00, 0x00];
 /// The client's player list, as `ShowPlayers` reads it (0x609232): a pointer to its head node, whose first word is the
 /// first node; an empty list's head points at itself.
 const PLAYERS: usize = 0x25D8;
 /// The interface `ClientOnPlayer` refreshes (0x41E4D8), and the argument it passes for a player added.
-const INTERFACE: usize = eix_sites::DATA_7C7D50;
+const INTERFACE: Site = eix_sites::DATA_7C7D50;
 const ADDED: i32 = 1;
 
 type OnBinding = unsafe extern "fastcall" fn(*mut c_void, *mut c_void);
@@ -48,7 +49,7 @@ unsafe fn has_players(head_slot: *const *const usize) -> bool {
 /// `ClientOnBinding`: `this` in ECX, the binding message in EDX, no stack arguments.
 extern "fastcall" fn on_binding(client: *mut c_void, binding: *mut c_void) {
     // SAFETY: ORIGINAL holds the trampoline `build` made, of this type; the arguments are the game's.
-    let original = unsafe { hook::as_fn::<OnBinding>(ORIGINAL.load(Ordering::Relaxed)) };
+    let original = unsafe { hook::as_fn_at::<OnBinding>(ORIGINAL.load(Ordering::Relaxed)) };
     // SAFETY: as above.
     unsafe { original(client, binding) };
     let head_slot = client.wrapping_byte_add(PLAYERS).cast::<*const usize>();
@@ -61,7 +62,7 @@ extern "fastcall" fn on_binding(client: *mut c_void, binding: *mut c_void) {
         // calls it.
         unsafe {
             refresh(
-                core::ptr::with_exposed_provenance_mut(eix_sites::here(INTERFACE)),
+                core::ptr::with_exposed_provenance_mut(INTERFACE.here()),
                 ADDED,
             )
         };

@@ -6,6 +6,7 @@
 )]
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::arg_path::c_str;
 use super::{BuildError, Labelled, Setup};
@@ -13,7 +14,7 @@ use crate::report;
 
 /// `mov esi, [esi + 8]; add edx, ecx`: ESI is the prototype's record (null when there is none), EDX:ECX the start
 /// of the division by the record size that follows.
-const SITE: usize = eix_sites::C_WORLD_SERVER_CREATE_OBJECT__7A8;
+const SITE: Site = eix_sites::C_WORLD_SERVER_CREATE_OBJECT__7A8;
 const ORIGINAL: [u8; 5] = [0x8B, 0x76, 0x08, 0x03, 0xD1];
 /// EBX + 0x20C: the prototype's name. EBX is the function's first argument, the description of the object to
 /// create; 0x592EFE takes the name's length to look the prototype up.

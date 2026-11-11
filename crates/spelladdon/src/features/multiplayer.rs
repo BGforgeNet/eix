@@ -7,6 +7,7 @@
 
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::Context;
+use eix_sites::Site;
 
 use super::common::{self, Bytes, fixed};
 use super::{Build, BuildError, Ctx};
@@ -54,7 +55,7 @@ fn long_nick(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// The multiplayer hero screen's attribute minimum, maximum and required sum: 15, 35, 75 in `.rdata`.
-const HERO_PARAMS: usize = eix_sites::RDATA_741EFC;
+const HERO_PARAMS: Site = eix_sites::RDATA_741EFC;
 const HERO_PARAMS_BYTES: [u8; 12] = [
     0x00, 0x00, 0x70, 0x41, 0x00, 0x00, 0x0C, 0x42, 0x00, 0x00, 0x96, 0x42,
 ];
@@ -171,7 +172,7 @@ fn allow_mp_speed(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 }
 
 /// The immediate of a `mov dword [g_updatePeriod], imm32` the game holds `was` in, set to `value`.
-fn period(site: usize, was: u32, value: i32) -> Result<SiteWrite, BuildError> {
+fn period(site: Site, was: u32, value: i32) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(
         site,
         &was.to_le_bytes(),
@@ -228,7 +229,7 @@ fn pause_toggle(call: [u8; 4]) -> [u8; 16] {
 }
 
 /// The pause toggle replaced by `mov dword [g_updatePeriod], period` and six NOPs.
-fn pause_write(site: usize, call: [u8; 4], period: i32) -> Result<SiteWrite, BuildError> {
+fn pause_write(site: Site, call: [u8; 4], period: i32) -> Result<SiteWrite, BuildError> {
     let mut new = [0x90; 16];
     new[..6].copy_from_slice(&[0xC7, 0x05, 0x34, 0xFF, 0x78, 0x00]);
     new[6..10].copy_from_slice(&period.to_le_bytes());
@@ -365,12 +366,12 @@ fn no_exp_penalty(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 
 /// The speedrun timer's word, in padding of `CDiplomacy::GetHostileMask`: 0 while a mission or zone loads, 1 once a
 /// battle screen is up. An external timer reads it here, so its place and values are fixed.
-const TIMER_WORD: u32 = eix_sites::C_DIPLOMACY_GET_HOSTILE_MASK__1D as u32;
+const TIMER_WORD: Site = eix_sites::C_DIPLOMACY_GET_HOSTILE_MASK__1D;
 
 fn set_timer_word(value: u16) {
     // SAFETY: the word lies in game.exe's `.text` padding, which start-up made writable; only these handlers and the
     // external timer touch it.
-    unsafe { common::write(eix_sites::here(TIMER_WORD as usize) as u32, value) };
+    unsafe { common::write(TIMER_WORD.here32(), value) };
 }
 
 /// Before `CWorldServer::NewZone` or `LoadSave`: the code in the padding right before the function, which the
@@ -383,7 +384,7 @@ extern "C" fn loading(_: usize, _: &mut Context) {
 extern "C" fn mission_loading(_: usize, ctx: &mut Context) {
     set_timer_word(0);
     // SAFETY: 0x7af784 is a global of game.exe's `.data`, which the replaced instruction read here.
-    ctx.ecx = unsafe { common::read(eix_sites::here(eix_sites::DATA_7AF784) as u32) };
+    ctx.ecx = unsafe { common::read(eix_sites::DATA_7AF784.here32()) };
     ctx.resume = eix_sites::LOAD_MISSION__1E;
 }
 
@@ -393,7 +394,7 @@ extern "C" fn shown(_: usize, _: &mut Context) {
 }
 
 /// The jump over `expected` at `site` to a stub that runs [`shown`], then `ret` (the function's own return).
-fn shown_at(site: usize, expected: &[u8], ret: &[u8]) -> Result<SiteWrite, BuildError> {
+fn shown_at(site: Site, expected: &[u8], ret: &[u8]) -> Result<SiteWrite, BuildError> {
     let stub = common::tail_stub(site, shown, 0, ret)?;
     Ok(SiteWrite::jmp(site, expected, stub)?)
 }

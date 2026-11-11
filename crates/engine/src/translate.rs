@@ -6,7 +6,7 @@
 
 use alloc::vec::Vec;
 
-use eix_sites::{here, in_image};
+use eix_sites::{Site, in_image};
 
 use crate::x86;
 
@@ -23,7 +23,12 @@ fn put(bytes: &mut [u8], at: usize, value: u32) {
 
 /// Whether `site` lies in game.exe's code.
 fn in_code(site: usize) -> bool {
-    (eix_sites::TEXT_SECTION..eix_sites::RDATA_SECTION).contains(&site)
+    (eix_sites::TEXT_SECTION.ru()..eix_sites::RDATA_SECTION.ru()).contains(&site)
+}
+
+/// RU 1.06 address `ru` in the running build.
+fn here(ru: usize) -> usize {
+    Site::new(ru).here()
 }
 
 /// `bytes`, code written for RU address `site`, moved to `map(site)`; `None` when they do not decode as whole
@@ -69,8 +74,8 @@ fn translated_with(site: usize, bytes: &[u8], map: impl Fn(usize) -> usize) -> V
 
 /// `bytes` written for RU address `site`, as the running build would hold them: code rebased, a data address
 /// translated; `bytes` unchanged where neither applies.
-pub(crate) fn translated(site: usize, bytes: &[u8]) -> Vec<u8> {
-    translated_with(site, bytes, here)
+pub(crate) fn translated(site: Site, bytes: &[u8]) -> Vec<u8> {
+    translated_with(site.ru(), bytes, here)
 }
 
 fn equivalent_with(site: usize, bytes: &[u8], found: &[u8], map: impl Fn(usize) -> usize) -> bool {
@@ -113,7 +118,8 @@ const REACH: usize = 3;
 /// # Safety
 /// `here(site)`, with [`REACH`] bytes on either side, must be mapped, readable memory that no other thread writes
 /// meanwhile, when `site` lies in game.exe's image.
-pub(crate) unsafe fn matches(site: usize, bytes: &[u8], found: &[u8]) -> bool {
+pub(crate) unsafe fn matches(site: Site, bytes: &[u8], found: &[u8]) -> bool {
+    let site = site.ru();
     if found == bytes || equivalent_with(site, bytes, found, here) {
         return true;
     }
@@ -134,9 +140,9 @@ pub(crate) unsafe fn matches(site: usize, bytes: &[u8], found: &[u8]) -> bool {
 ///
 /// # Safety
 /// As for [`matches`], with `here(site)..here(site) + bytes.len()` readable too.
-pub(crate) unsafe fn expected(site: usize, bytes: &[u8]) -> Vec<u8> {
+pub(crate) unsafe fn expected(site: Site, bytes: &[u8]) -> Vec<u8> {
     // SAFETY: the caller's guarantee.
-    let found = unsafe { core::slice::from_raw_parts(here(site) as *const u8, bytes.len()) };
+    let found = unsafe { core::slice::from_raw_parts(site.ptr::<u8>(), bytes.len()) };
     // SAFETY: as above.
     if unsafe { matches(site, bytes, found) } {
         found.to_vec()
@@ -166,8 +172,8 @@ fn written_with(
 /// `new`, to be written over `expected` at RU address `site`, for the running build: translated (code rebased, a
 /// data address translated), and where `new` keeps a byte of `expected`, the byte `found` there, when what the site
 /// holds [`matches`] `expected`.
-pub(crate) fn written(site: usize, expected: &[u8], found: Option<&[u8]>, new: &[u8]) -> Vec<u8> {
-    written_with(site, expected, found, new, here)
+pub(crate) fn written(site: Site, expected: &[u8], found: Option<&[u8]>, new: &[u8]) -> Vec<u8> {
+    written_with(site.ru(), expected, found, new, here)
 }
 
 #[cfg(test)]
@@ -177,15 +183,15 @@ mod tests {
     use eix_sites::{DATA_7AF784, DATA_SECTION, ENTRY, RDATA_SECTION, RSRC_SECTION, TEXT_SECTION};
 
     /// Low code, which a test build leaves in place, and code from its high part on, which it moves down by 0x40.
-    const LOW: usize = TEXT_SECTION + 0x5_5440;
-    const HIGH: usize = TEXT_SECTION + 0x1F_F000;
+    const LOW: usize = TEXT_SECTION.ru() + 0x5_5440;
+    const HIGH: usize = TEXT_SECTION.ru() + 0x1F_F000;
     /// Data from here on moves down by 0x10.
-    const MOVED_DATA: usize = DATA_SECTION + 0xD000;
+    const MOVED_DATA: usize = DATA_SECTION.ru() + 0xD000;
 
     fn map(a: usize) -> usize {
-        if (HIGH..RDATA_SECTION).contains(&a) {
+        if (HIGH..RDATA_SECTION.ru()).contains(&a) {
             a - 0x40
-        } else if (MOVED_DATA..RSRC_SECTION).contains(&a) {
+        } else if (MOVED_DATA..RSRC_SECTION.ru()).contains(&a) {
             a - 0x10
         } else {
             a
@@ -195,9 +201,9 @@ mod tests {
     #[test]
     fn rebases_branches_and_addresses() {
         // call LOW from high code; mov eax, [DATA_7AF784]; jne short
-        let site = ENTRY + 0xD6;
+        let site = ENTRY.ru() + 0xD6;
         let rel = (LOW as u32).wrapping_sub(site as u32 + 5).to_le_bytes();
-        let data = (DATA_7AF784 as u32).to_le_bytes();
+        let data = DATA_7AF784.ru32().to_le_bytes();
         let ru = [
             0xE8, rel[0], rel[1], rel[2], rel[3], 0xA1, data[0], data[1], data[2], data[3], 0x75,
             0x02,
@@ -207,7 +213,7 @@ mod tests {
             .wrapping_sub(map(site) as u32 + 5)
             .to_le_bytes();
         assert_eq!(&en[1..5], &rel_en);
-        assert_eq!(en[6..10], (map(DATA_7AF784) as u32).to_le_bytes());
+        assert_eq!(en[6..10], (map(DATA_7AF784.ru()) as u32).to_le_bytes());
         assert_eq!(&en[10..], &[0x75, 0x02]);
         assert!(equivalent_with(site, &ru, &en, map));
         // Part of the instruction (the address operand alone) is equivalent too.
@@ -239,8 +245,8 @@ mod tests {
     fn written_bytes_take_the_found_ones_they_keep() {
         // mov ecx, [DATA_7AF784] (8B 0D) whose opcode a patch keeps and whose operand the build moved.
         let site = LOW;
-        let [r0, r1, r2, r3] = (DATA_7AF784 as u32).to_le_bytes();
-        let [e0, e1, e2, e3] = (map(DATA_7AF784) as u32).to_le_bytes();
+        let [r0, r1, r2, r3] = DATA_7AF784.ru32().to_le_bytes();
+        let [e0, e1, e2, e3] = (map(DATA_7AF784.ru()) as u32).to_le_bytes();
         let expected = [0x8B, 0x0D, r0, r1, r2, r3];
         let found = [0x8B, 0x0D, e0, e1, e2, e3];
         let new = [0x8B, 0x15, r0, r1, r2, r3];
@@ -253,12 +259,8 @@ mod tests {
         assert!(!equivalent_with(site + 2, &[r0], &[e0], map));
         // A data pointer is translated as a value.
         assert_eq!(
-            translated_with(
-                MOVED_DATA + 0x1000,
-                &(DATA_7AF784 as u32).to_le_bytes(),
-                map
-            ),
-            (map(DATA_7AF784) as u32).to_le_bytes()
+            translated_with(MOVED_DATA + 0x1000, &DATA_7AF784.ru32().to_le_bytes(), map),
+            (map(DATA_7AF784.ru()) as u32).to_le_bytes()
         );
     }
 }

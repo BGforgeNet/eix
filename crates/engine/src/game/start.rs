@@ -46,7 +46,7 @@ pub const LEVER_TABLE: Global<c_void> = Global::at(eix_sites::DATA_79C1A0);
 /// which WinMain calls right after assigning [`REGISTRY_KEY`] (0x4568F8).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread.
+/// The process must be a supported game.exe, on the game's thread.
 pub unsafe fn store_start_folder() {
     // SAFETY: 0x55EA10 is `void __cdecl ()`.
     let f = unsafe { code::<unsafe extern "C" fn()>(eix_sites::STORE_START_FOLDER) };

@@ -3,11 +3,13 @@
 //! bytes per pixel x planes x width x height, so a capture whose rows are not a multiple of 4 bytes (24 bits at
 //! 1366 pixels) had the writer read past the block.
 
+use eix_sites::Site;
+
 use crate::groups::{BuildError, Labelled, bytes};
 use crate::setup::Setup;
 
 /// The size computation before `push eax; call operator new` (0x6D6AD4).
-const SIZE: usize = eix_sites::C_DIB_ALLOCATE_BITS__A;
+const SIZE: Site = eix_sites::C_DIB_ALLOCATE_BITS__A;
 /// `xor eax, eax; xor edx, edx; mov ax, [ecx+0xE]; mov dx, [ecx+0xC]; shr eax, 3; imul eax, edx;
 /// imul eax, [ecx+8]; imul eax, [ecx+4]`.
 const SIZE_BYTES: [u8; 26] = [
@@ -36,7 +38,7 @@ mod tests {
     fn the_size_is_loaded_and_the_rest_is_nops() {
         let w = build(&Setup::default()).unwrap();
         assert_eq!(
-            w[0].write.site() + w[0].write.size(),
+            w[0].write.site().offset(w[0].write.size()),
             eix_sites::C_DIB_ALLOCATE_BITS__24
         );
         assert_eq!(&w[0].write.new_bytes()[..3], &PADDED_SIZE);

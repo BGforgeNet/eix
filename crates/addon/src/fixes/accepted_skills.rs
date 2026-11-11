@@ -17,13 +17,14 @@ use eix_engine::game::player::Player;
 use eix_engine::game::unit::UnitStats;
 use eix_engine::group::SiteWrite;
 use eix_engine::hook;
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// The camp vtable's `BestPartySkill` slot and the method it holds.
-const SLOT: usize = eix_sites::RDATA_7409D0;
-const BEST_PARTY_SKILL: usize = eix_sites::C_CAMP_SCREEN_BEST_PARTY_SKILL;
+const SLOT: Site = eix_sites::RDATA_7409D0;
+const BEST_PARTY_SKILL: Site = eix_sites::C_CAMP_SCREEN_BEST_PARTY_SKILL;
 /// The camp's skills page (`CTradePanel`), as `CCampPages::DoAction` 0x6112CC reads it.
 const TRADE: usize = 0x1F4;
 /// The skills page's records, one per party member in party order: a vector's first and end pointers
@@ -147,7 +148,7 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
         label: "SpellsNeedAcceptedSkills".to_owned(),
         write: SiteWrite::pointer(
             SLOT,
-            BEST_PARTY_SKILL,
+            BEST_PARTY_SKILL.ru(),
             best_party_skill as *const () as usize,
         ),
     }])

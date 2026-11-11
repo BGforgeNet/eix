@@ -44,7 +44,7 @@ impl<const N: usize> Default for StreamMemory<N> {
 /// Constructs an empty memory stream at `this`: `CMemoryStream::Construct` 0x41DD70 (thiscall, plain `ret`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, on the game's thread; `this` must be writable for [`MEMORY_STREAM_BYTES`].
+/// The process must be a supported game.exe, on the game's thread; `this` must be writable for [`MEMORY_STREAM_BYTES`].
 pub unsafe fn construct_memory_stream(this: *mut c_void) {
     // SAFETY: 0x41DD70 is `CMemoryStream* __thiscall ()`.
     let f = unsafe {
@@ -107,7 +107,7 @@ unsafe fn virtual_fn<F: Copy>(this: *mut c_void, slot: usize) -> F {
     // SAFETY: the caller guarantees the slot exists.
     let address = unsafe { vtable.wrapping_add(slot).read() };
     // SAFETY: the caller guarantees the slot's type.
-    unsafe { code::<F>(address) }
+    unsafe { crate::hook::as_fn_at::<F>(address) }
 }
 
 /// Opens the file stream at `this` for writing `path`, as the addon's `aigraph` does: the

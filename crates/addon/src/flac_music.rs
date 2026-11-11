@@ -24,6 +24,7 @@ use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use eix_core::eix_ini::Music;
 use eix_core::flac::{self, Decoder, MAGIC};
 use eix_engine::hook;
+use eix_sites::Site;
 
 use crate::game::BeforeWinMain;
 use crate::groups::{Labelled, Tally, apply_built};
@@ -31,10 +32,10 @@ use crate::log;
 use crate::setup::path;
 
 /// The call of `CResourceStream::OpenFile` in `ReadStreamVanilla`: `ecx` the stream, the path and a size out.
-const OPEN_FILE_CALL: usize = eix_sites::C_SOUND_MANAGER_READ_STREAM_VANILLA__2BB;
+const OPEN_FILE_CALL: Site = eix_sites::C_SOUND_MANAGER_READ_STREAM_VANILLA__2BB;
 const OPEN_FILE_BYTES: [u8; 5] = [0xE8, 0x60, 0x8E, 0xFB, 0xFF];
 /// The call of `SoundOpenStream` in `CSoundManager::Open`: `ecx` the stream record, the driver.
-const OPEN_STREAM_CALL: usize = eix_sites::C_SOUND_MANAGER_OPEN__132;
+const OPEN_STREAM_CALL: Site = eix_sites::C_SOUND_MANAGER_OPEN__132;
 const OPEN_STREAM_BYTES: [u8; 5] = [0xE8, 0x59, 0x3F, 0x00, 0x00];
 /// Where the stream record keeps the decoder's table (`SoundOpenStream` stores it at 0x6BABEF).
 const TABLE_AT: usize = 0xC;
@@ -133,7 +134,7 @@ fn ours(handle: u32) -> Option<*mut Stream> {
 /// `F` must be the type of slot `slot`, and the table must have been wrapped.
 unsafe fn original<F: Copy>(slot: usize) -> F {
     // SAFETY: the caller guarantees the type; the slot was stored before the table got our functions.
-    unsafe { hook::as_fn::<F>(ORIGINAL[slot].load(Ordering::Relaxed)) }
+    unsafe { hook::as_fn_at::<F>(ORIGINAL[slot].load(Ordering::Relaxed)) }
 }
 
 extern "system" fn open(user: u32, fetch: Fetch, total: u32) -> u32 {
@@ -254,7 +255,7 @@ extern "system" fn attribute(handle: u32, token: u32) -> i32 {
 /// `CResourceStream::OpenFile` with the track's `.flac` path when there is one.
 extern "thiscall" fn open_file(this: *mut c_void, file: *const c_char, size: *mut c_void) -> i32 {
     // SAFETY: OPEN_FILE holds the function, of this type, once `install` ran.
-    let original = unsafe { hook::as_fn::<OpenFile>(OPEN_FILE.load(Ordering::Relaxed)) };
+    let original = unsafe { hook::as_fn_at::<OpenFile>(OPEN_FILE.load(Ordering::Relaxed)) };
     if file.is_null() {
         // SAFETY: the game's own call.
         return unsafe { original(this, file, size) };
@@ -283,7 +284,7 @@ extern "thiscall" fn open_file(this: *mut c_void, file: *const c_char, size: *mu
 /// `SoundOpenStream`, then our functions in the decoder table it set up.
 extern "thiscall" fn open_stream(this: *mut c_void, driver: u32) -> i32 {
     // SAFETY: OPEN_STREAM holds the function, of this type, once `install` ran.
-    let original = unsafe { hook::as_fn::<OpenStream>(OPEN_STREAM.load(Ordering::Relaxed)) };
+    let original = unsafe { hook::as_fn_at::<OpenStream>(OPEN_STREAM.load(Ordering::Relaxed)) };
     // SAFETY: the game's own call.
     let opened = unsafe { original(this, driver) };
     if opened == 0 {
@@ -361,7 +362,7 @@ pub(crate) fn install(token: &BeforeWinMain, music: Music, mod_dir: &[u8]) {
     .into_iter()
     .map(|(label, site, bytes, to, old)| {
         let (write, target) = hook::redirect_call(site, bytes, to)?;
-        old.store(target, Ordering::Relaxed);
+        old.store(target.here(), Ordering::Relaxed);
         Ok(Labelled {
             label: label.to_owned(),
             write,
@@ -377,7 +378,7 @@ pub(crate) fn install(token: &BeforeWinMain, music: Music, mod_dir: &[u8]) {
 mod tests {
     use super::*;
 
-    const CALLS: [(usize, [u8; 5], usize); 2] = [
+    const CALLS: [(Site, [u8; 5], Site); 2] = [
         (
             OPEN_FILE_CALL,
             OPEN_FILE_BYTES,
@@ -394,17 +395,20 @@ mod tests {
     fn the_calls_go_to_the_open_and_the_decoder_setup() {
         for (site, bytes, target) in CALLS {
             let rel = i32::from_le_bytes(bytes[1..].try_into().unwrap());
-            assert_eq!((site + 5).wrapping_add_signed(rel as isize), target);
+            assert_eq!(
+                Site::new((site.offset(5)).ru().wrapping_add_signed(rel as isize)),
+                target
+            );
         }
     }
 
     #[test]
     fn spelladdon_writes_nothing_at_the_calls() {
         for (site, bytes, _) in CALLS {
-            let ours = site..site + bytes.len();
+            let ours = site..site.offset(bytes.len());
             for (name, w) in spelladdon::writes() {
                 assert!(
-                    w.site() + w.size() <= ours.start || ours.end <= w.site(),
+                    w.site().offset(w.size()) <= ours.start || ours.end <= w.site(),
                     "SpellAddon's {name} at {:#X}",
                     w.site()
                 );

@@ -5,7 +5,8 @@
 use std::path::{Path, PathBuf};
 
 /// game.exe RU 1.06's image, from `.text` through `.data`.
-const IMAGE: std::ops::Range<u64> = eix_sites::TEXT_SECTION as u64..eix_sites::RSRC_SECTION as u64;
+const IMAGE: std::ops::Range<u64> =
+    eix_sites::TEXT_SECTION.ru() as u64..eix_sites::RSRC_SECTION.ru() as u64;
 
 /// The crates that stay out of the scan: this table, and `core` (see the top).
 const OUT: [&str; 2] = ["sites", "core"];

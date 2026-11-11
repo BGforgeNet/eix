@@ -4,13 +4,15 @@
 
 use std::ffi::CStr;
 
+use eix_sites::Site;
+
 use crate::groups::{BuildError, Labelled, pointer};
 use crate::setup::Setup;
 
 /// The operand of the `push 0x795314` that passes the format to `sprintf`.
-const FORMAT_OPERAND: usize = eix_sites::C_MAPPED_FILE_OPEN__E6;
+const FORMAT_OPERAND: Site = eix_sites::C_MAPPED_FILE_OPEN__E6;
 /// The game's format, in its read-only data.
-const GAME_FORMAT: usize = eix_sites::DATA_795314;
+const GAME_FORMAT: Site = eix_sites::DATA_795314;
 
 /// The game's format at 0x795314, with `%s` bounded to the 210 bytes that fit (the tests derive them).
 const FORMAT: &CStr = c"CMappedFile::Open().\nUnable to open file \"%.210s\".\n";
@@ -19,7 +21,7 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     Ok(vec![pointer(
         "MappedFileMessage #0",
         FORMAT_OPERAND,
-        GAME_FORMAT,
+        GAME_FORMAT.ru(),
         FORMAT.as_ptr() as usize,
     )])
 }
@@ -55,6 +57,9 @@ mod tests {
     fn only_the_push_operand_changes() {
         let w = build(&Setup::default()).unwrap();
         assert_eq!(w[0].write.site(), FORMAT_OPERAND);
-        assert_eq!(w[0].write.expected(), &eix_sites::DATA_795314.to_le_bytes());
+        assert_eq!(
+            w[0].write.expected(),
+            &eix_sites::DATA_795314.ru32().to_le_bytes()
+        );
     }
 }

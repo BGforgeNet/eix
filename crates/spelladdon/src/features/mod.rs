@@ -96,6 +96,7 @@ pub(crate) mod testing {
 
     use eix_core::spelladdon::{Profile, Values};
     use eix_engine::group::SiteWrite;
+    use eix_sites::Site;
 
     use super::Ctx;
     use crate::Level;
@@ -134,7 +135,7 @@ pub(crate) mod testing {
     pub(crate) fn no_log(_: Level, _: &str, _: &str, _: &str) {}
 
     /// Each write as site, expected bytes, new bytes.
-    pub(crate) fn plain(writes: &[SiteWrite]) -> Vec<(usize, Vec<u8>, Vec<u8>)> {
+    pub(crate) fn plain(writes: &[SiteWrite]) -> Vec<(Site, Vec<u8>, Vec<u8>)> {
         writes
             .iter()
             .map(|w| (w.site(), w.expected().to_vec(), w.new_bytes().to_vec()))
@@ -142,7 +143,7 @@ pub(crate) mod testing {
     }
 
     /// game.exe's `.text` and `.rdata`, where the original's site bytes are compared.
-    const CODE: Range<usize> = eix_sites::TEXT_SECTION..eix_sites::DATA_SECTION;
+    const CODE: Range<usize> = eix_sites::TEXT_SECTION.ru()..eix_sites::DATA_SECTION.ru();
 
     /// What every feature `ini` switches on changes in [`CODE`], merged in feature order as at start-up: each address
     /// whose last byte written differs from the first write's expected byte, with that byte.
@@ -161,7 +162,7 @@ pub(crate) mod testing {
             for w in writes {
                 for (i, (&was, &now)) in w.expected().iter().zip(w.new_bytes()).enumerate() {
                     bytes
-                        .entry(w.site() + i)
+                        .entry(w.site().ru() + i)
                         .and_modify(|e: &mut (u8, u8)| e.1 = now)
                         .or_insert((was, now));
                 }
@@ -181,7 +182,7 @@ pub(crate) mod testing {
         &'static str,
         i8,
         &'static [(&'static str, &'static str, &'static str)],
-        &'static [(usize, &'static str)],
+        &'static [(Site, &'static str)],
     );
 
     /// Asserts that each run's INI makes our features change the same bytes of [`CODE`] to the same values.
@@ -195,7 +196,7 @@ pub(crate) mod testing {
             for &(site, text) in sites {
                 for (i, b) in text.split(' ').enumerate() {
                     let b = (b != "??").then(|| u8::from_str_radix(b, 16).unwrap());
-                    theirs.insert(site + i, b);
+                    theirs.insert(site.ru() + i, b);
                 }
             }
             for (at, now) in &ours {

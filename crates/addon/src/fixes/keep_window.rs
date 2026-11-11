@@ -9,15 +9,16 @@
 
 use eix_engine::game::surface::is_windowed;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `mov ecx, [0x79BC28]`: the game's window, for the `push 6; push ecx; call [ShowWindow]` that follows.
-const LOAD_WINDOW: usize = eix_sites::WINDOW_PROC__143;
+const LOAD_WINDOW: Site = eix_sites::WINDOW_PROC__143;
 const LOAD_WINDOW_BYTES: [u8; 6] = [0x8B, 0x0D, 0x28, 0xBC, 0x79, 0x00];
 /// After the `ShowWindow` call: the procedure's `return 1`.
-const AFTER_MINIMISE: usize = eix_sites::WINDOW_PROC__152;
+const AFTER_MINIMISE: Site = eix_sites::WINDOW_PROC__152;
 
 extern "C" fn handler(_: usize, ctx: &mut Context) {
     // SAFETY: WindowProc runs on the game's thread. Before the renderer exists nothing tells windowed from full
@@ -41,7 +42,10 @@ mod tests {
     #[test]
     fn the_skip_lands_past_the_minimise_call() {
         // `push 6; push ecx; call [ShowWindow]` is 2 + 1 + 6 bytes after the hooked load.
-        assert_eq!(AFTER_MINIMISE, LOAD_WINDOW + LOAD_WINDOW_BYTES.len() + 9);
+        assert_eq!(
+            AFTER_MINIMISE,
+            LOAD_WINDOW.offset(LOAD_WINDOW_BYTES.len()).offset(9)
+        );
         let w = build(&Setup::default()).unwrap();
         assert_eq!(
             (w[0].write.site(), w[0].write.expected()),

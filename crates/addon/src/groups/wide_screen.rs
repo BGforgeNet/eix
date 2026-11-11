@@ -15,6 +15,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use eix_core::widescreen::{Layout, Mode};
 use eix_engine::group::SiteWrite;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
@@ -85,12 +86,12 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
 }
 
 /// `new` over the 4 bytes of `old` at `site` (an immediate, a float or a rel32 operand).
-fn word(site: usize, old: [u8; 4], new: [u8; 4]) -> Result<SiteWrite, BuildError> {
+fn word(site: Site, old: [u8; 4], new: [u8; 4]) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(site, &old, &new)?)
 }
 
 /// Raw bytes of the same length.
-fn bytes(site: usize, old: &[u8], new: &[u8]) -> Result<SiteWrite, BuildError> {
+fn bytes(site: Site, old: &[u8], new: &[u8]) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(site, old, new)?)
 }
 

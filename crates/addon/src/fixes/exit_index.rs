@@ -13,13 +13,14 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_engine::game::mfc::{self, GameString};
 use eix_engine::hook;
+use eix_sites::Site;
 
 use super::Warnings;
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `push ecx; mov eax, [esp+0xc]`, the function's first two instructions.
-const EXIT_GET_AT: usize = eix_sites::EXIT_GET_AT;
+const EXIT_GET_AT: Site = eix_sites::EXIT_GET_AT;
 const PROLOGUE: [u8; 5] = [0x51, 0x8B, 0x44, 0x24, 0x0C];
 /// An exit record's size and its name's offset.
 const RECORD_SIZE: usize = 0x3C;
@@ -51,7 +52,7 @@ extern "thiscall" fn exit_get_at(array: *mut ExitArray, out: *mut u8, index: i32
     let (data, count) = (exits.data, exits.count);
     if !data.is_null() && (0..count).contains(&index) {
         // SAFETY: ORIGINAL holds the trampoline `build` made, of this type; the arguments are the game's.
-        let original = unsafe { hook::as_fn::<GetAt>(ORIGINAL.load(Ordering::Relaxed)) };
+        let original = unsafe { hook::as_fn_at::<GetAt>(ORIGINAL.load(Ordering::Relaxed)) };
         // SAFETY: as above.
         return unsafe { original(array, out, index) };
     }

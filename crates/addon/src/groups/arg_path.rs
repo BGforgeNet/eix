@@ -8,6 +8,7 @@ use std::ffi::{CStr, CString};
 use std::sync::Mutex;
 
 use eix_engine::hook::{self, Context};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled};
 use crate::log;
@@ -63,7 +64,7 @@ extern "C" fn handler(arg: usize, ctx: &mut Context) {
 /// The call at `site` (bytes `original`) gets `rule`'s path in place of its first argument when the rule gives one.
 pub(crate) fn rewrite_first_arg(
     label: &'static str,
-    site: usize,
+    site: Site,
     original: [u8; 5],
     rule: Rule,
 ) -> Result<Labelled, BuildError> {

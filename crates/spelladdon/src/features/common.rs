@@ -19,13 +19,14 @@ use eix_engine::game::world::{SERVER_WORLD, World};
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Handler, HookError, Mode};
 use eix_engine::patch;
+use eix_sites::Site;
 
 use super::{BuildError, Ctx};
 
 /// One fixed write: the site, game.exe's bytes there, and what replaces them.
 // Tables of these stay `const` beside their feature rather than in a data file: the compiler checks them, and the
 // feature's handlers, notes and `assert_original` runs sit in the same module.
-pub(crate) type Bytes = (usize, &'static [u8], &'static [u8]);
+pub(crate) type Bytes = (Site, &'static [u8], &'static [u8]);
 
 /// The writes of a table of fixed bytes.
 pub(crate) fn fixed(table: &[Bytes]) -> Result<Vec<SiteWrite>, BuildError> {
@@ -39,7 +40,7 @@ pub(crate) fn fixed(table: &[Bytes]) -> Result<Vec<SiteWrite>, BuildError> {
 pub(crate) fn float(
     ctx: &Ctx<'_>,
     key: &str,
-    site: usize,
+    site: Site,
     was: f32,
 ) -> Result<SiteWrite, BuildError> {
     float_over(ctx, key, site, was.to_le_bytes())
@@ -49,7 +50,7 @@ pub(crate) fn float(
 pub(crate) fn float_over(
     ctx: &Ctx<'_>,
     key: &str,
-    site: usize,
+    site: Site,
     was: [u8; 4],
 ) -> Result<SiteWrite, BuildError> {
     let now = ctx.values.float("gameplay", key)?;
@@ -57,7 +58,7 @@ pub(crate) fn float_over(
 }
 
 /// NOPs over `was` at each site.
-pub(crate) fn nops(table: &[(usize, &[u8])]) -> Vec<SiteWrite> {
+pub(crate) fn nops(table: &[(Site, &[u8])]) -> Vec<SiteWrite> {
     table
         .iter()
         .map(|&(site, was)| SiteWrite::nop(site, was))
@@ -65,7 +66,7 @@ pub(crate) fn nops(table: &[(usize, &[u8])]) -> Vec<SiteWrite> {
 }
 
 /// A 32-bit float the game reads at `site`, which held `was`.
-pub(crate) fn float_at(site: usize, was: f32, now: f32) -> Result<SiteWrite, BuildError> {
+pub(crate) fn float_at(site: Site, was: f32, now: f32) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(
         site,
         &was.to_le_bytes(),
@@ -76,7 +77,7 @@ pub(crate) fn float_at(site: usize, was: f32, now: f32) -> Result<SiteWrite, Bui
 /// The site's patched bytes `now`, the original's layout, whose `jmp` or `call` at offset `at` (E9 or E8, then a
 /// placeholder displacement) goes to `to`.
 pub(crate) fn branch(
-    site: usize,
+    site: Site,
     was: &[u8],
     now: &[u8],
     at: usize,
@@ -84,8 +85,8 @@ pub(crate) fn branch(
 ) -> Result<SiteWrite, BuildError> {
     let mut new = now.to_vec();
     let rel = match new.get(at) {
-        Some(0xE9) => patch::jmp_rel32(site + at, to),
-        Some(0xE8) => patch::call_rel32(site + at, to),
+        Some(0xE9) => patch::jmp_rel32(site.offset(at), to),
+        Some(0xE8) => patch::call_rel32(site.offset(at), to),
         other => {
             return Err(BuildError(format!(
                 "site {site:#x}: no jmp or call at +{at} of the new bytes ({other:02X?})"
@@ -101,11 +102,11 @@ pub(crate) fn branch(
 /// A stub entered by a jump: `before` (code taken from `origin`), `handler(arg, ..)`, then `resume` unless the
 /// handler changes it.
 pub(crate) fn jump_stub(
-    origin: usize,
+    origin: Site,
     before: &[u8],
     handler: Handler,
     arg: usize,
-    resume: usize,
+    resume: Site,
 ) -> Result<usize, BuildError> {
     Ok(hook::stub(
         origin,
@@ -122,7 +123,7 @@ pub(crate) fn jump_stub(
 /// the replaced instructions `was` first, then `handler(arg, ..)`, and goes on after the site unless the handler
 /// changes `resume`. For a handler that does the replaced instructions' work and then its own.
 pub(crate) fn branch_before(
-    site: usize,
+    site: Site,
     was: &[u8],
     now: &[u8],
     at: usize,
@@ -130,25 +131,44 @@ pub(crate) fn branch_before(
     arg: usize,
 ) -> Result<SiteWrite, BuildError> {
     let by_call = now.get(at) == Some(&0xE8);
-    let stub = hook::stub(site, was, &[], by_call, handler, arg, site + was.len())?;
+    let stub = hook::stub(
+        site,
+        was,
+        &[],
+        by_call,
+        handler,
+        arg,
+        site.offset(was.len()),
+    )?;
     branch(site, was, now, at, stub)
 }
 
 /// A stub entered by a call, which goes on at `resume` (the instruction after the call) unless the handler changes
 /// it: the handler's `ret`.
-pub(crate) fn call_stub(handler: Handler, arg: usize, resume: usize) -> Result<usize, BuildError> {
-    Ok(hook::stub(0, &[], &[], true, handler, arg, resume)?)
+pub(crate) fn call_stub(handler: Handler, arg: usize, resume: Site) -> Result<usize, BuildError> {
+    Ok(hook::stub(NOWHERE, &[], &[], true, handler, arg, resume)?)
 }
+
+/// The origin of a stub that copies no code, and the resume of one whose handler always sets it.
+pub(crate) const NOWHERE: Site = Site::new(0);
 
 /// A stub entered by a jump that runs `handler(arg, ..)`, then `after` (code taken from `origin`), which must leave
 /// by itself (a `ret`, a jump).
 pub(crate) fn tail_stub(
-    origin: usize,
+    origin: Site,
     handler: Handler,
     arg: usize,
     after: &[u8],
 ) -> Result<usize, BuildError> {
-    Ok(hook::stub(origin, &[], after, false, handler, arg, 0)?)
+    Ok(hook::stub(
+        origin,
+        &[],
+        after,
+        false,
+        handler,
+        arg,
+        NOWHERE,
+    )?)
 }
 
 /// Stack words a handler reads below the stack pointer, copied before our stub's own pushes overwrite them.
@@ -315,7 +335,7 @@ pub(crate) fn set_st0(value: f32) {
 /// A context hook entered by a jump at `site + at`, with the bytes before it NOPed: the layout of the original's
 /// `nop ...; jmp <hook>`. `expected` is the whole site; the handler does the work of every instruction in it.
 pub(crate) fn jump_at(
-    site: usize,
+    site: Site,
     expected: &[u8],
     at: usize,
     handler: Handler,
@@ -326,7 +346,7 @@ pub(crate) fn jump_at(
         writes.push(SiteWrite::nop(site, &expected[..at]));
     }
     writes.push(hook::context_hook(
-        site + at,
+        site.offset(at),
         &expected[at..],
         Mode::Drop,
         handler,
@@ -337,7 +357,7 @@ pub(crate) fn jump_at(
 
 /// [`jump_at`] entered by a `call`, for a site the original turns into `nop ...; call <hook>`.
 pub(crate) fn call_at(
-    site: usize,
+    site: Site,
     expected: &[u8],
     at: usize,
     handler: Handler,
@@ -348,7 +368,7 @@ pub(crate) fn call_at(
         writes.push(SiteWrite::nop(site, &expected[..at]));
     }
     writes.push(hook::context_call(
-        site + at,
+        site.offset(at),
         &expected[at..],
         Mode::Drop,
         handler,
@@ -360,12 +380,12 @@ pub(crate) fn call_at(
 /// The address of a context stub that runs `handler(arg, context)` and goes on at the handler's `resume`, for a
 /// branch the original points at added code (a `jcc` displacement, a table entry). The handler must set `resume`.
 pub(crate) fn entry(handler: Handler, arg: usize) -> Result<usize, HookError> {
-    hook::stub(0, &[], &[], false, handler, arg, 0)
+    hook::stub(NOWHERE, &[], &[], false, handler, arg, NOWHERE)
 }
 
 /// The `rel32` of a branch whose displacement ends at `end` and leads to `to`.
-pub(crate) fn rel32(end: usize, to: usize) -> [u8; 4] {
-    (to as u32).wrapping_sub(end as u32).to_le_bytes()
+pub(crate) fn rel32(end: Site, to: usize) -> [u8; 4] {
+    (to as u32).wrapping_sub(end.ru32()).to_le_bytes()
 }
 
 /// Player 0, whose variables the scripts reach with `GSGetVar(0, ...)` and `GSSetVar(0, ...)`, when the server world
@@ -385,7 +405,7 @@ pub(crate) fn zone_music(field: u32, mode: i32, flag: u32, level: u32) -> bool {
     type FindMap = unsafe extern "thiscall" fn(this: u32, name: *const u8) -> u32;
     type SetZoneMode = unsafe extern "thiscall" fn(this: u32, name: u32, mode: i32);
     // SAFETY: the music system's global, `[0x7AF760]` (the client world's +0x1A8).
-    let music = unsafe { read::<u32>(eix_sites::DATA_7AF760 as u32) };
+    let music = unsafe { read::<u32>(eix_sites::DATA_7AF760.here32()) };
     if music == 0 {
         return false;
     }
@@ -393,7 +413,7 @@ pub(crate) fn zone_music(field: u32, mode: i32, flag: u32, level: u32) -> bool {
     // SAFETY: 0x578A90 is `LocalPlayerName` (thiscall on 0x7AFEA5); it constructs the string at `name`.
     let local_player_name = unsafe { hook::as_fn::<LocalPlayerName>(eix_sites::LOCAL_PLAYER_NAME) };
     // SAFETY: as above, on the game's thread.
-    let built = unsafe { local_player_name(eix_sites::DATA_7AFEA5 as u32, name.as_mut_ptr()) };
+    let built = unsafe { local_player_name(eix_sites::DATA_7AFEA5.here32(), name.as_mut_ptr()) };
     // SAFETY: the constructed string's first word is its characters.
     let chars = unsafe { read::<u32>(built.expose_provenance() as u32) };
     // SAFETY: 0x45E850 is `CMapDatabase::FindMap` (thiscall, the map's name; its record or null).
@@ -401,7 +421,7 @@ pub(crate) fn zone_music(field: u32, mode: i32, flag: u32, level: u32) -> bool {
     // SAFETY: the map database is a static object; `chars` is NUL-terminated.
     let record = unsafe {
         find_map(
-            eix_sites::DATA_79BF00 as u32,
+            eix_sites::DATA_79BF00.here32(),
             core::ptr::with_exposed_provenance(chars as usize),
         )
     };
@@ -542,7 +562,7 @@ pub(crate) struct PushTail {
 
 impl PushTail {
     /// A tail of `count` pushes that goes on at `to`, kept for the life of the process.
-    pub(crate) fn new(count: usize, to: usize) -> Result<&'static Self, String> {
+    pub(crate) fn new(count: usize, to: Site) -> Result<&'static Self, String> {
         let slots: &'static [AtomicU32] =
             Box::leak((0..count).map(|_| AtomicU32::new(0)).collect());
         let code = exec::place(count * 6 + 5, |at| {
@@ -552,7 +572,8 @@ impl PushTail {
                 code.extend_from_slice(&[0xFF, 0x35]);
                 code.extend_from_slice(&(slot.as_ptr() as u32).to_le_bytes());
             }
-            code.extend_from_slice(&patch::jmp_rel32(at + code.len(), to));
+            // The tail is our code, which nothing translates: it jumps to the running build's address.
+            code.extend_from_slice(&patch::jmp_rel32(Site::of(at + code.len()), to.here()));
             Ok::<_, String>(code)
         })?;
         Ok(Box::leak(Box::new(Self { code, slots })))
@@ -564,7 +585,7 @@ impl PushTail {
         for (slot, v) in self.slots.iter().zip(values) {
             slot.store(*v, Ordering::Relaxed);
         }
-        ctx.resume = self.code;
+        ctx.resume = Site::of(self.code);
     }
 }
 
@@ -605,7 +626,7 @@ mod tests {
         extern "C" fn handler(_: usize, _: &mut hook::Context) {}
         let at = entry(handler, 0).unwrap();
         assert!(at > 0x10000, "{at:#x}");
-        assert_eq!(rel32(0x1000, 0x1010), [0x10, 0, 0, 0]);
-        assert_eq!(rel32(0x1010, 0x1000), [0xF0, 0xFF, 0xFF, 0xFF]);
+        assert_eq!(rel32(Site::new(0x1000), 0x1010), [0x10, 0, 0, 0]);
+        assert_eq!(rel32(Site::new(0x1010), 0x1000), [0xF0, 0xFF, 0xFF, 0xFF]);
     }
 }

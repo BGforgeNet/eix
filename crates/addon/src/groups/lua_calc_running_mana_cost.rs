@@ -9,14 +9,15 @@ use eix_core::encumbrance::rescaled;
 use eix_core::lua_callbacks::Callback::CalcRunningManaCost;
 use eix_engine::game::unit::{UnitServer, UnitVitals};
 use eix_engine::hook::{Context, Mode};
+use eix_sites::Site;
 
 use super::lua_common::{context, require_host, wanted, with_host};
 use super::{BuildError, Labelled, Setup};
 use crate::lua::{addr, ptr};
 
 /// Where `CUnitServer::TickMovement` stops running (mana below zero) and where it goes on.
-const STOP_RUNNING: usize = eix_sites::UPDATE_MOTION__AA3;
-const KEEP_RUNNING: usize = eix_sites::UPDATE_MOTION__AF8;
+const STOP_RUNNING: Site = eix_sites::UPDATE_MOTION__AA3;
+const KEEP_RUNNING: Site = eix_sites::UPDATE_MOTION__AF8;
 
 /// At 0x548315 ESI is the unit's controller and EDI its vitals.
 extern "C" fn handler(_: usize, ctx: &mut Context) {

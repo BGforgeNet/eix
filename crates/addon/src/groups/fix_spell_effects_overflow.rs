@@ -13,16 +13,17 @@ use eix_core::fixes::{EffectKey, MAX_EFFECTS, remove_renewed};
 use eix_engine::game::unit::{FLAG_REMOVED, MapEffect, MapObject};
 use eix_engine::game::world::{self, ObjectMap, SERVER_OBJECTS};
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 use crate::log;
 
 /// `lea edx, [esp + 0x14]; lea ecx, [ebp + 0x104]`: the start of the update of the sleeping server's awake objects,
 /// reached only when the world lets objects sleep.
-const TICK_SITE: usize = eix_sites::C_WORLD_SERVER_UPDATE_UNITS__1BE;
+const TICK_SITE: Site = eix_sites::C_WORLD_SERVER_UPDATE_UNITS__1BE;
 const TICK_ORIGINAL: [u8; 10] = [0x8D, 0x54, 0x24, 0x14, 0x8D, 0x8D, 0x04, 0x01, 0x00, 0x00];
 /// `AddEffectImpl`'s first instructions: `push ebx; push ebp; mov ebp, ecx; push esi`.
-const ADD_SITE: usize = eix_sites::C_MAP_OBJECT_ADD_EFFECT_IMPL;
+const ADD_SITE: Site = eix_sites::C_MAP_OBJECT_ADD_EFFECT_IMPL;
 const ADD_ORIGINAL: [u8; 5] = [0x53, 0x55, 0x8B, 0xE9, 0x56];
 
 /// `void __thiscall CMapObject::AddEffectImpl(const MapEffect*)`, `ret 4`.
@@ -72,7 +73,7 @@ extern "thiscall" fn add_effect(this: *mut MapObject, effect: *const MapEffect) 
         return;
     }
     // SAFETY: the trampoline runs the original, which has this type.
-    let original: AddEffect = unsafe { hook::as_fn(ORIGINAL_ADD.load(Ordering::SeqCst)) };
+    let original: AddEffect = unsafe { hook::as_fn_at(ORIGINAL_ADD.load(Ordering::SeqCst)) };
     // SAFETY: the game's arguments, passed on.
     unsafe { original(this, effect) };
     // SAFETY: the effect the game passed, unchanged by the call (it copies it).

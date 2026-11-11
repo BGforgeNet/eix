@@ -29,13 +29,13 @@ static TABLE: OnceLock<LowerTable<CtypeLocale>> = OnceLock::new();
 
 fn original(c: i32) -> i32 {
     // SAFETY: the trampoline runs the original, which has this type.
-    let f: ToLowerLk = unsafe { hook::as_fn(ORIGINAL_FN.load(Ordering::SeqCst)) };
+    let f: ToLowerLk = unsafe { hook::as_fn_at(ORIGINAL_FN.load(Ordering::SeqCst)) };
     // SAFETY: called as the game calls it, inside its caller's locale guard.
     unsafe { f(c) }
 }
 
 extern "C" fn tolower_lk(c: i32) -> i32 {
-    // SAFETY: the fix applies to RU 1.06 only, and every caller of `_tolower_lk` holds the locale guard.
+    // SAFETY: the fix applies to a supported build only, and every caller of `_tolower_lk` holds the locale guard.
     let locale = unsafe { crt::ctype_locale() };
     // The "C" locale's path is a range check, as cheap as the table.
     if locale.handle == 0 {

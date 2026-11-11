@@ -99,7 +99,7 @@ pub const DIRECTDRAW_LOCK: Global<CRITICAL_SECTION> = Global::at(eix_sites::DATA
 /// Enters [`DIRECTDRAW_LOCK`], which is recursive, as the game's nesting needs.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 after the lock's initialisation (before WinMain's first frame); the thread
+/// The process must be a supported game.exe after the lock's initialisation (before WinMain's first frame); the thread
 /// must leave it as often as it enters it.
 pub unsafe fn enter_directdraw_lock() {
     // SAFETY: the caller guarantees the build and an initialised lock.

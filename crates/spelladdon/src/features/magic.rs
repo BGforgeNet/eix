@@ -16,6 +16,7 @@ use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, FpuContext, Mode};
 use eix_engine::patch;
 use eix_engine::x87::{C0, Ext};
+use eix_sites::Site;
 
 use super::common::{self, Bytes, PushTail, read, write};
 use super::{Build, BuildError, Ctx};
@@ -63,7 +64,7 @@ pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
 
 /// `CWorldServer::CastSpell`+0x50: the three `je` that refuse Possession (0x15), Link (0x1B) and Charm (0x24), with
 /// the compares between them.
-const CAST_REFUSALS: (usize, &[u8]) = (
+const CAST_REFUSALS: (Site, &[u8]) = (
     eix_sites::C_WORLD_SERVER_CAST_SPELL__50,
     &[
         0x0F, 0x84, 0x1D, 0x04, 0x00, 0x00, 0x83, 0xF8, 0x1B, 0x0F, 0x84, 0x14, 0x04, 0x00, 0x00,
@@ -91,10 +92,10 @@ fn possession_charm_link(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
 
 /// `test dword ptr [eax+0x3C], 0x20000000` at `AIAttention::CanReach`+0x93: the spell object's "flying" flag, after
 /// which `je` refuses the target; EAX is the spell object.
-const CAN_REACH_FLYING: usize = eix_sites::AI_ATTENTION_CAN_REACH__93;
+const CAN_REACH_FLYING: Site = eix_sites::AI_ATTENTION_CAN_REACH__93;
 const CAN_REACH_FLYING_TEST: [u8; 7] = [0xF7, 0x40, 0x3C, 0x00, 0x00, 0x00, 0x20];
 /// `CanReach`+0x104: the path that goes on with the target.
-const CAN_REACH_GO_ON: usize = eix_sites::AI_ATTENTION_CAN_REACH__104;
+const CAN_REACH_GO_ON: Site = eix_sites::AI_ATTENTION_CAN_REACH__104;
 /// Spell type 4, Invoke Lightning.
 const INVOKE_LIGHTNING: u32 = 4;
 /// `IsSpellTarget`'s tail with value 2: `jne +0x28; cmp dword ptr [ebp+8], 4; je +0x28; xor eax, eax; ret;
@@ -314,11 +315,11 @@ fn filters_always(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 }
 
 /// `add eax, 0x1E` at `CSpellEffect::Start`+0x1DA9: the teleport's delay; its immediate.
-const TELEPORT_DELAY: usize = eix_sites::C_SPELL_EFFECT_START__1DA9;
+const TELEPORT_DELAY: Site = eix_sites::C_SPELL_EFFECT_START__1DA9;
 /// `mov dword ptr [ebx+0x30], 2` after it (0x68161A, 7 bytes): value 1 turns its first two bytes into NOPs and
 /// jumps from the third to the added code, which comes back at 0x681621 (`mov [ebx+0xA0], eax`).
-const TELEPORT_STATE_NOPS: (usize, &[u8]) = (eix_sites::C_SPELL_EFFECT_START__1DAA, &[0xC7, 0x43]);
-const TELEPORT_STATE_REST: usize = eix_sites::C_SPELL_EFFECT_START__1DAC;
+const TELEPORT_STATE_NOPS: (Site, &[u8]) = (eix_sites::C_SPELL_EFFECT_START__1DAA, &[0xC7, 0x43]);
+const TELEPORT_STATE_REST: Site = eix_sites::C_SPELL_EFFECT_START__1DAC;
 const TELEPORT_STATE_REST_BYTES: [u8; 5] = [0x30, 0x02, 0x00, 0x00, 0x00];
 
 /// The handler of `teleportboost` = 1: the effect's state becomes 2 and EAX, the time the teleport takes, becomes
@@ -364,11 +365,11 @@ fn teleport_boost(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 
 /// `mov ecx, [ebp-0x14]; mov eax, [esi+0xC]` at `CSpellEffect::UpdateLasting`+0xDDF, after Possession registers its
 /// target with the script group; the original registers the caster too.
-const POSSESSION_REGISTER: usize = eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__DDF;
+const POSSESSION_REGISTER: Site = eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__DDF;
 const POSSESSION_REGISTER_BYTES: [u8; 6] = [0x8B, 0x4D, 0xEC, 0x8B, 0x46, 0x0C];
 /// `ScriptGroup::Insert(unit)` and `ScriptGroup::InsertAll(list)`, both `ret 4`.
-const SCRIPT_GROUP_INSERT: usize = eix_sites::SCRIPT_GROUP_INSERT;
-const SCRIPT_GROUP_INSERT_ALL: usize = eix_sites::SCRIPT_GROUP_INSERT_ALL;
+const SCRIPT_GROUP_INSERT: Site = eix_sites::SCRIPT_GROUP_INSERT;
+const SCRIPT_GROUP_INSERT_ALL: Site = eix_sites::SCRIPT_GROUP_INSERT_ALL;
 type ScriptGroupInsert = unsafe extern "thiscall" fn(group: u32, item: u32);
 /// Possession's other fixes: the unit read is the effect's target `[ebx+0x20]`, and the two lists it adds swap
 /// (0xA90 <-> 0xAAC).
@@ -442,13 +443,13 @@ fn possession_patch(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
 /// `mov [edx+0x14], ecx; fld dword ptr [esi+0x58]` at `CSpellEffect::GetDamage`+0x50: a lightning spell's damage into
 /// the lightning slot; and `mov [edx+0xC], ecx; fld ...` at +0x63, a fire spell's into the fire slot. EDI is the
 /// spell type, EDX the damage record, whose damage types are dwords from +0.
-const DAMAGE_LIGHTNING: usize = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__50;
+const DAMAGE_LIGHTNING: Site = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__50;
 const DAMAGE_LIGHTNING_BYTES: [u8; 6] = [0x89, 0x4A, 0x14, 0xD9, 0x46, 0x58];
-const DAMAGE_FIRE: usize = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__63;
+const DAMAGE_FIRE: Site = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__63;
 const DAMAGE_FIRE_BYTES: [u8; 6] = [0x89, 0x4A, 0x0C, 0xD9, 0x46, 0x58];
 /// After each store: `fld dword ptr [esi+0x58]; fstp dword ptr [edx+0x24]`, which the original's return runs.
-const DAMAGE_LIGHTNING_TAIL: usize = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__53;
-const DAMAGE_FIRE_TAIL: usize = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__66;
+const DAMAGE_LIGHTNING_TAIL: Site = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__53;
+const DAMAGE_FIRE_TAIL: Site = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__66;
 const DAMAGE_TAIL_BYTES: [u8; 6] = [0xD9, 0x46, 0x58, 0xD9, 0x5A, 0x24];
 /// Spell types 0x29 (CurseMagic, the INI's `astralbeam`) and 0x28 (RickMagic, its `destroyray`), which get their
 /// own damage types; the other spells of each site take `lightningbeam` and `firearrow`.
@@ -474,7 +475,7 @@ extern "C" fn damage_type(arg: usize, ctx: &mut Context) {
     let slot = slots[2 * arg + usize::from(ctx.edi == own)] as i8;
     // SAFETY: EDX is the damage record `GetDamage` fills; the displacement is the original's own.
     unsafe { write::<u32>(ctx.edx.wrapping_add_signed(i32::from(slot)), ctx.ecx) };
-    ctx.resume = DAMAGE_TAILS[arg].load(Ordering::Relaxed);
+    ctx.resume = Site::of(DAMAGE_TAILS[arg].load(Ordering::Relaxed));
 }
 
 /// `lastspellsdamagetype` = 1: the damage types of Lightning, Astral Beam, Fire Arrow and Destroy Ray come from the
@@ -514,20 +515,20 @@ fn last_spells_damage_type(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, B
 /// `CSpellEffect::GetDamage`+0x9B: `fild dword ptr [esp+0x14]` (the period), then `fdivr [0x73BAA0]; fstp
 /// [edx+0x28]; fild [esi+0x54]; fdivr [0x73BAA0]` (the per-tick fraction, kept in ST0 for `fmul [edx+0x24]` at
 /// 0x683A01). The patch calls added code from 0x6839F0 and keeps three floats after the call, where the code was.
-const WALL_PERIOD_LOAD: (usize, &[u8]) = (
+const WALL_PERIOD_LOAD: (Site, &[u8]) = (
     eix_sites::C_SPELL_EFFECT_GET_DAMAGE__9B,
     &[0xDB, 0x44, 0x24, 0x14],
 );
-const WALL_DIVIDE_FIRST: (usize, &[u8]) = (eix_sites::C_SPELL_EFFECT_GET_DAMAGE__9F, &[0xD8]);
-const WALL_CALL: usize = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__A0;
+const WALL_DIVIDE_FIRST: (Site, &[u8]) = (eix_sites::C_SPELL_EFFECT_GET_DAMAGE__9F, &[0xD8]);
+const WALL_CALL: Site = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__A0;
 const WALL_CALL_BYTES: [u8; 5] = [0x3D, 0xA0, 0xBA, 0x73, 0x00];
 /// Acid, fire and lightning fractions, where the call is followed by data.
-const WALL_FRACTIONS: usize = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__A5;
+const WALL_FRACTIONS: Site = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__A5;
 const WALL_FRACTIONS_BYTES: [u8; 12] = [
     0xD9, 0x5A, 0x28, 0xDB, 0x46, 0x54, 0xD8, 0x3D, 0xA0, 0xBA, 0x73, 0x00,
 ];
 /// Where the added code returns: `fmul dword ptr [edx+0x24]`.
-const WALL_RESUME: usize = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__B1;
+const WALL_RESUME: Site = eix_sites::C_SPELL_EFFECT_GET_DAMAGE__B1;
 /// The wall spell types: 6 the fire wall, 7 the lightning wall; the others take the acid fraction.
 const FIRE_WALL: u32 = 6;
 const LIGHTNING_WALL: u32 = 7;
@@ -540,12 +541,12 @@ static WALL_MODE: AtomicU8 = AtomicU8::new(0);
 /// The handler of `wallspercentage`: the fraction for the wall's type goes to `[edx+0x28]` and stays in ST0.
 extern "C" fn wall_fraction(_: usize, ctx: &mut FpuContext) {
     let at = match ctx.regs.edi {
-        FIRE_WALL => WALL_FRACTIONS + 4,
-        LIGHTNING_WALL => WALL_FRACTIONS + 8,
+        FIRE_WALL => WALL_FRACTIONS.offset(4),
+        LIGHTNING_WALL => WALL_FRACTIONS.offset(8),
         _ => WALL_FRACTIONS,
     };
     // SAFETY: the fractions the build wrote after the call.
-    let fraction = f64::from(unsafe { read::<f32>(at as u32) });
+    let fraction = f64::from(unsafe { read::<f32>(at.here32()) });
     let value = if WALL_MODE.load(Ordering::Relaxed) == 1 {
         // With value 1 the period `fild` before the call left it in ST0.
         ctx.fpu.pop().unwrap_or(Ext::new(0.0)).fmul(fraction)
@@ -600,10 +601,10 @@ fn walls_percentage(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
 
 /// `fld [ebp-0x3C]; fsub [ebp-0x38]; fstp [ebp-0x14]` at 0x5248CB in the stats refresh: the Speed minus Slow effect
 /// value.
-const SPEED_SLOW: usize = eix_sites::UNIT_STATS_RECOMPUTE__36B;
+const SPEED_SLOW: Site = eix_sites::UNIT_STATS_RECOMPUTE__36B;
 const SPEED_SLOW_BYTES: [u8; 9] = [0xD9, 0x45, 0xC4, 0xD8, 0x65, 0xC8, 0xD9, 0x5D, 0xEC];
 /// `UnitStats::RateValue`'s padding that keeps `speedslowmul`.
-const SPEED_SLOW_MUL: usize = eix_sites::UNIT_STATS_RATE_VALUE__AC;
+const SPEED_SLOW_MUL: Site = eix_sites::UNIT_STATS_RATE_VALUE__AC;
 
 /// The handler of `speedslowremaster`: `[ebp-0x14] = speed * mul - slow * mul`.
 extern "C" fn speed_slow(_: usize, ctx: &mut Context) {
@@ -612,7 +613,7 @@ extern "C" fn speed_slow(_: usize, ctx: &mut Context) {
     // SAFETY: as above.
     let slow = unsafe { read::<f32>(ctx.ebp - 0x38) };
     // SAFETY: the factor the build wrote.
-    let mul = f64::from(unsafe { read::<f32>(SPEED_SLOW_MUL as u32) });
+    let mul = f64::from(unsafe { read::<f32>(SPEED_SLOW_MUL.here32()) });
     let value = Ext::new(f64::from(speed))
         .fmul(mul)
         .fsub_ext(Ext::new(f64::from(slow)).fmul(mul));
@@ -650,7 +651,7 @@ fn casts_on_briefings(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
 }
 
 /// `jl` of `CanDropItem`'s level tests.
-const LEVEL_JL: [(usize, &[u8]); 3] = [
+const LEVEL_JL: [(Site, &[u8]); 3] = [
     (
         eix_sites::CAN_DROP_ITEM__CE,
         &[0x0F, 0x8C, 0x3F, 0x07, 0x00, 0x00],
@@ -665,7 +666,7 @@ const LEVEL_JL: [(usize, &[u8]); 3] = [
     ),
 ];
 /// `setge al` of `CanDropItem` and `CCampPages::CanMakeSpell`, which become `mov al, 1; nop`.
-const LEVEL_SETGE: [usize; 4] = [
+const LEVEL_SETGE: [Site; 4] = [
     eix_sites::CAN_DROP_ITEM__102,
     eix_sites::CAN_DROP_ITEM__274,
     eix_sites::CAN_DROP_ITEM__4A6,
@@ -695,7 +696,7 @@ fn always_constructable(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
 }
 
 /// Where `spellsaimod` puts `IsOffensive`'s longer table: header slack.
-const OFFENSIVE_TABLE: usize = 0x40_0400;
+const OFFENSIVE_TABLE: Site = Site::new(0x40_0400);
 /// `IsOffensive`'s table for 54 spell types: the game's 38 entries, then the module's own for 0x26-0x35; the rest
 /// of the 64 bytes is zero.
 const OFFENSIVE_54: [u8; 64] = {
@@ -722,8 +723,8 @@ fn spells_ai_mod(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
         SiteWrite::bytes(OFFENSIVE_TABLE, &[0; 64], &OFFENSIVE_54)?,
         SiteWrite::pointer(
             eix_sites::C_SPELL_IS_OFFENSIVE__F,
-            eix_sites::C_SPELL_IS_OFFENSIVE__28,
-            OFFENSIVE_TABLE,
+            eix_sites::C_SPELL_IS_OFFENSIVE__28.ru(),
+            OFFENSIVE_TABLE.ru(),
         ),
         SiteWrite::bytes(eix_sites::AI_ATTENTION_SPELL_KIND__13, &[0x29], &[0x36])?,
         SiteWrite::bytes(eix_sites::C_SPELL_IS_OFFENSIVE__8, &[0x26], &[0x36])?,
@@ -731,8 +732,8 @@ fn spells_ai_mod(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `je` in `CUnitServer::CanCast` (+0xA6) and `CUnitServer::FinishCast` (+0xF9) that spare units without a player.
-const CAN_CAST_JE: (usize, &[u8]) = (eix_sites::C_UNIT_SERVER_CAN_CAST__A6, &[0x74, 0x39]);
-const FINISH_CAST_JE: (usize, &[u8]) = (
+const CAN_CAST_JE: (Site, &[u8]) = (eix_sites::C_UNIT_SERVER_CAN_CAST__A6, &[0x74, 0x39]);
+const FINISH_CAST_JE: (Site, &[u8]) = (
     eix_sites::C_UNIT_SERVER_FINISH_CAST__F9,
     &[0x0F, 0x84, 0x8F, 0x00, 0x00, 0x00],
 );
@@ -800,7 +801,7 @@ fn change_sounds(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 }
 
 /// The period byte (3) of the four wall spells' damage ticks in `CSpellEffect::UpdateLasting`.
-const WALL_PERIODS: [usize; 4] = [
+const WALL_PERIODS: [Site; 4] = [
     eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__46B,
     eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__5D5,
     eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__2CD,
@@ -821,11 +822,11 @@ fn walls_frequency(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 
 /// `cmp dword ptr [eax+0x10], 0x3006; je +9` at `CanDropItem`+0x790: a wand (kind 0x3006) skips the spell test
 /// `call 0x68B7C0` at 0x610879, whose result `test al, al` reads at 0x61087E. ECX is the dropped spell.
-const WAND_TEST: usize = eix_sites::CAN_DROP_ITEM__790;
+const WAND_TEST: Site = eix_sites::CAN_DROP_ITEM__790;
 const WAND_TEST_BYTES: [u8; 9] = [0x81, 0x78, 0x10, 0x06, 0x30, 0x00, 0x00, 0x74, 0x09];
 const WAND: u32 = 0x3006;
-const DROP_SPELL_TEST: usize = eix_sites::CAN_DROP_ITEM__799;
-const DROP_RESULT: usize = eix_sites::CAN_DROP_ITEM__79E;
+const DROP_SPELL_TEST: Site = eix_sites::CAN_DROP_ITEM__799;
+const DROP_RESULT: Site = eix_sites::CAN_DROP_ITEM__79E;
 /// A spell's modifiers: up to eight 1-based rune record numbers from +0x54, ended by 0.
 const SPELL_MODIFIERS: u32 = 0x54;
 /// The rune record's size and its code's offset; the codes a wand refuses, "ic" and "it".
@@ -884,7 +885,7 @@ fn battery_charge_build(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
 /// `CUnitServer::TickItemSpells`+0x60 rewritten in place: after `cmp eax, 0x180000` (Healing, the spell type in the
 /// high word) the `jne` goes to a test of type 0x2B (Inspiration); each type jumps to its fullness test, at offsets 1
 /// and 15.
-const ITEM_SPELL_TESTS: usize = eix_sites::C_UNIT_SERVER_TICK_ITEM_SPELLS__60;
+const ITEM_SPELL_TESTS: Site = eix_sites::C_UNIT_SERVER_TICK_ITEM_SPELLS__60;
 const ITEM_SPELL_TESTS_WAS: [u8; 33] = [
     0x20, 0x8A, 0x44, 0x24, 0x13, 0x84, 0xC0, 0x75, 0x51, 0x8B, 0x45, 0x1C, 0x66, 0x8B, 0x90, 0x7E,
     0x01, 0x00, 0x00, 0x66, 0x3B, 0x90, 0x80, 0x01, 0x00, 0x00, 0x74, 0x3E, 0xC6, 0x44, 0x24, 0x13,
@@ -901,8 +902,8 @@ const INSPIRATION_JUMP: usize = 15;
 const HEALTH_PAIR: u32 = 0x17E;
 const MANA_PAIR: u32 = 0x182;
 /// `TickItemSpells`' paths: cast the item's spell, or pass the item over.
-const ITEM_SPELL_CAST: usize = eix_sites::C_UNIT_SERVER_TICK_ITEM_SPELLS__81;
-const ITEM_SPELL_SKIP: usize = eix_sites::C_UNIT_SERVER_TICK_ITEM_SPELLS__BA;
+const ITEM_SPELL_CAST: Site = eix_sites::C_UNIT_SERVER_TICK_ITEM_SPELLS__81;
+const ITEM_SPELL_SKIP: Site = eix_sites::C_UNIT_SERVER_TICK_ITEM_SPELLS__BA;
 
 /// An item spell's fullness test, `arg` the unit's pair of 16-bit values (health for Healing, mana for
 /// Inspiration): once one such spell was cast this tick (the byte `[esp+0x13]`), or while the value is full, the
@@ -942,7 +943,7 @@ fn inspiration_intelligence(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bu
     let mut now = ITEM_SPELL_TESTS_NOW;
     for (at, pair) in [(HEALING_JUMP, HEALTH_PAIR), (INSPIRATION_JUMP, MANA_PAIR)] {
         let to = common::entry(item_spell_full, pair as usize)?;
-        now[at..at + 5].copy_from_slice(&patch::jmp_rel32(ITEM_SPELL_TESTS + at, to));
+        now[at..at + 5].copy_from_slice(&patch::jmp_rel32(ITEM_SPELL_TESTS.offset(at), to));
     }
     Ok(vec![SiteWrite::bytes(
         ITEM_SPELL_TESTS,
@@ -952,7 +953,7 @@ fn inspiration_intelligence(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bu
 }
 
 /// `mov eax, [ebx+0xA0]` at `CSpellEffect::UpdateLasting`+0x832, Link's tick counter before its `dec`.
-const LINK_TICK: usize = eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__832;
+const LINK_TICK: Site = eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__832;
 const LINK_TICK_BYTES: [u8; 6] = [0x8B, 0x83, 0xA0, 0x00, 0x00, 0x00];
 /// A unit's vitals (`[unit+0x170]`) hold its mana at +0x34 and the maximum at +0x38.
 const VITALS: u32 = 0x170;
@@ -1023,23 +1024,23 @@ fn link_remaster(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 
 /// `jne +0x15; mov eax, [esi+0x6C]` at `CSpellContainer::Finalize`+0x2A5, after `cmp al, 't'` on a modifier's code
 /// letter: 't' and 'c' set flags in `[esi+0x6C]`.
-const FINALIZE_LETTER: usize = eix_sites::C_SPELL_CONTAINER_BUILD__2A5;
+const FINALIZE_LETTER: Site = eix_sites::C_SPELL_CONTAINER_BUILD__2A5;
 const FINALIZE_LETTER_BYTES: [u8; 5] = [0x75, 0x15, 0x8B, 0x46, 0x6C];
-const FINALIZE_T: usize = eix_sites::C_SPELL_CONTAINER_BUILD__2AA;
-const FINALIZE_STORE: usize = eix_sites::C_SPELL_CONTAINER_BUILD__2B9;
-const FINALIZE_NEXT: usize = eix_sites::C_SPELL_CONTAINER_BUILD__2BC;
+const FINALIZE_T: Site = eix_sites::C_SPELL_CONTAINER_BUILD__2AA;
+const FINALIZE_STORE: Site = eix_sites::C_SPELL_CONTAINER_BUILD__2B9;
+const FINALIZE_NEXT: Site = eix_sites::C_SPELL_CONTAINER_BUILD__2BC;
 /// The flag of the 'f' modifier.
 const FAKE_SOURCE: u32 = 0x8_0000;
 /// `lea eax, [ebx+0x1C]; mov ecx, [ebx+0x1C]` at `CWorldServer::CreateMissile`+0x75: the caster's position becomes
 /// the missile's start; +0x8D builds the missile without it.
-const MISSILE_SOURCE: usize = eix_sites::C_WORLD_SERVER_CREATE_MISSILE__75;
+const MISSILE_SOURCE: Site = eix_sites::C_WORLD_SERVER_CREATE_MISSILE__75;
 const MISSILE_SOURCE_BYTES: [u8; 6] = [0x8D, 0x43, 0x1C, 0x8B, 0x4B, 0x1C];
-const MISSILE_NO_SOURCE: usize = eix_sites::C_WORLD_SERVER_CREATE_MISSILE__8D;
+const MISSILE_NO_SOURCE: Site = eix_sites::C_WORLD_SERVER_CREATE_MISSILE__8D;
 /// `mov edx, [ecx]; lea eax, [ebp-0x318]` at `CSpellEffect::Start`+0x59: the effect takes its target unit's
 /// position; +0x42 takes the effect's own point instead.
-const EFFECT_TARGET: usize = eix_sites::C_SPELL_EFFECT_START__59;
+const EFFECT_TARGET: Site = eix_sites::C_SPELL_EFFECT_START__59;
 const EFFECT_TARGET_BYTES: [u8; 8] = [0x8B, 0x11, 0x8D, 0x85, 0xE8, 0xFC, 0xFF, 0xFF];
-const EFFECT_POINT: usize = eix_sites::C_SPELL_EFFECT_START__42;
+const EFFECT_POINT: Site = eix_sites::C_SPELL_EFFECT_START__42;
 
 /// `Finalize`'s letter test: 't' as before; 'f' sets [`FAKE_SOURCE`].
 extern "C" fn finalize_letter(_: usize, ctx: &mut Context) {
@@ -1111,14 +1112,14 @@ fn fake_source_rune(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
 
 /// `lea ecx, [ebp-0x320]` at `CSpellEffect::Start`+0x1639, before the effect is applied (0x680EAF); ESI is the spell
 /// type, `[ebx+0x58]` the strength, `[ebx+0x1C]` the unit whose resistance byte +0x40A the control spells meet.
-const CONTROL_SITE: usize = eix_sites::C_SPELL_EFFECT_START__1639;
+const CONTROL_SITE: Site = eix_sites::C_SPELL_EFFECT_START__1639;
 const CONTROL_SITE_BYTES: [u8; 6] = [0x8D, 0x8D, 0xE0, 0xFC, 0xFF, 0xFF];
 /// `Start`+0x1BE1: the effect ends without being applied.
-const CONTROL_FAILED: usize = eix_sites::C_SPELL_EFFECT_START__1BE1;
+const CONTROL_FAILED: Site = eix_sites::C_SPELL_EFFECT_START__1BE1;
 /// Value 1's multipliers: `weaknessmultiplier`, `slownessmultiplier`, then a -1.0 its code does not read.
-const WEAKNESS_MUL: usize = eix_sites::DATA_79A0B0;
-const SLOWNESS_MUL: usize = eix_sites::DATA_79A0B4;
-const CONTROL_MINUS_ONE: usize = eix_sites::DATA_79A0B8;
+const WEAKNESS_MUL: Site = eix_sites::DATA_79A0B0;
+const SLOWNESS_MUL: Site = eix_sites::DATA_79A0B4;
+const CONTROL_MINUS_ONE: Site = eix_sites::DATA_79A0B8;
 /// The control spell types of value 1: Stun 0x19 and 0x20 compare, Weaken 0x1E and Slow 0x22 are reduced first.
 const STUN: u32 = 0x19;
 const STUN_LIKE: u32 = 0x20;
@@ -1159,7 +1160,7 @@ extern "C" fn control_spell(_: usize, ctx: &mut Context) {
             SLOWNESS_MUL
         };
         // SAFETY: the multiplier the build wrote.
-        let mul = f64::from(unsafe { read::<f32>(at as u32) });
+        let mul = f64::from(unsafe { read::<f32>(at.here32()) });
         let reduced = Ext::new(strength).fmul(mul).fsub_ext(resist).fdiv(mul);
         // SAFETY: as above.
         unsafe { write::<f32>(strength_at, reduced.to_f32()) };
@@ -1219,8 +1220,8 @@ fn bonuses(ctx: &Ctx<'_>, value: i8) -> Result<Bonuses, BuildError> {
 
 /// Constants values 2 and up write into `.text` padding for code of theirs that never runs: -0.8 at 0x401538 and
 /// `lvldurcoeff` at 0x409A38.
-const CONTROL_MINUS_POINT_8: usize = eix_sites::C_TRANSFORM_OBJECT_SAVE_TRANSFORM_IMPL__28;
-const LEVEL_DURATION_COEFF: usize = eix_sites::CHUNK_ARCHIVE_LEAVE_CHUNK__B8;
+const CONTROL_MINUS_POINT_8: Site = eix_sites::C_TRANSFORM_OBJECT_SAVE_TRANSFORM_IMPL__28;
+const LEVEL_DURATION_COEFF: Site = eix_sites::CHUNK_ARCHIVE_LEAVE_CHUNK__B8;
 
 /// The arena routine of `controlmagic` 2, 3, 5 and 7, called before the effect is applied: ECX becomes the replaced
 /// `lea`'s value, and a spell of one of the 22 types gets its bonus added to the strength `[ebx+0x58]` (with value
@@ -1299,7 +1300,7 @@ enum SpellLine {
 }
 
 /// `(site, its seven bytes, the short jump's displacement, which line)`.
-const SPELL_LINES: [(usize, [u8; 7], u8, SpellLine); 3] = [
+const SPELL_LINES: [(Site, [u8; 7], u8, SpellLine); 3] = [
     (
         eix_sites::C_ITEM_INFO_PANEL_DESCRIBE_CARRIED_SPELL__331,
         [0x8B, 0x8B, 0xCC, 0x01, 0x00, 0x00, 0x50],
@@ -1320,11 +1321,11 @@ const SPELL_LINES: [(usize, [u8; 7], u8, SpellLine); 3] = [
     ),
 ];
 /// The game's formats: "%s %d" for the panels, "%s %d  " for the HUD; and the patch's "%s %d+%d".
-const PANEL_FORMAT: u32 = eix_sites::DATA_792F14 as u32;
-const HUD_FORMAT: u32 = eix_sites::DATA_794500 as u32;
+const PANEL_FORMAT: Site = eix_sites::DATA_792F14;
+const HUD_FORMAT: Site = eix_sites::DATA_794500;
 static BONUS_FORMAT: &[u8] = b"%s %d+%d\0";
 /// `CString::Format` 0x6FDF5F: cdecl, the string first.
-const CSTRING_FORMAT: usize = eix_sites::C_STRING_FORMAT;
+const CSTRING_FORMAT: Site = eix_sites::C_STRING_FORMAT;
 type CStringFormat = unsafe extern "C" fn(string: u32, format: *const u8, ...);
 
 /// What a spell line's handler needs: which line, and the bonuses.
@@ -1373,7 +1374,7 @@ extern "C" fn spell_line(arg: usize, ctx: &mut Context) {
     let value = ctx.eax as i32;
     // SAFETY: 0x6FDF5F is `void __cdecl CString::Format(CString*, LPCTSTR, ...)`.
     let format = unsafe { hook::as_fn::<CStringFormat>(CSTRING_FORMAT) };
-    let plain = |at: u32| at as usize as *const u8;
+    let plain = |at: Site| at.ptr::<u8>().cast_const();
     if setup.line == SpellLine::Hud {
         let string = stack + 0x48;
         let shown = bonus.map_or(value, |b| value.wrapping_add(b));
@@ -1396,10 +1397,10 @@ extern "C" fn spell_line(arg: usize, ctx: &mut Context) {
 /// `DescribeSpellRecord`+0x2C0 to its end (736 bytes): the patch moves its code 9 bytes up into the padding after
 /// its `ret` and puts 9 NOPs in front; the short jump into +0x2C0 then runs the NOPs. The bytes are read from the
 /// running game and checked by hash: they are game code, not ours to carry.
-const RECORD_CODE: usize = eix_sites::C_ITEM_INFO_PANEL_DESCRIBE_SPELL_RECORD__2C0;
+const RECORD_CODE: Site = eix_sites::C_ITEM_INFO_PANEL_DESCRIBE_SPELL_RECORD__2C0;
 const RECORD_CODE_LEN: usize = 736;
 const RECORD_SHIFT: usize = 9;
-/// FNV-1a 64 of game.exe RU 1.06's bytes there.
+/// FNV-1a 64 of a supported game.exe's bytes there.
 const RECORD_CODE_HASH: u64 = 0xE07C_E8D6_323D_C005;
 /// Where the moved code's calls out of the range keep their 32-bit displacements (offsets into the range).
 const RECORD_CODE_CALLS: [usize; 23] = [
@@ -1451,7 +1452,7 @@ fn effect_redraws(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
             spell_line,
             setup,
         )?);
-        writes.push(SiteWrite::bytes(site + 5, &was[5..], &[0xEB, jump])?);
+        writes.push(SiteWrite::bytes(site.offset(5), &was[5..], &[0xEB, jump])?);
     }
     // SAFETY: game.exe's code, mapped and readable; nothing writes it while the features are prepared.
     let code = unsafe { patch::read(RECORD_CODE, RECORD_CODE_LEN) };
@@ -1551,8 +1552,8 @@ fn start_type(ctx: &Context) -> u32 {
 }
 
 /// `CUnit::SetHostileMask` 0x52E970 and `CUnit::SetSide` 0x530120: thiscall on the unit, one word, `ret 4`.
-const SET_HOSTILE_MASK: usize = eix_sites::C_UNIT_SET_HOSTILE_MASK;
-const SET_SIDE: usize = eix_sites::C_UNIT_SET_SIDE;
+const SET_HOSTILE_MASK: Site = eix_sites::C_UNIT_SET_HOSTILE_MASK;
+const SET_SIDE: Site = eix_sites::C_UNIT_SET_SIDE;
 type SetUnitWord = unsafe extern "thiscall" fn(unit: u32, value: i32);
 
 /// Gives `unit` the hostile mask `mask`, then the side `side`.
@@ -1595,21 +1596,21 @@ const CASTER_MARK: i32 = 29;
 
 /// `fld dword ptr [edi+0x200]` at `CSpellEffect::Start`+0x205A, the caster's intelligence the Charm case (0x24, and
 /// 0x2A through the same case byte) adds to the power, and the `fadd st(1)` that adds it (+0x206F).
-const CHARM_INTELLIGENCE: usize = eix_sites::C_SPELL_EFFECT_START__205A;
+const CHARM_INTELLIGENCE: Site = eix_sites::C_SPELL_EFFECT_START__205A;
 const CHARM_INTELLIGENCE_BYTES: [u8; 6] = [0xD9, 0x87, 0x00, 0x02, 0x00, 0x00];
-const CHARM_ADD: (usize, &[u8]) = (eix_sites::C_SPELL_EFFECT_START__206F, &[0xD8, 0xC1]);
+const CHARM_ADD: (Site, &[u8]) = (eix_sites::C_SPELL_EFFECT_START__206F, &[0xD8, 0xC1]);
 /// `call CUnitServer::TryTame` at +0x2084 after `push power; push caster; mov ecx, esi` (ESI the target's
 /// controller), and the case's two ways on: the Charm sound, then the effect ends (+0x20A3), or the caster's
 /// acknowledgement 0x1A, then the effect ends (+0x20EC).
-const CHARM_TAME: usize = eix_sites::C_SPELL_EFFECT_START__2084;
+const CHARM_TAME: Site = eix_sites::C_SPELL_EFFECT_START__2084;
 const CHARM_TAME_BYTES: [u8; 5] = [0xE8, 0xE7, 0x01, 0xED, 0xFF];
-const CHARM_SUCCESS: usize = eix_sites::C_SPELL_EFFECT_START__20A3;
-const CHARM_FAILURE: usize = eix_sites::C_SPELL_EFFECT_START__20EC;
+const CHARM_SUCCESS: Site = eix_sites::C_SPELL_EFFECT_START__20A3;
+const CHARM_FAILURE: Site = eix_sites::C_SPELL_EFFECT_START__20EC;
 /// `add esp, 8`: the two arguments pushed for `TryTame`.
 const DROP_TAME_ARGS: [u8; 3] = [0x83, 0xC4, 0x08];
 /// `UnitStats::AttributeWithItems` 0x525E90: thiscall on the stats at the controller's +0x1E0, the attribute's index
 /// (2, the resistance to taming) and the unit, `ret 8`.
-const ATTRIBUTE_WITH_ITEMS: usize = eix_sites::UNIT_STATS_ATTRIBUTE_WITH_ITEMS;
+const ATTRIBUTE_WITH_ITEMS: Site = eix_sites::UNIT_STATS_ATTRIBUTE_WITH_ITEMS;
 type AttributeWithItems = unsafe extern "thiscall" fn(stats: u32, index: i32, unit: u32) -> f32;
 const CONTROLLER_STATS: u32 = 0x1E0;
 const TAME_RESISTANCE: i32 = 2;
@@ -1650,7 +1651,7 @@ extern "C" fn charm(_: usize, ctx: &mut Context) {
 
 /// `mov edx, [ecx]; call [edx+0x54]` at `CSpellEffect::Start`+0x1DE0: the Healing case's heal of the target's
 /// controller (ECX) by the amount pushed from EAX.
-const HEAL_CALL: usize = eix_sites::C_SPELL_EFFECT_START__1DE0;
+const HEAL_CALL: Site = eix_sites::C_SPELL_EFFECT_START__1DE0;
 const HEAL_CALL_BYTES: [u8; 5] = [0x8B, 0x11, 0xFF, 0x52, 0x54];
 
 /// Inspiration's mana: `mana + amount`, or the maximum when that sum is greater (no lower bound).
@@ -1685,9 +1686,9 @@ extern "C" fn inspiration_mana(_: usize, ctx: &mut Context) {
 
 /// `lea ecx, [ebp-0x1D4]` at +0x1EB7, before the Healing particle's arguments are pushed (EDI the target, EDX the
 /// size), and the call's setup after the pushes (+0x1ED0).
-const HEAL_PARTICLE: usize = eix_sites::C_SPELL_EFFECT_START__1EB7;
+const HEAL_PARTICLE: Site = eix_sites::C_SPELL_EFFECT_START__1EB7;
 const HEAL_PARTICLE_BYTES: [u8; 6] = [0x8D, 0x8D, 0x2C, 0xFE, 0xFF, 0xFF];
-const PARTICLE_CALL: usize = eix_sites::C_SPELL_EFFECT_START__1ED0;
+const PARTICLE_CALL: Site = eix_sites::C_SPELL_EFFECT_START__1ED0;
 /// Inspiration's particle; Healing's is 0x2006.
 const INSPIRATION_PARTICLE: u32 = 0x2018;
 
@@ -1715,9 +1716,9 @@ extern "C" fn inspiration_particle(arg: usize, ctx: &mut Context) {
 
 /// `push 50.0` at +0x1F10, the Healing sound's hearing distance (EAX the target), and the call's setup after the
 /// sound's name is pushed (+0x1F2A).
-const HEAL_SOUND: usize = eix_sites::C_SPELL_EFFECT_START__1F10;
+const HEAL_SOUND: Site = eix_sites::C_SPELL_EFFECT_START__1F10;
 const HEAL_SOUND_BYTES: [u8; 5] = [0x68, 0x00, 0x00, 0x48, 0x42];
-const SOUND_CALL: usize = eix_sites::C_SPELL_EFFECT_START__1F2A;
+const SOUND_CALL: Site = eix_sites::C_SPELL_EFFECT_START__1F2A;
 /// Inspiration's sound and its volume, Healing's.
 static INSPIRATION_SOUND: &CStr = c"magic\\Inspiration\\start.mp3";
 const SOUND_VOLUME: f32 = 10.0;
@@ -1742,9 +1743,9 @@ extern "C" fn inspiration_sound(arg: usize, ctx: &mut Context) {
 
 /// `mov eax, [ebx+0x28]; mov ecx, [ebx+8]` at +0x8B4, the start of the InvokeLightning case, and +0x1BE1, where the
 /// effect ends.
-const LIGHTNING_START: usize = eix_sites::C_SPELL_EFFECT_START__8B4;
+const LIGHTNING_START: Site = eix_sites::C_SPELL_EFFECT_START__8B4;
 const LIGHTNING_START_BYTES: [u8; 6] = [0x8B, 0x43, 0x28, 0x8B, 0x4B, 0x08];
-const EFFECT_ENDS: usize = eix_sites::C_SPELL_EFFECT_START__1BE1;
+const EFFECT_ENDS: Site = eix_sites::C_SPELL_EFFECT_START__1BE1;
 /// The player's tick `CWorldServer::UpdatePlayerTimes` counts its time from.
 const PLAYER_TICK: u32 = 0x110;
 
@@ -1833,7 +1834,7 @@ extern "C" fn script_spell(_: usize, ctx: &mut Context) {
 }
 
 /// `fld [ebx+0x64]; lea esi, [ebx+0x24]` at +0x63D, the start of the Fireball case, which 0x31 reaches.
-const FIREBALL_START: usize = eix_sites::C_SPELL_EFFECT_START__63D;
+const FIREBALL_START: Site = eix_sites::C_SPELL_EFFECT_START__63D;
 const FIREBALL_START_BYTES: [u8; 6] = [0xD9, 0x43, 0x64, 0x8D, 0x73, 0x24];
 
 /// Before the Fireball case runs for 0x31, its caster gets hostile mask 29 and side 29.
@@ -1861,7 +1862,7 @@ fn new_spells(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     }
     // The original's layout at each site: `nop; jmp <added code>` or `jmp <added code>`.
     if value == 1 {
-        let resume = FIREBALL_START + FIREBALL_START_BYTES.len();
+        let resume = FIREBALL_START.offset(FIREBALL_START_BYTES.len());
         let stub = hook::stub(
             FIREBALL_START,
             &[],
@@ -1915,7 +1916,7 @@ fn new_spells(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
         &CHARM_INTELLIGENCE_BYTES[..1],
     ));
     writes.push(hook::fpu_hook(
-        CHARM_INTELLIGENCE + 1,
+        CHARM_INTELLIGENCE.offset(1),
         load,
         load,
         Mode::Drop,
@@ -2038,7 +2039,7 @@ mod tests {
         let ctx = Ctx::new(&v, no_log);
         for value in 1..=3 {
             let writes = plain(&new_spells(&ctx, value).unwrap());
-            let at = |site: usize| writes.iter().find(|w| w.0 == site).map(|w| w.2.clone());
+            let at = |site: Site| writes.iter().find(|w| w.0 == site).map(|w| w.2.clone());
             for site in [
                 eix_sites::C_SPELL_EFFECT_START__83,
                 eix_sites::C_SPELL_EFFECT_UPDATE_MISSILE__10,

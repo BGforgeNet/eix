@@ -46,7 +46,7 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
         chars: core::ptr::null_mut(),
     }));
     let address = core::ptr::from_mut(string);
-    // SAFETY: the build is RU 1.06 (checked before the WinMain hook); the slot is fresh, writable and holds no
+    // SAFETY: the build is a supported one (checked before the WinMain hook); the slot is fresh, writable and holds no
     // string; this runs on the game's thread before WinMain.
     unsafe { mfc::construct(address, text) };
     let _ = FOLDER.set((folder, address.expose_provenance()));

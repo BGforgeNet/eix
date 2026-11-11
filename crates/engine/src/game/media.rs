@@ -45,12 +45,12 @@ mod tests {
     #[test]
     fn the_bink_slots_are_one_table_holding_bink_open() {
         for (i, (_, slot)) in BINK_IMPORTS.iter().enumerate() {
-            assert_eq!(slot.address(), eix_sites::RDATA_73B714 + 4 * i);
+            assert_eq!(slot.site(), eix_sites::RDATA_73B714.offset(4 * i));
         }
         assert!(
             BINK_IMPORTS
                 .iter()
-                .any(|(n, s)| *n == c"_BinkOpen@8" && s.address() == BINK_OPEN_SLOT.address())
+                .any(|(n, s)| *n == c"_BinkOpen@8" && s.site() == BINK_OPEN_SLOT.site())
         );
     }
 }

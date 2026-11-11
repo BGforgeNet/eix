@@ -18,6 +18,7 @@ use eix_engine::game::stl::HashTable;
 use eix_engine::game::unit::{UnitParams, UnitStats};
 use eix_engine::game::world::{CLIENT_WORLD, World};
 use eix_engine::hook::{Context, Mode};
+use eix_sites::Site;
 
 use super::lua_common::{context, replace, require_host, wanted, with_host};
 use super::{BuildError, Labelled, Setup, applied_write};
@@ -25,7 +26,7 @@ use crate::log;
 use crate::lua::{addr, ptr};
 
 /// AddScaledExperience's site and its first five bytes in game.exe.
-const ADD_SCALED_EXPERIENCE: usize = eix_sites::UNIT_STATS_ADD_SCALED_EXPERIENCE;
+const ADD_SCALED_EXPERIENCE: Site = eix_sites::UNIT_STATS_ADD_SCALED_EXPERIENCE;
 const ADD_SCALED_EXPERIENCE_ENTRY: [u8; 5] = [0xDD, 0x05, 0x28, 0xE1, 0x73];
 
 /// The experience style of `CWorldClient::ShowNumber` (`CPlayerClient::OnExperience` passes 8).

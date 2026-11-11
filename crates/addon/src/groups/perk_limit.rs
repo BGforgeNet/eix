@@ -11,6 +11,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 use eix_core::rules::perk_limit_slot;
 use eix_core::x86_flags;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::memory::word;
 use super::{BuildError, Labelled, Setup};
@@ -62,7 +63,7 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     {
         slot.store(limit, Ordering::Relaxed);
     }
-    let sites: [(&str, usize, &[u8], hook::Handler); 3] = [
+    let sites: [(&str, Site, &[u8], hook::Handler); 3] = [
         (
             "Perk Limit #1",
             eix_sites::TRADE_DRAW_LISTS__21A,

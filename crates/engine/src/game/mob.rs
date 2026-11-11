@@ -42,7 +42,7 @@ impl MobSpec {
     /// Destroys the record and frees it, as `LoadMobFile` does once a record has made its object.
     ///
     /// # Safety
-    /// `this` must be a live record of game.exe RU 1.06 that nothing else refers to, on the game's thread.
+    /// `this` must be a live record of a supported game.exe that nothing else refers to, on the game's thread.
     pub unsafe fn delete(this: *mut Self) {
         // SAFETY: a live record's first word is its vtable.
         let vtable = unsafe { (*this).vtable };

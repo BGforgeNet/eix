@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, HookError, Mode};
+use eix_sites::Site;
 
 mod apply;
 mod features;
@@ -32,10 +33,10 @@ pub type Log = fn(Level, &str, &str, &str);
 
 /// The bytes addon.dll wrote at exactly a site, if any: a SpellAddon write that covers them lands over them, as the
 /// original's copy does.
-pub type Earlier = fn(usize) -> Option<Vec<u8>>;
+pub type Earlier = fn(Site) -> Option<Vec<u8>>;
 
 /// The call of `AIL_startup` in `CSoundManager`'s constructor: `call [0x73B7D4]`.
-const AIL_STARTUP_CALL: usize = eix_sites::C_SOUND_MANAGER_CONSTRUCT__22A;
+const AIL_STARTUP_CALL: Site = eix_sites::C_SOUND_MANAGER_CONSTRUCT__22A;
 const AIL_STARTUP_BYTES: [u8; 6] = [0xFF, 0x15, 0xD4, 0xB7, 0x73, 0x00];
 
 /// What the hook needs when it runs.

@@ -12,17 +12,18 @@ use core::ffi::c_void;
 
 use eix_core::engine_fixes::camera_release;
 use eix_engine::hook;
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// After the game tick: `call CCamera::Update` with the tick's step.
-const TICK_UPDATE: usize = eix_sites::GAME_MAIN__F69;
+const TICK_UPDATE: Site = eix_sites::GAME_MAIN__F69;
 const TICK_UPDATE_BYTES: [u8; 5] = [0xE8, 0x82, 0x87, 0xFB, 0xFF];
 /// The frame's updates: one per whole tick of a long frame, then the rest.
-const FRAME_TICK_UPDATE: usize = eix_sites::GAME_MAIN__112D;
+const FRAME_TICK_UPDATE: Site = eix_sites::GAME_MAIN__112D;
 const FRAME_TICK_UPDATE_BYTES: [u8; 5] = [0xE8, 0xBE, 0x85, 0xFB, 0xFF];
-const FRAME_UPDATE: usize = eix_sites::GAME_MAIN__1155;
+const FRAME_UPDATE: Site = eix_sites::GAME_MAIN__1155;
 const FRAME_UPDATE_BYTES: [u8; 5] = [0xE8, 0x96, 0x85, 0xFB, 0xFF];
 
 type Update = unsafe extern "thiscall" fn(*mut c_void, f32);
@@ -43,7 +44,7 @@ extern "thiscall" fn frame_update(camera: *mut c_void, step: f32) {
     let (release, left) = camera_release(f32::from_bits(PENDING.load(Ordering::Relaxed)), step);
     PENDING.store(left.to_bits(), Ordering::Relaxed);
     // SAFETY: UPDATE holds CCamera::Update, of this type, once `build` ran; the calls are redirected only after.
-    let update = unsafe { hook::as_fn::<Update>(UPDATE.load(Ordering::Relaxed)) };
+    let update = unsafe { hook::as_fn_at::<Update>(UPDATE.load(Ordering::Relaxed)) };
     // SAFETY: `camera` is the game's camera, as the game passed it, on its own thread.
     unsafe { update(camera, step + release) };
 }
@@ -57,7 +58,7 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let frame = frame_update as *const () as usize;
     let (frame_tick, _) = hook::redirect_call(FRAME_TICK_UPDATE, FRAME_TICK_UPDATE_BYTES, frame)?;
     let (frame_rest, _) = hook::redirect_call(FRAME_UPDATE, FRAME_UPDATE_BYTES, frame)?;
-    UPDATE.store(update, Ordering::Relaxed);
+    UPDATE.store(update.here(), Ordering::Relaxed);
     Ok(vec![
         Labelled {
             label: "SmoothCamera #0".to_owned(),
@@ -87,7 +88,7 @@ mod tests {
         ] {
             let rel = i32::from_le_bytes(bytes[1..].try_into().unwrap());
             assert_eq!(
-                (site + 5).wrapping_add_signed(rel as isize),
+                Site::new((site.offset(5)).ru().wrapping_add_signed(rel as isize)),
                 eix_sites::C_CAMERA_UPDATE
             );
         }

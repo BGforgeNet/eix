@@ -44,7 +44,7 @@ fn make_dir(dir: &[u8]) -> bool {
 /// The hosting player: player 0 of the server world, when the game has a live server session.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06.
+/// The process must be a supported game.exe.
 unsafe fn player_zero() -> Option<*mut Player> {
     // SAFETY: the caller guarantees the build.
     unsafe { live_server() }?;
@@ -58,7 +58,7 @@ unsafe fn player_zero() -> Option<*mut Player> {
 /// the original.
 ///
 /// # Safety
-/// `player` must be a live player of game.exe RU 1.06.
+/// `player` must be a live player of a supported game.exe.
 unsafe fn write_party(player: *mut Player, file: &[u8]) {
     let Ok(file) = CString::new(file) else {
         log::warn("crash", "a party file name holds a NUL", "");
@@ -96,7 +96,7 @@ unsafe fn write_party(player: *mut Player, file: &[u8]) {
 /// The game's current hero file name as bytes (empty when the global is null).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06.
+/// The process must be a supported game.exe.
 unsafe fn hero_file() -> Vec<u8> {
     // SAFETY: the caller guarantees the build; the global holds a C string or null.
     let name = unsafe { HERO_FILE.read() };
@@ -111,7 +111,7 @@ unsafe fn hero_file() -> Vec<u8> {
 /// the dead units' loot was gathered and the player's list emptied, which the original empties once more at the end.
 ///
 /// # Safety
-/// `player` must be the live player 0 of game.exe RU 1.06.
+/// `player` must be the live player 0 of a supported game.exe.
 unsafe fn write_files(player: *mut Player, folder: &[u8]) {
     let world = SERVER_WORLD.as_ptr();
     // The calls are the original's, in its order; the hero file's name is read again for the second file.

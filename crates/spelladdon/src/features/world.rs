@@ -18,6 +18,7 @@ use eix_engine::group::SiteWrite;
 use eix_engine::hook::Context;
 use eix_engine::patch;
 use eix_engine::x87::Ext;
+use eix_sites::Site;
 
 use super::common::{self, Bytes, PushTail, fixed, read};
 use super::{Build, BuildError, Ctx};
@@ -68,14 +69,14 @@ fn when_on(value: i8, table: &[Bytes]) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// A 32-bit immediate or constant `was` at `site` set to `now`.
-fn word(site: usize, was: u32, now: [u8; 4]) -> Result<SiteWrite, BuildError> {
+fn word(site: Site, was: u32, now: [u8; 4]) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(site, &was.to_le_bytes(), &now)?)
 }
 
 // --- Interface ---------------------------------------------------------------------------------------------------
 
 /// The hero model's scale in `CUiWindow::DrawHeroPreview`: the operand of `mov ecx, 0x3F99999A` (1.2) at 0x5EC8F2.
-const HERO_PREVIEW_SCALE: usize = eix_sites::C_UI_WINDOW_DRAW_HERO_PREVIEW__5F3;
+const HERO_PREVIEW_SCALE: Site = eix_sites::C_UI_WINDOW_DRAW_HERO_PREVIEW__5F3;
 
 /// `rewriteperssize` = 1: the hero preview's scale becomes `perssize`.
 fn pers_size(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
@@ -141,10 +142,10 @@ fn meter_scale(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 
 /// `CHudUnitPanel::DrawUnitInfo`'s attack line, where the original adds the defence and hearing values:
 /// `mov eax, [esi+0x1a0]`, which becomes `nop; jmp <added code>`.
-const INFO_HEADER: usize = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__23C;
+const INFO_HEADER: Site = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__23C;
 const INFO_HEADER_BYTES: [u8; 6] = [0x8B, 0x86, 0xA0, 0x01, 0x00, 0x00];
 /// Where the added code goes back: `mov ecx, [ebp-0x28]`, then the four NOPs that replace the attack value's push.
-const INFO_HEADER_BACK: usize = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__242;
+const INFO_HEADER_BACK: Site = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__242;
 
 /// The handler of `infowindowremake`: EAX is the unit's stats block; the handler pushes its attack (+0x34), the unit's
 /// hearing byte (+0x25 of the record at `[ebp-0x1c]`) and its defence (+0x4c) for one combined format.
@@ -172,7 +173,7 @@ static INFO_FORMAT: &[u8; 15] = b"%s %d    %s %d\0";
 
 /// `DrawUnitInfo`+0x2aa..+0x34e: the attack and defence lines' two formats and draws, which the original rewrites
 /// as one format of both values and one draw, padded with NOPs.
-const INFO_LINES: usize = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__2AA;
+const INFO_LINES: Site = eix_sites::C_HUD_UNIT_PANEL_DRAW_UNIT_INFO__2AA;
 const INFO_LINES_BYTES: [u8; 164] = [
     0x0C, 0x50, 0x68, 0x14, 0x2F, 0x79, 0x00, 0x51, 0xE8, 0x68, 0x6C, 0x0B, 0x00, 0x8B, 0x45, 0xEC,
     0x83, 0xC4, 0x10, 0x8D, 0x55, 0xC8, 0x8B, 0xCF, 0x6A, 0x01, 0x6A, 0x00, 0x68, 0xE4, 0xD7, 0xA7,
@@ -187,16 +188,16 @@ const INFO_LINES_BYTES: [u8; 164] = [
     0x92, 0x8C, 0xE9, 0xFF,
 ];
 /// `CString::Format`, `CUiWindow::DrawText` and `CTextList::Add`, which the rewritten lines call.
-const CSTRING_FORMAT: usize = eix_sites::C_STRING_FORMAT;
-const DRAW_TEXT: usize = eix_sites::C_UI_SURFACE_DRAW_TEXT_IN;
-const TEXT_LIST_ADD: usize = eix_sites::C_TEXT_MANAGER_GET_STRING;
+const CSTRING_FORMAT: Site = eix_sites::C_STRING_FORMAT;
+const DRAW_TEXT: Site = eix_sites::C_UI_SURFACE_DRAW_TEXT_IN;
+const TEXT_LIST_ADD: Site = eix_sites::C_TEXT_MANAGER_GET_STRING;
 
 /// The rewritten lines, `format` being the address of the combined format.
 fn info_lines(format: u32) -> Vec<u8> {
     let mut b = Vec::with_capacity(INFO_LINES_BYTES.len());
-    let call = |b: &mut Vec<u8>, to: usize| {
-        let at = INFO_LINES + b.len();
-        b.extend_from_slice(&patch::call_rel32(at, to));
+    let call = |b: &mut Vec<u8>, to: Site| {
+        let at = INFO_LINES.offset(b.len());
+        b.extend_from_slice(&patch::call_rel32(at, to.ru()));
     };
     // The byte ends `mov eax, [edx+0x10]` (the defence); push eax; mov eax, [ebp-0x70]; push eax;
     // mov eax, [edx+0xc]; push eax; push format; push ecx.
@@ -286,9 +287,9 @@ fn info_window_remake(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
 
 /// `CGlobalMap::Create`'s description window: `push 0x46; push 0xaa`, which becomes `nop; nop; jmp <added code>`; the
 /// handler pushes `framey` and `framex` instead.
-const ALLOD_WINDOW: usize = eix_sites::C_GLOBAL_MAP_CREATE__14C4;
+const ALLOD_WINDOW: Site = eix_sites::C_GLOBAL_MAP_CREATE__14C4;
 const ALLOD_WINDOW_BYTES: [u8; 7] = [0x6A, 0x46, 0x68, 0xAA, 0x00, 0x00, 0x00];
-const ALLOD_WINDOW_BACK: usize = eix_sites::C_GLOBAL_MAP_CREATE__14CB;
+const ALLOD_WINDOW_BACK: Site = eix_sites::C_GLOBAL_MAP_CREATE__14CB;
 
 /// What the description window's handler pushes.
 #[derive(Debug)]
@@ -306,7 +307,7 @@ extern "C" fn allod_window(arg: usize, ctx: &mut Context) {
 }
 
 /// The immediate of a `mov dword [esp+disp32], imm32` holding `was`, set to `now`.
-fn imm(site: usize, was: u32, now: i32) -> Result<SiteWrite, BuildError> {
+fn imm(site: Site, was: u32, now: i32) -> Result<SiteWrite, BuildError> {
     word(site, was, now.to_le_bytes())
 }
 
@@ -460,14 +461,14 @@ fn lights_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 }
 
 /// The four font slots in `.data`, 0x30 bytes each, that `newfont1` .. `newfont4` are copied to.
-const FONT_SLOTS: [usize; 4] = [
+const FONT_SLOTS: [Site; 4] = [
     eix_sites::DATA_79A290,
     eix_sites::DATA_79A2C0,
     eix_sites::DATA_79A2F0,
     eix_sites::DATA_79A320,
 ];
 /// `CInterface3D::Create`'s four `push 0x793034` ("Times New Roman"), in the order of the slots they get.
-const FONT_PUSHES: [usize; 4] = [
+const FONT_PUSHES: [Site; 4] = [
     eix_sites::C_INTERFACE_3D_CREATE__FD,
     eix_sites::C_INTERFACE_3D_CREATE__173,
     eix_sites::C_INTERFACE_3D_CREATE__1D8,
@@ -491,7 +492,7 @@ fn change_font(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
         name.resize(0x30, 0);
         writes.push(SiteWrite::bytes(slot, &[0; 0x30], &name)?);
         let mut new = [0x68, 0, 0, 0, 0];
-        new[1..].copy_from_slice(&(slot as u32).to_le_bytes());
+        new[1..].copy_from_slice(&slot.ru32().to_le_bytes());
         writes.push(SiteWrite::bytes(push, &TIMES_PUSH, &new)?);
     }
     if value == 2 {
@@ -607,14 +608,14 @@ fn music_timings(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 }
 
 /// `CWorldClient::LoadZone`'s `mov ebx, [esi+0x6e0]` before the zone music, which becomes `nop; jmp <added code>`.
-const ZONE_MUSIC: usize = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__6C3;
+const ZONE_MUSIC: Site = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__6C3;
 const ZONE_MUSIC_BYTES: [u8; 6] = [0x8B, 0x9E, 0xE0, 0x06, 0x00, 0x00];
 /// The zone the handler looks for, kept by the original in padding of `LoadZone`; its address is also the music name
 /// it passes.
-const ZONE_MUSIC_NAME: u32 = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__8E5 as u32;
+const ZONE_MUSIC_NAME: Site = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__8E5;
 /// `LoadZone`'s own path (`mov edi, [edi]`) and the call of `CMusicSystem::SetZoneMode`.
-const ZONE_MUSIC_OWN: usize = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__6C9;
-const ZONE_MUSIC_CALL: usize = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__6D8;
+const ZONE_MUSIC_OWN: Site = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__6C9;
+const ZONE_MUSIC_CALL: Site = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__6D8;
 
 /// The handler of `newzonescpecificmusic` = 1: in zone `gz12d2` (EDX the zone's name), the music is the one named
 /// `gz12d2`, its flag `[esi+0x6e0] == 1`; elsewhere `LoadZone` goes on as before.
@@ -629,7 +630,7 @@ extern "C" fn zone_music(arg: usize, ctx: &mut Context) {
     if unsafe { common::c_str_is(ctx.edx, b"gz12d2") } {
         let flag = u32::from(mode == 1);
         ctx.edx = flag;
-        tail.resume(ctx, &[flag, ZONE_MUSIC_NAME]);
+        tail.resume(ctx, &[flag, ZONE_MUSIC_NAME.here32()]);
     } else {
         ctx.resume = ZONE_MUSIC_OWN;
     }
@@ -654,7 +655,7 @@ fn zone_specific_music(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
     match value {
         1 => {
             let tail = PushTail::new(2, ZONE_MUSIC_CALL)?;
-            let mut writes = fixed(&[(ZONE_MUSIC_NAME as usize, &[0x90; 8], b"gz12d2\0\xCC")])?;
+            let mut writes = fixed(&[(ZONE_MUSIC_NAME, &[0x90; 8], b"gz12d2\0\xCC")])?;
             writes.extend(common::jump_at(
                 ZONE_MUSIC,
                 &ZONE_MUSIC_BYTES,
@@ -760,9 +761,9 @@ fn big_maps_patch(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 
 /// `CWorldServer::SetZoneExits`+0x50: `mov [esp+0x10], esi; cmp eax, esi`, which becomes `nop; jmp <added code>`. EAX
 /// is the zone's exit count, which the handler lowers by (1) or sets to (2) the host's script variable `Exits`.
-const ZONE_EXITS: usize = eix_sites::C_WORLD_SERVER_SET_ZONE_EXITS__50;
+const ZONE_EXITS: Site = eix_sites::C_WORLD_SERVER_SET_ZONE_EXITS__50;
 const ZONE_EXITS_BYTES: [u8; 6] = [0x89, 0x74, 0x24, 0x10, 0x3B, 0xC6];
-const ZONE_EXITS_BACK: usize = eix_sites::C_WORLD_SERVER_SET_ZONE_EXITS__56;
+const ZONE_EXITS_BACK: Site = eix_sites::C_WORLD_SERVER_SET_ZONE_EXITS__56;
 
 /// The handler of `hiddenzonesexits`; `arg` is 1 to subtract the variable, 2 to replace the count by it.
 extern "C" fn zone_exits(arg: usize, ctx: &mut Context) {
@@ -834,10 +835,10 @@ fn segments_on_exit_enter(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bu
 
 /// `CWorldClient::EnvironmentFlags`+0x70, `mov eax, [edi+0x184]` (the zone's name) before its last name test,
 /// which becomes `nop; jmp <added code>`.
-const ZONE_FLAGS: usize = eix_sites::C_WORLD_CLIENT_ENVIRONMENT_FLAGS__70;
+const ZONE_FLAGS: Site = eix_sites::C_WORLD_CLIENT_ENVIRONMENT_FLAGS__70;
 const ZONE_FLAGS_BYTES: [u8; 6] = [0x8B, 0x87, 0x84, 0x01, 0x00, 0x00];
-const ZONE_FLAGS_OWN: usize = eix_sites::C_WORLD_CLIENT_ENVIRONMENT_FLAGS__76;
-const ZONE_FLAGS_DONE: usize = eix_sites::C_WORLD_CLIENT_ENVIRONMENT_FLAGS__8B;
+const ZONE_FLAGS_OWN: Site = eix_sites::C_WORLD_CLIENT_ENVIRONMENT_FLAGS__76;
+const ZONE_FLAGS_DONE: Site = eix_sites::C_WORLD_CLIENT_ENVIRONMENT_FLAGS__8B;
 /// The new allods' zone names; the n-th sets environment flag bit 15 + n.
 const NEW_ALLODS: [&[u8]; 9] = [
     b"jigran", b"neloya", b"eyn", b"bebesh", b"kvatokh", b"nokks", b"umoir", b"yazes", b"yiul",
@@ -906,10 +907,10 @@ fn no_game_over_on_leaders_death(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite
 // --- Fixes -------------------------------------------------------------------------------------------------------
 
 /// `CPlayerServer::SendObjectsAdded`+0xde: `mov ebx, [ebp+0x170]`, which becomes `nop; jmp <added code>`.
-const SEND_OBJECT: usize = eix_sites::C_PLAYER_SERVER_SEND_OBJECTS_ADDED__DE;
+const SEND_OBJECT: Site = eix_sites::C_PLAYER_SERVER_SEND_OBJECTS_ADDED__DE;
 const SEND_OBJECT_BYTES: [u8; 6] = [0x8B, 0x9D, 0x70, 0x01, 0x00, 0x00];
-const SEND_OBJECT_ON: usize = eix_sites::C_PLAYER_SERVER_SEND_OBJECTS_ADDED__E4;
-const SEND_OBJECT_NEXT: usize = eix_sites::C_PLAYER_SERVER_SEND_OBJECTS_ADDED__29;
+const SEND_OBJECT_ON: Site = eix_sites::C_PLAYER_SERVER_SEND_OBJECTS_ADDED__E4;
+const SEND_OBJECT_NEXT: Site = eix_sites::C_PLAYER_SERVER_SEND_OBJECTS_ADDED__29;
 
 /// The handler of `ultrafixes`: an object without the pointer at +0x170 goes to the loop's next element.
 extern "C" fn send_object(_: usize, ctx: &mut Context) {
@@ -979,9 +980,9 @@ const LOAD_SKIP_THIRD: Bytes = (
 
 /// `LoadSave`+0xb7e: `mov eax, [esp+0x10]; xor ebp, ebp` after an object id is read, which becomes
 /// `jmp <added code>; nop`.
-const LOADED_ID: usize = eix_sites::C_WORLD_SERVER_LOAD_SAVE__B7E;
+const LOADED_ID: Site = eix_sites::C_WORLD_SERVER_LOAD_SAVE__B7E;
 const LOADED_ID_BYTES: [u8; 6] = [0x8B, 0x44, 0x24, 0x10, 0x33, 0xED];
-const LOADED_ID_BACK: usize = eix_sites::C_WORLD_SERVER_LOAD_SAVE__B84;
+const LOADED_ID_BACK: Site = eix_sites::C_WORLD_SERVER_LOAD_SAVE__B84;
 
 /// The handler of `expirementalfxes` 2 to 4: the loaded id keeps its low 16 bits.
 extern "C" fn loaded_id(_: usize, ctx: &mut Context) {
@@ -993,11 +994,11 @@ extern "C" fn loaded_id(_: usize, ctx: &mut Context) {
 
 /// `LoadSave`+0x8c1: `mov [esp+0x1c], ebx; call [edx+4]` (the read of the next object's id, -1 at the end), which
 /// becomes `jmp <added code>; nop; nop`. The handler makes the read without setting its target to -1 first.
-const NEXT_ID: usize = eix_sites::C_WORLD_SERVER_LOAD_SAVE__8C1;
+const NEXT_ID: Site = eix_sites::C_WORLD_SERVER_LOAD_SAVE__8C1;
 const NEXT_ID_BYTES: [u8; 7] = [0x89, 0x5C, 0x24, 0x1C, 0xFF, 0x52, 0x04];
 /// The NOPs after the jump, before the loop's end test, and the loop's exit.
-const NEXT_ID_BACK: usize = eix_sites::C_WORLD_SERVER_LOAD_SAVE__8C6;
-const LOAD_LOOP_EXIT: usize = eix_sites::C_WORLD_SERVER_LOAD_SAVE__937;
+const NEXT_ID_BACK: Site = eix_sites::C_WORLD_SERVER_LOAD_SAVE__8C6;
+const LOAD_LOOP_EXIT: Site = eix_sites::C_WORLD_SERVER_LOAD_SAVE__937;
 /// The handler's iteration count, a word of header slack (0x4004fc) in the original.
 static LOAD_ITERATIONS: AtomicU32 = AtomicU32::new(0);
 /// Past this count the handler leaves the loop and starts over at 0.
@@ -1022,14 +1023,20 @@ extern "C" fn next_id(_: usize, ctx: &mut Context) {
 
 /// The site of [`next_id`]: a jump to a stub that makes the replaced `call [edx+4]` and then runs the handler.
 fn next_id_writes() -> Result<Vec<SiteWrite>, BuildError> {
-    let stub = common::jump_stub(NEXT_ID + 4, &NEXT_ID_BYTES[4..], next_id, 0, NEXT_ID_BACK)?;
+    let stub = common::jump_stub(
+        NEXT_ID.offset(4),
+        &NEXT_ID_BYTES[4..],
+        next_id,
+        0,
+        NEXT_ID_BACK,
+    )?;
     Ok(vec![SiteWrite::jmp(NEXT_ID, &NEXT_ID_BYTES, stub)?])
 }
 
 /// `CUnitServer::PropagateHostility`+0x89: `mov eax, 1`, which becomes `jmp <added code>`.
-const HOSTILITY: usize = eix_sites::C_UNIT_SERVER_PROPAGATE_HOSTILITY__89;
-const HOSTILITY_ON: usize = eix_sites::C_UNIT_SERVER_PROPAGATE_HOSTILITY__8E;
-const HOSTILITY_NEXT: usize = eix_sites::C_UNIT_SERVER_PROPAGATE_HOSTILITY__118;
+const HOSTILITY: Site = eix_sites::C_UNIT_SERVER_PROPAGATE_HOSTILITY__89;
+const HOSTILITY_ON: Site = eix_sites::C_UNIT_SERVER_PROPAGATE_HOSTILITY__8E;
+const HOSTILITY_NEXT: Site = eix_sites::C_UNIT_SERVER_PROPAGATE_HOSTILITY__118;
 
 /// The handler at `PropagateHostility`: an entry without a unit (ESI) goes to the next.
 extern "C" fn hostility(_: usize, ctx: &mut Context) {
@@ -1043,9 +1050,9 @@ extern "C" fn hostility(_: usize, ctx: &mut Context) {
 
 /// `AIViewer::See`+0x68: `mov [esp+0x20], ecx; mov ecx, esi`, which becomes `jmp <added code>`; the original moves the
 /// following `mov edx, [esi]` two bytes up, followed by a NOP.
-const SEE: usize = eix_sites::AI_VIEWER_SEE__68;
-const SEE_ON: usize = eix_sites::AI_VIEWER_SEE__6D;
-const SEE_DONE: usize = eix_sites::AI_VIEWER_SEE__447;
+const SEE: Site = eix_sites::AI_VIEWER_SEE__68;
+const SEE_ON: Site = eix_sites::AI_VIEWER_SEE__6D;
+const SEE_DONE: Site = eix_sites::AI_VIEWER_SEE__447;
 
 /// The handler at `AIViewer::See`: a null object (ESI) ends the function.
 extern "C" fn see(_: usize, ctx: &mut Context) {
@@ -1299,7 +1306,7 @@ mod tests {
         ]);
         let ctx = Ctx::new(&v, no_log);
         let w = plain(&allods_info(&ctx, 1).unwrap());
-        let at = |site: usize| w.iter().find(|s| s.0 == site).unwrap().2.clone();
+        let at = |site: Site| w.iter().find(|s| s.0 == site).unwrap().2.clone();
         assert_eq!(
             at(eix_sites::C_GLOBAL_MAP_CREATE__135E),
             [0x9A, 0x99, 0x93, 0x43]
@@ -1323,7 +1330,7 @@ mod tests {
         assert_eq!(at(eix_sites::C_GLOBAL_MAP_CREATE__157B), [0x13, 0x01, 0, 0]);
         // The window's site keeps the original's two NOPs before the jump.
         assert_eq!(&at(ALLOD_WINDOW)[..], &[0x90, 0x90]);
-        assert_eq!(at(ALLOD_WINDOW + 2)[0], 0xE9);
+        assert_eq!(at(ALLOD_WINDOW.offset(2))[0], 0xE9);
     }
 
     #[test]
@@ -1344,7 +1351,7 @@ mod tests {
             b[..code.len()].copy_from_slice(code);
             b
         };
-        assert_eq!(info_lines(eix_sites::TEXT_72E2E9 as u32), want);
+        assert_eq!(info_lines(eix_sites::TEXT_72E2E9.ru32()), want);
     }
 
     #[test]
@@ -1391,8 +1398,8 @@ mod tests {
     fn experimental_fixes_match_the_original_values() {
         let v = values(&[]);
         let ctx = Ctx::new(&v, no_log);
-        let sites = |value| -> Vec<usize> {
-            let mut s: Vec<usize> = plain(&experimental_fixes(&ctx, value).unwrap())
+        let sites = |value| -> Vec<Site> {
+            let mut s: Vec<Site> = plain(&experimental_fixes(&ctx, value).unwrap())
                 .iter()
                 .map(|w| w.0)
                 .collect();

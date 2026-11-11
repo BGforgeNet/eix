@@ -9,6 +9,8 @@
 use core::ffi::{CStr, c_char, c_void};
 use core::mem::offset_of;
 
+use eix_sites::Site;
+
 use super::item::Item;
 use super::object::EngineObject;
 use super::stl::{HashNode, HashTable};
@@ -142,7 +144,7 @@ impl Player {
     /// `flag` is 1 as the addon passes it.
     ///
     /// # Safety
-    /// `this` must be a live player of game.exe RU 1.06, on the game's thread; `stream` a constructed memory stream.
+    /// `this` must be a live player of a supported game.exe, on the game's thread; `stream` a constructed memory stream.
     pub unsafe fn save_party(this: *mut Self, stream: *mut c_void, flag: u32) {
         let party = this.cast::<u8>().wrapping_add(0x70).cast::<c_void>();
         // SAFETY: 0x661C10 is `void __thiscall (ByteStream*, int)`.
@@ -158,7 +160,7 @@ impl Player {
     /// The party record of the unit with id `unit_id`, the first match, or null.
     ///
     /// # Safety
-    /// `this` must be a live player of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live player of a supported game.exe, on the game's thread.
     pub unsafe fn party_record(this: *const Self, unit_id: i32) -> *mut PartyRecord {
         // SAFETY: the caller guarantees a live player.
         let player = unsafe { &*this };
@@ -178,7 +180,7 @@ impl Player {
     /// its party object at +0x70, the player of the client world's local view.
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread, while the client world has a local view (a camp
+    /// The process must be a supported game.exe, on the game's thread, while the client world has a local view (a camp
     /// or hero screen is open).
     pub unsafe fn local() -> *mut Self {
         // SAFETY: 0x578BA0 sets ECX itself and takes nothing else.
@@ -223,7 +225,7 @@ impl PlayerIterator {
     /// `ret 4`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `list` must be a live player manager.
+    /// The process must be a supported game.exe, on the game's thread; `list` must be a live player manager.
     pub unsafe fn first(&mut self, list: *mut PlayerManager) -> *mut Player {
         // SAFETY: 0x404920 is `CPlayer* __thiscall (list)`.
         let f = unsafe {
@@ -292,7 +294,7 @@ impl HashTable<NamedFloat> {
     /// Calls `f` with each variable's name and value in the table's order.
     ///
     /// # Safety
-    /// `this` must be a live table of game.exe RU 1.06, on the game's thread; `f` must not change it.
+    /// `this` must be a live table of a supported game.exe, on the game's thread; `f` must not change it.
     pub unsafe fn for_each_variable(this: *const Self, mut f: impl FnMut(&CStr, f32)) {
         let visit = |node: *mut NamedFloat| {
             // SAFETY: `for_each` passes live nodes of the table.
@@ -367,7 +369,7 @@ impl HashTable<NamedFloat> {
 
 /// `CStrFloat::Clear` 0x461540 (thiscall, plain `ret`): frees every node of a [`NamedFloatTable`] and zeroes its count
 /// (its +0x10).
-pub const CLEAR: usize = eix_sites::C_STR_FLOAT_CLEAR;
+pub const CLEAR: Site = eix_sites::C_STR_FLOAT_CLEAR;
 
 /// `CPlayerServer`, the server's view of a player; opaque.
 #[repr(C)]
@@ -381,7 +383,7 @@ impl PlayerServer {
     /// the float on the stack, `ret 8`).
     ///
     /// # Safety
-    /// The process must be game.exe RU 1.06, on the game's thread; `this` must be a live player's server half.
+    /// The process must be a supported game.exe, on the game's thread; `this` must be a live player's server half.
     pub unsafe fn set_variable(this: *mut Self, name: &CStr, value: f32) {
         // SAFETY: 0x66EE10 is `void __thiscall (const char*, float)`.
         let f = unsafe {

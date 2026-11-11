@@ -12,7 +12,7 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
         write: SiteWrite::jmp(
             eix_sites::TEXT_4565D4,
             &[0x0F, 0x8E, 0xFB, 0x01, 0x00, 0x00],
-            eix_sites::TEXT_4567D5,
+            eix_sites::TEXT_4567D5.ru(),
         )?,
     }])
 }

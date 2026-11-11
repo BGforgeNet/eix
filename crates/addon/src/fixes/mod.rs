@@ -206,6 +206,8 @@ pub(crate) fn run(token: &BeforeWinMain, setup: &Setup) {
 
 #[cfg(test)]
 mod tests {
+    use eix_sites::Site;
+
     use super::*;
     use crate::groups::Labelled;
 
@@ -248,7 +250,7 @@ mod tests {
     fn no_fix_writes_a_site_spelladdon_patches() {
         let spelladdon: Vec<(String, std::ops::Range<usize>)> = spelladdon::writes()
             .into_iter()
-            .map(|(name, w)| (name, w.site()..w.site() + w.size()))
+            .map(|(name, w)| (name, w.site().ru()..w.site().ru() + w.size()))
             .collect();
         assert!(
             spelladdon.len() > 100,
@@ -256,7 +258,7 @@ mod tests {
             spelladdon.len()
         );
         for w in every_write() {
-            let ours = w.write.site()..w.write.site() + w.write.size();
+            let ours = w.write.site().ru()..w.write.site().ru() + w.write.size();
             for (theirs, at) in &spelladdon {
                 assert!(
                     ours.end <= at.start || at.end <= ours.start,
@@ -314,12 +316,12 @@ mod tests {
         let file = std::fs::read(format!("{dir}\\game.exe")).expect("game.exe reads");
         let (base, game) = mapped(&file);
         let slots = import_slots(base, &game);
-        let at = |site: usize, len: usize| site - base..site - base + len;
+        let at = |site: Site, len: usize| site.ru() - base..site.ru() - base + len;
         let (mut checked, mut skipped, mut failures) = (0, 0, Vec::new());
         let mut fixed = game.clone();
         for w in every_write() {
             let (site, expected) = (w.write.site(), w.write.expected());
-            if slots.contains(&site) {
+            if slots.contains(&site.ru()) {
                 skipped += 1;
                 continue;
             }

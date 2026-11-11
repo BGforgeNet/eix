@@ -7,16 +7,17 @@
 #![expect(unsafe_code, reason = "reads the script's light count")]
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::Warnings;
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `mov ecx, [esi+4]; xor eax, eax; shl edi, 5`: ESI the script, EDI the slot's index, made a byte offset.
-const SLOT: usize = eix_sites::C_SCRIPT_CREATE_POINT_LIGHT__64;
+const SLOT: Site = eix_sites::C_SCRIPT_CREATE_POINT_LIGHT__64;
 const SLOT_BYTES: [u8; 8] = [0x8B, 0x4E, 0x04, 0x33, 0xC0, 0xC1, 0xE7, 0x05];
 /// The function's epilogue (`pop edi`), after the write.
-const RETURN: usize = eix_sites::C_SCRIPT_CREATE_POINT_LIGHT__174;
+const RETURN: Site = eix_sites::C_SCRIPT_CREATE_POINT_LIGHT__174;
 /// The script's light count, after the array's data pointer (+0x04).
 const COUNT: usize = 0x08;
 /// A slot's size, the `shl edi, 5`.

@@ -71,7 +71,7 @@ impl EngineObject {
     /// Drops one reference through vtable slot 4, as `UnitAction::Reset` 0x54B245 releases its target.
     ///
     /// # Safety
-    /// `this` must point at a live engine object of game.exe RU 1.06 holding a reference the caller owns, on the
+    /// `this` must point at a live engine object of a supported game.exe holding a reference the caller owns, on the
     /// game's thread; the object may be gone afterwards.
     pub unsafe fn release(this: *mut Self) {
         // SAFETY: a live object's first word is its vtable.
@@ -121,7 +121,7 @@ impl EngineObject {
     /// The class id from vtable slot 12.
     ///
     /// # Safety
-    /// `this` must point at a live engine object of game.exe RU 1.06, on the game's thread.
+    /// `this` must point at a live engine object of a supported game.exe, on the game's thread.
     pub unsafe fn class_id(this: *mut Self) -> u32 {
         // SAFETY: a live object's first word is its vtable.
         let vtable = unsafe { (*this).vtable };
@@ -154,7 +154,9 @@ impl EngineObject {
         // SAFETY: a map object's vtable has slot 55.
         let address = unsafe { *vtable.wrapping_add(55) };
         // SAFETY: slot 55 is `int __thiscall ()`.
-        let f = unsafe { super::code::<unsafe extern "thiscall" fn(*mut Self) -> i32>(address) };
+        let f = unsafe {
+            crate::hook::as_fn_at::<unsafe extern "thiscall" fn(*mut Self) -> i32>(address)
+        };
         // SAFETY: the caller guarantees a live object on the game's thread.
         unsafe { f(this) }
     }

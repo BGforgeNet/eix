@@ -5,13 +5,15 @@ use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 
+use eix_sites::Site;
+
 use crate::hook::HookError;
 use crate::patch::{self, PatchError};
 
 /// One write to game memory: the bytes a site must hold and what replaces them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SiteWrite {
-    site: usize,
+    site: Site,
     expected: Vec<u8>,
     new: Vec<u8>,
     /// The bytes are the running build's already ([`patch::localize`]); only the site is translated.
@@ -20,7 +22,7 @@ pub struct SiteWrite {
 
 impl SiteWrite {
     /// Raw bytes (code or data) of the same length.
-    pub fn bytes(site: usize, expected: &[u8], new: &[u8]) -> Result<Self, PatchError> {
+    pub fn bytes(site: Site, expected: &[u8], new: &[u8]) -> Result<Self, PatchError> {
         if expected.len() != new.len() {
             return Err(PatchError::Length {
                 site,
@@ -37,7 +39,7 @@ impl SiteWrite {
     }
 
     /// [`bytes`](Self::bytes) whose bytes are the running build's already, as [`patch::localize`] gives them.
-    pub fn native(site: usize, expected: &[u8], new: &[u8]) -> Result<Self, PatchError> {
+    pub fn native(site: Site, expected: &[u8], new: &[u8]) -> Result<Self, PatchError> {
         Ok(Self {
             native: true,
             ..Self::bytes(site, expected, new)?
@@ -45,7 +47,7 @@ impl SiteWrite {
     }
 
     /// NOPs over `expected`.
-    pub fn nop(site: usize, expected: &[u8]) -> Self {
+    pub fn nop(site: Site, expected: &[u8]) -> Self {
         Self {
             site,
             expected: expected.to_vec(),
@@ -55,16 +57,16 @@ impl SiteWrite {
     }
 
     /// A `jmp rel32` to `to` over `expected` (at least 5 bytes); the bytes after the jump become NOPs.
-    pub fn jmp(site: usize, expected: &[u8], to: usize) -> Result<Self, HookError> {
+    pub fn jmp(site: Site, expected: &[u8], to: usize) -> Result<Self, HookError> {
         Self::branch(site, expected, patch::jmp_rel32(site, to))
     }
 
     /// A `call rel32` to `to` over `expected` (at least 5 bytes); the bytes after the call become NOPs.
-    pub fn call(site: usize, expected: &[u8], to: usize) -> Result<Self, HookError> {
+    pub fn call(site: Site, expected: &[u8], to: usize) -> Result<Self, HookError> {
         Self::branch(site, expected, patch::call_rel32(site, to))
     }
 
-    fn branch(site: usize, expected: &[u8], branch: [u8; 5]) -> Result<Self, HookError> {
+    fn branch(site: Site, expected: &[u8], branch: [u8; 5]) -> Result<Self, HookError> {
         if expected.len() < 5 {
             return Err(HookError::TooShort {
                 site,
@@ -81,8 +83,9 @@ impl SiteWrite {
         })
     }
 
-    /// A 4-byte pointer (a data pointer, a vtable entry, an import slot): `expected` becomes `new`.
-    pub fn pointer(site: usize, expected: usize, new: usize) -> Self {
+    /// A 4-byte pointer (a data pointer, a vtable entry, an import slot): `expected` becomes `new`. A pointer into
+    /// game.exe is its RU 1.06 address ([`Site::ru`]), which the write translates.
+    pub fn pointer(site: Site, expected: usize, new: usize) -> Self {
         Self {
             site,
             expected: (expected as u32).to_le_bytes().to_vec(),
@@ -100,8 +103,8 @@ impl SiteWrite {
         self
     }
 
-    /// The address written.
-    pub fn site(&self) -> usize {
+    /// The site written.
+    pub fn site(&self) -> Site {
         self.site
     }
 
@@ -211,7 +214,7 @@ pub unsafe fn apply(
             // SAFETY: the caller's guarantees, passed on.
             unsafe { write_all(&writes) }?;
             for w in &writes {
-                crate::owners::site(w.site, w.new.len(), name);
+                crate::owners::site(w.site.here(), w.new.len(), name);
             }
             Ok(())
         });
@@ -253,7 +256,10 @@ mod tests {
     fn a_group_is_all_or_nothing() {
         let mut a = vec![1u8, 2, 3, 4];
         let mut b = vec![5u8, 6, 7, 8];
-        let (sa, sb) = (a.as_mut_ptr() as usize, b.as_mut_ptr() as usize);
+        let (sa, sb) = (
+            Site::of(a.as_mut_ptr() as usize),
+            Site::of(b.as_mut_ptr() as usize),
+        );
         // SAFETY: both buffers are ours, mapped and not shared.
         let report = unsafe {
             apply("Mixed", true, || {
@@ -291,14 +297,14 @@ mod tests {
     #[test]
     fn a_failed_write_undoes_the_earlier_ones() {
         let mut a = vec![1u8, 2, 3, 4];
-        let site = a.as_mut_ptr() as usize;
+        let site = Site::of(a.as_mut_ptr() as usize);
         // Both match before anything is written, but the first changes what the second expects.
         // SAFETY: the buffer is ours, mapped and not shared.
         let report = unsafe {
             apply("Overlap", true, || {
                 Ok(vec![
                     SiteWrite::bytes(site, &[1, 2], &[9, 9])?,
-                    SiteWrite::bytes(site + 1, &[2, 3], &[0, 0])?,
+                    SiteWrite::bytes(site.offset(1), &[2, 3], &[0, 0])?,
                 ])
             })
         };
@@ -322,15 +328,13 @@ mod tests {
         // SAFETY: nothing is written.
         let report = unsafe { apply("Off", false, || panic!("built a disabled group")) };
         assert_eq!(report.to_string(), "Off: disabled");
+        let site = Site::new(0x1000);
         assert_eq!(
-            SiteWrite::jmp(0x1000, &[0x90; 4], 0x2000),
-            Err(HookError::TooShort {
-                site: 0x1000,
-                len: 4
-            })
+            SiteWrite::jmp(site, &[0x90; 4], 0x2000),
+            Err(HookError::TooShort { site, len: 4 })
         );
         assert_eq!(
-            SiteWrite::call(0x1000, &[0; 6], 0x1000).map(|w| w.new),
+            SiteWrite::call(site, &[0; 6], 0x1000).map(|w| w.new),
             Ok(vec![0xE8, 0xFB, 0xFF, 0xFF, 0xFF, 0x90])
         );
     }

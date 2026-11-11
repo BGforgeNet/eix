@@ -15,20 +15,21 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use eix_core::x86_flags;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::Warnings;
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `call CSoundManager::Open`.
-const OPEN_CALL: usize = eix_sites::GAME_MAIN__A58;
+const OPEN_CALL: Site = eix_sites::GAME_MAIN__A58;
 const OPEN_CALL_BYTES: [u8; 5] = [0xE8, 0x93, 0xFB, 0x25, 0x00];
 /// The manager's Miles driver handle.
 const DRIVER: usize = 0x1C;
 /// The `Audio` option: 0 off.
-const AUDIO: usize = eix_sites::DATA_79BCC0;
+const AUDIO: Site = eix_sites::DATA_79BCC0;
 /// The option's readers: `cmp [0x79BCC0], <reg>` (the register in the ModRM byte) and one `mov eax, [0x79BCC0]`.
-const COMPARES: [(usize, [u8; 6]); 4] = [
+const COMPARES: [(Site, [u8; 6]); 4] = [
     (
         eix_sites::C_WORLD_CLIENT_LOAD_ZONE__5BD,
         [0x39, 0x3D, 0xC0, 0xBC, 0x79, 0x00],
@@ -46,7 +47,7 @@ const COMPARES: [(usize, [u8; 6]); 4] = [
         [0x39, 0x1D, 0xC0, 0xBC, 0x79, 0x00],
     ),
 ];
-const LOAD: usize = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__66A;
+const LOAD: Site = eix_sites::C_WORLD_CLIENT_LOAD_ZONE__66A;
 const LOAD_BYTES: [u8; 5] = [0xA1, 0xC0, 0xBC, 0x79, 0x00];
 
 type Open = unsafe extern "thiscall" fn(*mut c_void, *mut c_void, u32, i32, u32, u32) -> u32;
@@ -65,7 +66,7 @@ extern "thiscall" fn open(
     bits: u32,
 ) -> u32 {
     // SAFETY: OPEN holds the call's old target, `CSoundManager::Open`, of this type; the arguments are the game's.
-    let original = unsafe { hook::as_fn::<Open>(OPEN.load(Ordering::Relaxed)) };
+    let original = unsafe { hook::as_fn_at::<Open>(OPEN.load(Ordering::Relaxed)) };
     // SAFETY: as above.
     let opened = unsafe { original(manager, window, mode, device, rate, bits) };
     if opened == 0 {
@@ -83,7 +84,7 @@ fn audio() -> u32 {
         0
     } else {
         // SAFETY: the game's option word, which the main thread alone writes.
-        unsafe { core::ptr::with_exposed_provenance::<u32>(eix_sites::here(AUDIO)).read() }
+        unsafe { core::ptr::with_exposed_provenance::<u32>(AUDIO.here()).read() }
     }
 }
 
@@ -110,7 +111,7 @@ extern "C" fn load(_: usize, ctx: &mut Context) {
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let (open_write, old) =
         hook::redirect_call(OPEN_CALL, OPEN_CALL_BYTES, open as *const () as usize)?;
-    OPEN.store(old, Ordering::Relaxed);
+    OPEN.store(old.here(), Ordering::Relaxed);
     let mut writes = vec![Labelled {
         label: "NoAudioDevice #0".to_owned(),
         write: open_write,
@@ -138,7 +139,7 @@ mod tests {
     fn the_call_goes_to_open_and_each_compare_names_its_register() {
         let rel = i32::from_le_bytes(OPEN_CALL_BYTES[1..].try_into().unwrap());
         assert_eq!(
-            (OPEN_CALL + 5).wrapping_add_signed(rel as isize),
+            Site::new((OPEN_CALL.offset(5)).ru().wrapping_add_signed(rel as isize)),
             eix_sites::C_SOUND_MANAGER_OPEN
         );
         let registers: Vec<usize> = COMPARES.iter().map(|(_, b)| usize::from(b[1])).collect();

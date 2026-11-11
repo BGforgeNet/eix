@@ -94,7 +94,7 @@ pub unsafe fn display_modes(ddraw: *mut c_void) -> Result<Vec<Mode>, i32> {
     // SAFETY: the caller's guarantee.
     let address = unsafe { method(ddraw, ENUM_DISPLAY_MODES) };
     // SAFETY: slot 8 of IDirectDraw7 is EnumDisplayModes, of this type.
-    let enumerate = unsafe { crate::hook::as_fn::<EnumDisplayModes>(address) };
+    let enumerate = unsafe { crate::hook::as_fn_at::<EnumDisplayModes>(address) };
     // SAFETY: no surface description filters the modes; the callback writes only into `modes` while this runs.
     let hr = unsafe {
         enumerate(
@@ -116,7 +116,7 @@ pub unsafe fn set_display_mode(ddraw: *mut c_void, mode: Mode, refresh: u32, fla
     // SAFETY: the caller's guarantee.
     let address = unsafe { method(ddraw, SET_DISPLAY_MODE) };
     // SAFETY: slot 21 of IDirectDraw7 is SetDisplayMode, of this type.
-    let set = unsafe { crate::hook::as_fn::<SetDisplayMode>(address) };
+    let set = unsafe { crate::hook::as_fn_at::<SetDisplayMode>(address) };
     // SAFETY: as above.
     unsafe { set(ddraw, mode.width, mode.height, mode.bits, refresh, flags) }
 }

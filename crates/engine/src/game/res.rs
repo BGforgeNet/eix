@@ -7,6 +7,8 @@
 
 use core::ffi::{CStr, c_void};
 
+use eix_sites::Site;
+
 use super::code;
 use super::mfc::{GameArray, GameString};
 
@@ -37,7 +39,7 @@ pub type StringArray = GameArray<GameString>;
 /// `MappedResource::MappedResource` 0x671280: thiscall, no stack arguments (plain `ret`).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06; `this` must be writable, zeroed, and hold no constructed archive.
+/// The process must be a supported game.exe; `this` must be writable, zeroed, and hold no constructed archive.
 pub unsafe fn construct(this: *mut MappedResource) {
     // SAFETY: 0x671280 takes `this` in ECX and returns it; nothing on the stack.
     let f = unsafe {
@@ -53,7 +55,7 @@ pub unsafe fn construct(this: *mut MappedResource) {
 /// Returns whether the archive opened.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 and `this` a constructed archive.
+/// The process must be a supported game.exe and `this` a constructed archive.
 pub unsafe fn open(this: *mut MappedResource, path: &CStr, flags: u32) -> bool {
     // SAFETY: 0x671730 takes `this` in ECX, the path and the flags on the stack, and cleans them (`ret 8`).
     let f = unsafe {
@@ -67,7 +69,7 @@ pub unsafe fn open(this: *mut MappedResource, path: &CStr, flags: u32) -> bool {
 
 /// The address of `MappedResource::GetFile` 0x671B40: thiscall `(name, size out)` returning the file's data or null,
 /// `ret 8`; also the archive vtable's slot at 0x7432F4.
-pub const GET_FILE: usize = eix_sites::MAPPED_RESOURCE_GET_FILE;
+pub const GET_FILE: Site = eix_sites::MAPPED_RESOURCE_GET_FILE;
 
 /// The type of [`GET_FILE`].
 pub type GetFile =
@@ -76,7 +78,7 @@ pub type GetFile =
 /// `MappedResource::GetFile` 0x671B40 itself, past any hook on its callers.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, `this` an open archive, `name` a NUL-terminated string and `size` null or
+/// The process must be a supported game.exe, `this` an open archive, `name` a NUL-terminated string and `size` null or
 /// writable.
 pub unsafe fn get_file(this: *mut MappedResource, name: *const u8, size: *mut u32) -> *mut c_void {
     // SAFETY: 0x671B40 is `GetFile` with this type.
@@ -87,7 +89,7 @@ pub unsafe fn get_file(this: *mut MappedResource, name: *const u8, size: *mut u3
 
 /// The address of `MappedResource::ListFiles` 0x674AC0: thiscall `(CStringArray* out, pattern)`, `ret 8`; it empties
 /// `out` first (`SetSize(0, -1)` at 0x674AD8), then adds the names that match.
-pub const LIST_FILES: usize = eix_sites::MAPPED_RESOURCE_LIST_FILES;
+pub const LIST_FILES: Site = eix_sites::MAPPED_RESOURCE_LIST_FILES;
 
 /// The type of [`LIST_FILES`].
 pub type ListFiles = unsafe extern "thiscall" fn(*mut MappedResource, *mut StringArray, *const u8);
@@ -95,7 +97,7 @@ pub type ListFiles = unsafe extern "thiscall" fn(*mut MappedResource, *mut Strin
 /// `MappedResource::ListFiles` 0x674AC0 itself.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, `this` an open archive, `out` a constructed array and `pattern` null or a
+/// The process must be a supported game.exe, `this` an open archive, `out` a constructed array and `pattern` null or a
 /// NUL-terminated string.
 pub unsafe fn list_files(this: *mut MappedResource, out: *mut StringArray, pattern: *const u8) {
     // SAFETY: 0x674AC0 is `ListFiles` with this type.
@@ -107,7 +109,7 @@ pub unsafe fn list_files(this: *mut MappedResource, out: *mut StringArray, patte
 /// `CStringArray::CStringArray` 0x6FE925: thiscall, plain `ret`; sets the vtable and clears the four words.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06; `this` must be writable and hold no constructed array.
+/// The process must be a supported game.exe; `this` must be writable and hold no constructed array.
 pub unsafe fn array_construct(this: *mut StringArray) {
     // SAFETY: 0x6FE925 takes `this` in ECX and nothing on the stack.
     let f = unsafe {
@@ -122,7 +124,7 @@ pub unsafe fn array_construct(this: *mut StringArray) {
 /// `CStringArray::Append` 0x6FEB01: thiscall `(const CStringArray& src)`, `ret 4`; adds copies of `src`'s strings.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06; both arrays constructed and distinct.
+/// The process must be a supported game.exe; both arrays constructed and distinct.
 pub unsafe fn array_append(this: *mut StringArray, src: *const StringArray) {
     // SAFETY: 0x6FEB01 takes `this` in ECX and `src` on the stack, and cleans it (`ret 4`); it grows through
     // `SetSize` 0x6FE9B8 at 0x6FEB15.
@@ -138,7 +140,7 @@ pub unsafe fn array_append(this: *mut StringArray, src: *const StringArray) {
 /// `CStringArray::~CStringArray` 0x6FE958: thiscall, plain `ret`; destroys the strings and frees the block.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 and `this` a constructed array, not used afterwards.
+/// The process must be a supported game.exe and `this` a constructed array, not used afterwards.
 pub unsafe fn array_destroy(this: *mut StringArray) {
     // SAFETY: 0x6FE958 takes `this` in ECX and nothing on the stack.
     let f = unsafe {
@@ -153,7 +155,7 @@ pub unsafe fn array_destroy(this: *mut StringArray) {
 /// `FigureManager::AddResource` 0x5AA360: thiscall `(path)`, `ret 4`; opens an extra figure archive.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 and `manager` the figure manager (`FigureManager::Create`'s ESI at
+/// The process must be a supported game.exe and `manager` the figure manager (`FigureManager::Create`'s ESI at
 /// 0x5AA544).
 pub unsafe fn figures_add(manager: *mut c_void, path: &CStr) {
     // SAFETY: 0x5AA360 takes `this` in ECX and the path on the stack, and cleans it (`ret 4`).
@@ -182,7 +184,7 @@ const _: () = assert!(size_of::<PathRange>() == 8);
 /// the linked figures.
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06, `loader` the loader (`LinkFigureLoader::Construct`'s ESI at 0x4F6952) and
+/// The process must be a supported game.exe, `loader` the loader (`LinkFigureLoader::Construct`'s ESI at 0x4F6952) and
 /// `path` a range over a live string.
 pub unsafe fn linked_figures_add(loader: *mut c_void, path: &PathRange) {
     // SAFETY: 0x4F6D30 takes `this` in ECX and the range pointer on the stack, and cleans it (`ret 4`).
@@ -199,7 +201,7 @@ pub unsafe fn linked_figures_add(loader: *mut c_void, path: &PathRange) {
 /// and opens its own [`MappedResource`]).
 ///
 /// # Safety
-/// The process must be game.exe RU 1.06 and `manager` the texture manager (`TextureManager::Create`'s ESI at
+/// The process must be a supported game.exe and `manager` the texture manager (`TextureManager::Create`'s ESI at
 /// 0x6915EF).
 pub unsafe fn textures_add(manager: *mut c_void, path: &CStr) {
     // SAFETY: 0x675050 takes `this` in ECX and the path on the stack, and cleans it (`ret 4`).

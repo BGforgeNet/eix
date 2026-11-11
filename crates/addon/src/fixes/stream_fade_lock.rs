@@ -12,13 +12,14 @@ use core::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_engine::{hook, win};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// Both start with `mov edx, [ecx+0x898]`, the manager's opened flag.
-const FADE_OUT: usize = eix_sites::C_SOUND_MANAGER_FADE_OUT_STREAM;
-const FADE_IN: usize = eix_sites::C_SOUND_MANAGER_FADE_IN_STREAM;
+const FADE_OUT: Site = eix_sites::C_SOUND_MANAGER_FADE_OUT_STREAM;
+const FADE_IN: Site = eix_sites::C_SOUND_MANAGER_FADE_IN_STREAM;
 const PROLOGUE: [u8; 6] = [0x8B, 0x91, 0x98, 0x08, 0x00, 0x00];
 /// The manager's stream lock, which its constructor initialises (0x6B614D).
 const LOCK: usize = 0x1B0;
@@ -31,7 +32,7 @@ static FADE_IN_ORIGINAL: AtomicUsize = AtomicUsize::new(0);
 /// Runs the fade at `original` on `manager` inside the manager's lock.
 fn locked(original: &AtomicUsize, manager: *mut c_void) {
     // SAFETY: `original` holds a trampoline `build` made, of this type.
-    let fade = unsafe { hook::as_fn::<Fade>(original.load(Ordering::Relaxed)) };
+    let fade = unsafe { hook::as_fn_at::<Fade>(original.load(Ordering::Relaxed)) };
     let run = || {
         // SAFETY: the game's fade on its manager.
         unsafe { fade(manager) }

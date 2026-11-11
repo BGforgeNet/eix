@@ -16,21 +16,22 @@ use eix_core::msvc_map::StringFloatMap;
 use eix_engine::game::player::NamedFloatTable;
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 use crate::log;
 
 /// `SavedParties::Reload`'s `jne` around the inlined clear: its target moves from 0x663129 to 0x66316C.
-const RELOAD_BRANCH: usize = eix_sites::SAVED_PARTIES_RELOAD__D3;
+const RELOAD_BRANCH: Site = eix_sites::SAVED_PARTIES_RELOAD__D3;
 const RELOAD_BRANCH_BYTES: [u8; 6] = [0x0F, 0x85, 0xA0, 0x00, 0x00, 0x00];
 const RELOAD_BRANCH_NEW: [u8; 6] = [0x0F, 0x85, 0xE3, 0x00, 0x00, 0x00];
 /// The clear's last step, `mov [esp+0x80], ebx` (the count), dropped for the hook.
-const RELOAD_CLEAR: usize = eix_sites::SAVED_PARTIES_RELOAD__1C0;
+const RELOAD_CLEAR: Site = eix_sites::SAVED_PARTIES_RELOAD__1C0;
 const RELOAD_CLEAR_BYTES: [u8; 7] = [0x89, 0x9C, 0x24, 0x80, 0x00, 0x00, 0x00];
 /// The table at the site's stack +0x70.
 const RELOAD_TABLE: usize = 0x70;
 /// The two calls of `CStrFloat::Clear` 0x461540.
-const CLEAR_CALLS: [(&str, usize, [u8; 5]); 2] = [
+const CLEAR_CALLS: [(&str, Site, [u8; 5]); 2] = [
     (
         "PersistentGlobalVars #2",
         eix_sites::GAME_FLOW_AFTER_SERVER_START__15,
@@ -46,7 +47,7 @@ const CLEAR_CALLS: [(&str, usize, [u8; 5]); 2] = [
 /// Empties `table` but its `gvar.` variables.
 ///
 /// # Safety
-/// `table` must be a live named float table of game.exe RU 1.06, on the game's thread.
+/// `table` must be a live named float table of a supported game.exe, on the game's thread.
 unsafe fn clear_keeping_globals(table: *mut NamedFloatTable) {
     let mut kept = StringFloatMap::default();
     let keep = |name: &CStr, value: f32| {

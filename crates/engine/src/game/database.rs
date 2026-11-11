@@ -60,7 +60,7 @@ impl SkillDatabase {
     /// The index of the perk record at `record`, or -1: `SkillDatabase::IndexOfLevel` 0x51FF00 (thiscall, `ret 4`).
     ///
     /// # Safety
-    /// `this` must be [`SKILL_DATABASE`] of game.exe RU 1.06, on the game's thread.
+    /// `this` must be [`SKILL_DATABASE`] of a supported game.exe, on the game's thread.
     pub unsafe fn index_of_level(this: *mut Self, record: *const c_void) -> i32 {
         // SAFETY: 0x51FF00 is `int __thiscall (const void* record)`; it only compares addresses.
         let f = unsafe {
@@ -80,8 +80,10 @@ mod tests {
     #[test]
     fn the_perk_vector_is_the_skill_databases() {
         assert_eq!(
-            SKILL_DATABASE.address() + offset_of!(SkillDatabase, perks),
-            PERKS.address()
+            SKILL_DATABASE
+                .site()
+                .offset(offset_of!(SkillDatabase, perks)),
+            PERKS.site()
         );
     }
 }

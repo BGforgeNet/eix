@@ -3,14 +3,16 @@
 //! operand points at a `CString` holding the mod folder; where it asks `GameFlow` for the folder (`call 0x578DB0`,
 //! which returns the `CString*`), the call becomes `mov eax, <that CString>`.
 
+use eix_sites::Site;
+
 use super::game_text::game_string;
 use super::{BuildError, Labelled, Setup, bytes, pointer};
 
 /// The game's base folder `CString`.
-const BASE_FOLDER: usize = eix_sites::DATA_7AF460;
+const BASE_FOLDER: Site = eix_sites::DATA_7AF460;
 
 /// The operands that read [`BASE_FOLDER`], with the original's labels, in its order.
-const OPERANDS: [(&str, usize); 13] = [
+const OPERANDS: [(&str, Site); 13] = [
     (
         "Set Addon path for: saves\\ (CreateDir)",
         eix_sites::TEXT_456C5F,
@@ -66,7 +68,7 @@ const OPERANDS: [(&str, usize); 13] = [
 ];
 
 /// The calls of `GameFlow`'s folder getter 0x578DB0, with their bytes.
-const CALLS: [(&str, usize, [u8; 5]); 7] = [
+const CALLS: [(&str, Site, [u8; 5]); 7] = [
     (
         "Set Addon path for: saves\\*\\ #3",
         eix_sites::C_SAVE_LOAD_WINDOW_SAVE_GAME__127,
@@ -108,7 +110,7 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let folder = game_string(setup.mod_dir.clone())?;
     let mut writes: Vec<Labelled> = OPERANDS
         .iter()
-        .map(|&(label, site)| pointer(label, site, BASE_FOLDER, folder))
+        .map(|&(label, site)| pointer(label, site, BASE_FOLDER.ru(), folder))
         .collect();
     let mut mov = [0xB8, 0, 0, 0, 0];
     mov[1..].copy_from_slice(&(folder as u32).to_le_bytes());

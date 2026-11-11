@@ -16,6 +16,7 @@ use eix_engine::game::unit::{self, Unit, UnitStats, UnitVitals};
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Handler, Mode};
 use eix_lua::Host;
+use eix_sites::Site;
 
 use super::{BuildError, Labelled};
 use crate::log;
@@ -103,7 +104,7 @@ pub(super) fn with_host<R>(default: R, f: impl FnOnce(&Host) -> R) -> R {
 /// of the game function's signature and convention. The original is never called, so no trampoline is made.
 pub(super) fn replace(
     label: &str,
-    site: usize,
+    site: Site,
     original: &[u8],
     replacement: usize,
 ) -> Result<Labelled, BuildError> {
@@ -116,7 +117,7 @@ pub(super) fn replace(
 /// A context hook at `site`.
 pub(super) fn context(
     label: &str,
-    site: usize,
+    site: Site,
     original: &[u8],
     mode: Mode,
     handler: Handler,

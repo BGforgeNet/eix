@@ -8,12 +8,13 @@
 )]
 
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// The constructor's tail, `mov eax, esi; pop esi; mov [ecx + 8], edx`: it runs first, so EAX holds the object.
-const TAIL: usize = eix_sites::C_OBJECT_3D_CONSTRUCT__154;
+const TAIL: Site = eix_sites::C_OBJECT_3D_CONSTRUCT__154;
 const TAIL_BYTES: [u8; 6] = [0x8B, 0xC6, 0x5E, 0x89, 0x51, 0x08];
 
 /// The view x, y and depth, three floats from +0x28; the constructor writes none of +0x1C..+0x34.

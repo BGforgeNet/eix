@@ -17,6 +17,7 @@ use std::sync::{Mutex, PoisonError};
 use eix_engine::game::text::{self, TEXTS, TextManager};
 use eix_engine::game::ui::BriefingScreen;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::log;
@@ -24,16 +25,16 @@ use crate::setup::Setup;
 
 /// `NextPhrase`'s first instructions, `push -1; push 0x72AE46`: the handler runs before them, so the return address
 /// is stack word 0 and the screen is in ECX.
-const ENTRY: usize = eix_sites::C_BRIEFING_SCREEN_NEXT_PHRASE;
+const ENTRY: Site = eix_sites::C_BRIEFING_SCREEN_NEXT_PHRASE;
 const ENTRY_BYTES: [u8; 7] = [0x6A, 0xFF, 0x68, 0x46, 0xAE, 0x72, 0x00];
 
 /// `add esp, 0x88` before `NextPhrase`'s only `ret 4` (0x605DCF); every path of the function passes it.
-const EXIT: usize = eix_sites::C_BRIEFING_SCREEN_NEXT_PHRASE__1179;
+const EXIT: Site = eix_sites::C_BRIEFING_SCREEN_NEXT_PHRASE__1179;
 const EXIT_BYTES: [u8; 6] = [0x81, 0xC4, 0x88, 0x00, 0x00, 0x00];
 
 /// The return address of `StartPhrases`' call of `NextPhrase` (0x608404): that first phrase follows the opening of
 /// the text in the same call, so it reads as the game left it.
-const FIRST_PHRASE_RETURN: u32 = eix_sites::C_BRIEFING_SCREEN_START_PHRASES__1F9 as u32;
+const FIRST_PHRASE_RETURN: Site = eix_sites::C_BRIEFING_SCREEN_START_PHRASES__1F9;
 
 /// The prefix `StartPhrases` puts before the topic (the string at 0x7906E4).
 const KEY_PREFIX: &[u8] = b"briefing ";
@@ -93,7 +94,7 @@ fn place() -> std::sync::MutexGuard<'static, Option<Place>> {
 extern "C" fn phrase_start(_: usize, ctx: &mut Context) {
     let screen = ctx.ecx as usize;
     SCREEN.store(screen, Ordering::Relaxed);
-    if ctx.stack_word(0).map(|w| eix_sites::ru(w as usize) as u32) == Some(FIRST_PHRASE_RETURN) {
+    if ctx.stack_word(0).map(|w| Site::of(w as usize)) == Some(FIRST_PHRASE_RETURN) {
         return;
     }
     // SAFETY: NextPhrase runs on the game's thread, after WinMain created the manager.
@@ -216,7 +217,7 @@ mod tests {
     fn the_first_phrase_returns_after_the_five_byte_call() {
         assert_eq!(
             FIRST_PHRASE_RETURN,
-            eix_sites::C_BRIEFING_SCREEN_START_PHRASES__1F4 as u32 + 5
+            eix_sites::C_BRIEFING_SCREEN_START_PHRASES__1F4.offset(5)
         );
     }
 

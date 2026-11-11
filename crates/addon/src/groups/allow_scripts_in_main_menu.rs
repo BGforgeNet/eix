@@ -7,11 +7,12 @@
 
 use eix_engine::game::world::SCRIPTS_ACTIVE;
 use eix_engine::hook::{self, Context, Mode};
+use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
 /// `mov edi, 4`.
-const SITE: usize = eix_sites::GAME_FLOW_START_ZONE__23F;
+const SITE: Site = eix_sites::GAME_FLOW_START_ZONE__23F;
 const ORIGINAL: [u8; 5] = [0xBF, 0x04, 0x00, 0x00, 0x00];
 
 extern "C" fn activate(_: usize, _: &mut Context) {

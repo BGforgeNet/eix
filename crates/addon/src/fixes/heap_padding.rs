@@ -18,7 +18,7 @@ use eix_core::heap_padding::padded;
 use eix_engine::game::crt::{
     ACTIVE_HEAP, HEAP_ALLOC_SLOT, HEAP_RE_ALLOC_SLOT, HeapAlloc, HeapReAlloc, SYSTEM_HEAP,
 };
-use eix_engine::hook::as_fn;
+use eix_engine::hook::as_fn_at;
 
 use crate::groups::{BuildError, Labelled, pointer};
 use crate::log;
@@ -33,7 +33,7 @@ static RE_ALLOC: AtomicUsize = AtomicUsize::new(0);
 extern "system" fn heap_alloc(heap: *mut c_void, flags: u32, size: usize) -> *mut c_void {
     // SAFETY: ALLOC holds what the import slot held, `HeapAlloc` or a function of its type, stored before the slot
     // was pointed here.
-    let f: HeapAlloc = unsafe { as_fn(ALLOC.load(Ordering::SeqCst)) };
+    let f: HeapAlloc = unsafe { as_fn_at(ALLOC.load(Ordering::SeqCst)) };
     // SAFETY: the caller's arguments; a larger size asks the heap for no more than any caller may.
     unsafe { f(heap, flags, padded(size)) }
 }
@@ -46,13 +46,13 @@ extern "system" fn heap_re_alloc(
     size: usize,
 ) -> *mut c_void {
     // SAFETY: as in `heap_alloc`, for RE_ALLOC and `HeapReAlloc`.
-    let f: HeapReAlloc = unsafe { as_fn(RE_ALLOC.load(Ordering::SeqCst)) };
+    let f: HeapReAlloc = unsafe { as_fn_at(RE_ALLOC.load(Ordering::SeqCst)) };
     // SAFETY: as in `heap_alloc`; the block is the caller's.
     unsafe { f(heap, flags, block, padded(size)) }
 }
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
-    // SAFETY: the build is RU 1.06, whose import slots the Windows loader filled and whose C runtime chose its heap
+    // SAFETY: the build is a supported one, whose import slots the Windows loader filled and whose C runtime chose its heap
     // before WinMain; this runs on the game's thread before WinMain.
     let alloc = unsafe { HEAP_ALLOC_SLOT.read() };
     // SAFETY: as above.
@@ -74,13 +74,13 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     Ok(vec![
         pointer(
             "HeapPadding HeapAlloc",
-            HEAP_ALLOC_SLOT.address(),
+            HEAP_ALLOC_SLOT.site(),
             alloc,
             heap_alloc as *const () as usize,
         ),
         pointer(
             "HeapPadding HeapReAlloc",
-            HEAP_RE_ALLOC_SLOT.address(),
+            HEAP_RE_ALLOC_SLOT.site(),
             re_alloc,
             heap_re_alloc as *const () as usize,
         ),
@@ -107,7 +107,7 @@ mod tests {
     /// kernel32's export `name`, as the function type `F` the caller names for it.
     fn function<F: Copy>(k: &Dll, name: &std::ffi::CStr) -> F {
         // SAFETY: every caller names a kernel32 heap function with its stdcall signature.
-        unsafe { as_fn(k.address(name).unwrap()) }
+        unsafe { as_fn_at(k.address(name).unwrap()) }
     }
 
     /// kernel32's heap functions, and the stand-ins pointed at the real ones as the fix points them.

@@ -32,16 +32,17 @@ use eix_engine::game::stl::HashTable;
 use eix_engine::game::unit::{AiBrain, FLAG_REMOVED, Unit, UnitServer, server_vitals};
 use eix_engine::game::world::{CLIENT_WORLD, ObjectMap, SERVER_OBJECTS, SERVER_WORLD, World};
 use eix_engine::hook;
+use eix_sites::Site;
 
 use crate::game::BeforeWinMain;
 use crate::groups::{Labelled, Tally, apply_built};
 use crate::log;
 
 /// The call of `CWorldServer::Tick` in `CWorldServer::Update`.
-const TICK_CALL: usize = eix_sites::C_WORLD_SERVER_UPDATE__21B;
+const TICK_CALL: Site = eix_sites::C_WORLD_SERVER_UPDATE__21B;
 const TICK_CALL_BYTES: [u8; 5] = [0xE8, 0xC0, 0xFA, 0xFF, 0xFF];
 /// The call of `CUnitServer::SetDead` in `CUnitServer::OnDamaged`, `ecx` the dying unit's controller.
-const DEATH_CALL: usize = eix_sites::C_UNIT_SERVER_ON_DAMAGED__F0;
+const DEATH_CALL: Site = eix_sites::C_UNIT_SERVER_ON_DAMAGED__F0;
 const DEATH_CALL_BYTES: [u8; 5] = [0xE8, 0x6B, 0x2B, 0xFF, 0xFF];
 
 /// `CWorldServer::Tick` (thiscall, `ret 4`); `Update` drops what it returns.
@@ -88,7 +89,7 @@ static DEATHS: Mutex<Vec<i32>> = Mutex::new(Vec::new());
 /// The tick, then the check.
 extern "thiscall" fn tick(world: *mut World, arg: i32) -> u32 {
     // SAFETY: TICK holds CWorldServer::Tick, of this type, once `install` ran; the call is redirected only after.
-    let tick = unsafe { hook::as_fn::<Tick>(TICK.load(Ordering::Relaxed)) };
+    let tick = unsafe { hook::as_fn_at::<Tick>(TICK.load(Ordering::Relaxed)) };
     // SAFETY: the game's own call, with its arguments.
     let result = unsafe { tick(world, arg) };
     // SAFETY: the game's thread, between two server ticks.
@@ -99,7 +100,7 @@ extern "thiscall" fn tick(world: *mut World, arg: i32) -> u32 {
 /// The unit's death, then a note of it for the next check: pausing inside the server's tick is left to the check.
 extern "thiscall" fn set_dead(controller: *mut UnitServer, dead: i32) {
     // SAFETY: SET_DEAD holds CUnitServer::SetDead, of this type, once `install` ran.
-    let set_dead = unsafe { hook::as_fn::<SetDead>(SET_DEAD.load(Ordering::Relaxed)) };
+    let set_dead = unsafe { hook::as_fn_at::<SetDead>(SET_DEAD.load(Ordering::Relaxed)) };
     // SAFETY: the game's own call, with its arguments.
     unsafe { set_dead(controller, dead) };
     if dead == 0 {
@@ -342,13 +343,13 @@ unsafe fn check() {
 /// A redirect of the call at `site` (its bytes `bytes`) to `to`, its old target kept in `old`.
 fn redirect(
     label: &str,
-    site: usize,
+    site: Site,
     bytes: [u8; 5],
     to: usize,
     old: &AtomicUsize,
 ) -> Result<Labelled, hook::HookError> {
     let (write, target) = hook::redirect_call(site, bytes, to)?;
-    old.store(target, Ordering::Relaxed);
+    old.store(target.here(), Ordering::Relaxed);
     Ok(Labelled {
         label: label.to_owned(),
         write,
@@ -413,19 +414,22 @@ mod tests {
             ),
         ] {
             let rel = i32::from_le_bytes(bytes[1..].try_into().unwrap());
-            assert_eq!((site + 5).wrapping_add_signed(rel as isize), target);
+            assert_eq!(
+                Site::new((site.offset(5)).ru().wrapping_add_signed(rel as isize)),
+                target
+            );
         }
     }
 
     #[test]
     fn spelladdon_writes_nothing_at_the_calls() {
         for ours in [
-            TICK_CALL..TICK_CALL + TICK_CALL_BYTES.len(),
-            DEATH_CALL..DEATH_CALL + DEATH_CALL_BYTES.len(),
+            TICK_CALL..TICK_CALL.offset(TICK_CALL_BYTES.len()),
+            DEATH_CALL..DEATH_CALL.offset(DEATH_CALL_BYTES.len()),
         ] {
             for (name, w) in spelladdon::writes() {
                 assert!(
-                    w.site() + w.size() <= ours.start || ours.end <= w.site(),
+                    w.site().offset(w.size()) <= ours.start || ours.end <= w.site(),
                     "SpellAddon's {name} at {:#X}",
                     w.site()
                 );

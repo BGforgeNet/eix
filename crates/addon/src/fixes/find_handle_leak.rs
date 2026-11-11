@@ -8,16 +8,17 @@ use core::ffi::c_void;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_engine::hook;
+use eix_sites::Site;
 
 use crate::groups::{BuildError, Labelled};
 use crate::setup::Setup;
 
 /// `call _findfirst`.
-const FIND_FIRST_CALL: usize = eix_sites::C_RESOURCE_STREAM_OPEN_FILE__46;
+const FIND_FIRST_CALL: Site = eix_sites::C_RESOURCE_STREAM_OPEN_FILE__46;
 const FIND_FIRST_CALL_BYTES: [u8; 5] = [0xE8, 0x27, 0x73, 0x07, 0x00];
 /// The C runtime's `_findclose` (cdecl `int (intptr_t)`: `FindClose`, -1 with `errno` EINVAL on a failure), which
 /// nothing in game.exe calls.
-const FIND_CLOSE: usize = eix_sites::TEXT_6EB9C7;
+const FIND_CLOSE: Site = eix_sites::TEXT_6EB9C7;
 /// `_findfirst`'s failure.
 const NOT_FOUND: isize = -1;
 
@@ -28,7 +29,7 @@ static FIND_FIRST: AtomicUsize = AtomicUsize::new(0);
 
 extern "C" fn find_first(pattern: *const u8, data: *mut c_void) -> isize {
     // SAFETY: FIND_FIRST holds the call's old target, `_findfirst`, of this type; the arguments are the game's.
-    let find_first = unsafe { hook::as_fn::<FindFirst>(FIND_FIRST.load(Ordering::Relaxed)) };
+    let find_first = unsafe { hook::as_fn_at::<FindFirst>(FIND_FIRST.load(Ordering::Relaxed)) };
     // SAFETY: as above.
     let handle = unsafe { find_first(pattern, data) };
     if handle != NOT_FOUND {
@@ -46,7 +47,7 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
         FIND_FIRST_CALL_BYTES,
         find_first as *const () as usize,
     )?;
-    FIND_FIRST.store(old, Ordering::Relaxed);
+    FIND_FIRST.store(old.here(), Ordering::Relaxed);
     Ok(vec![Labelled {
         label: "FindHandleLeak #0".to_owned(),
         write,

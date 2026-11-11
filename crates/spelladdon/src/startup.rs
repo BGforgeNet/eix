@@ -7,6 +7,7 @@ use eix_core::spelladdon::{Profile, Values, duplicate_keys};
 use eix_engine::ansi;
 use eix_engine::group::{Outcome, SiteWrite};
 use eix_engine::win::{from_ansi, to_ansi};
+use eix_sites::Site;
 
 use crate::apply::{self, Merge};
 use crate::features::Ctx;
@@ -18,7 +19,7 @@ const INI: &[u8] = b"SPELLADDON.INI";
 
 /// `BeginConstruct`'s `push 0x79583C` ("No valid spell prototype\n") at 0x684205, which the original replaces
 /// with `push edx` and four NOPs whatever the INI says.
-const FIXED_PATCH: usize = eix_sites::C_SPELL_CONSTRUCTOR_BEGIN_CONSTRUCT__25;
+const FIXED_PATCH: Site = eix_sites::C_SPELL_CONSTRUCTOR_BEGIN_CONSTRUCT__25;
 const FIXED_WAS: [u8; 5] = [0x68, 0x3C, 0x58, 0x79, 0x00];
 const FIXED_NOW: [u8; 5] = [0x52, 0x90, 0x90, 0x90, 0x90];
 
@@ -250,7 +251,7 @@ pub(crate) fn run(mod_dir: &[u8], log: Log, addon: Earlier) {
         Outcome::Applied => {
             // After the merged write, which names them all "SpellAddon": a later record wins.
             for (owner, site, len) in &tally.sites {
-                eix_engine::owners::site(*site, *len, owner);
+                eix_engine::owners::site(site.here(), *len, owner);
             }
             log(Level::Info, "spelladdon", "patches written", "");
         }
@@ -294,7 +295,7 @@ struct Tally {
     skipped: usize,
     failed: usize,
     /// `(owner, site, length)` of each kept write.
-    sites: Vec<(String, usize, usize)>,
+    sites: Vec<(String, Site, usize)>,
 }
 
 /// Merges a feature's writes, logging each site, or logs why none is kept.

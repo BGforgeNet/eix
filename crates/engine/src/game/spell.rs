@@ -50,7 +50,7 @@ impl Spell {
     /// table 0x7C8510 (0x84 bytes each) by the prototype word.
     ///
     /// # Safety
-    /// `this` must be a live spell of game.exe RU 1.06, on the game's thread.
+    /// `this` must be a live spell of a supported game.exe, on the game's thread.
     pub unsafe fn record(this: *mut Self) -> *mut SpellRecord {
         // SAFETY: 0x68BA20 is `SpellRecord* __thiscall ()` with a plain `ret`.
         let f = unsafe {

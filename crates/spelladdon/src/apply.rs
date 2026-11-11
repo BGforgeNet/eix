@@ -14,22 +14,24 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_engine::group::{self, Outcome, Report, SiteWrite};
 use eix_engine::{hook, imports, patch};
+use eix_sites::Site;
 
 use crate::{Level, Log};
 
 /// game.exe RU 1.06 from its headers to the end of `.data`, where the original's added code and patches lie; `.rsrc`
 /// is never written.
-pub(crate) const IMAGE: Range<usize> = 0x40_0000..eix_sites::RSRC_SECTION;
+pub(crate) const IMAGE: Range<usize> = 0x40_0000..eix_sites::RSRC_SECTION.ru();
 
 /// Makes [`IMAGE`] readable, writable and executable for good, as the original's start does: its run-time code
 /// writes into game.exe's code (the speedrun timer's word, for one).
 pub(crate) fn unprotect_image() -> Result<(), String> {
     // SAFETY: the range is game.exe's mapped image (the addon checked the build before installing the hook).
-    unsafe { patch::unprotect(IMAGE.start, IMAGE.end - IMAGE.start) }.map_err(|e| e.to_string())
+    unsafe { patch::unprotect(Site::new(IMAGE.start), IMAGE.end - IMAGE.start) }
+        .map_err(|e| e.to_string())
 }
 
-/// The bytes of game.exe the features change: for each address, what game.exe held and what the last feature to
-/// write it wrote.
+/// The bytes of game.exe the features change: for each RU 1.06 address, what game.exe held and what the last
+/// feature to write it wrote, in the running build's bytes. The merge's byte arithmetic runs on RU 1.06 addresses.
 #[derive(Debug)]
 pub(crate) struct Merge {
     bytes: BTreeMap<usize, (u8, u8)>,
@@ -63,7 +65,7 @@ fn addon_writes_covered(
     let end = site + base.len();
     let (mut taken, mut shared) = (Vec::new(), Vec::new());
     for at in site.saturating_sub(ADDON_WRITE_REACH)..end {
-        let Some(written) = addon(at).map(|w| patch::as_built(at, &w)) else {
+        let Some(written) = addon(Site::new(at)).map(|w| patch::as_built(Site::new(at), &w)) else {
             continue;
         };
         if at + written.len() <= site {
@@ -96,11 +98,11 @@ fn contiguous_runs(writes: &[SiteWrite]) -> Vec<(usize, Vec<u8>, Vec<u8>)> {
     let mut runs: Vec<(usize, Vec<u8>, Vec<u8>)> = Vec::new();
     for w in writes {
         match runs.last_mut() {
-            Some((site, expected, new)) if *site + expected.len() == w.site() => {
+            Some((site, expected, new)) if *site + expected.len() == w.site().ru() => {
                 expected.extend_from_slice(w.expected());
                 new.extend_from_slice(w.new_bytes());
             }
-            _ => runs.push((w.site(), w.expected().to_vec(), w.new_bytes().to_vec())),
+            _ => runs.push((w.site().ru(), w.expected().to_vec(), w.new_bytes().to_vec())),
         }
     }
     runs
@@ -120,7 +122,7 @@ impl Merge {
     /// the original; a write that covers an addon.dll write wholly lands over it, as the original's copy does, and
     /// one that covers part of it with the addon's own bytes leaves that part to the addon; otherwise nothing of the
     /// feature is kept.
-    pub(crate) fn add(&mut self, writes: &[SiteWrite]) -> Result<Vec<usize>, String> {
+    pub(crate) fn add(&mut self, writes: &[SiteWrite]) -> Result<Vec<Site>, String> {
         let mut bytes = self.bytes.clone();
         let mut taken = Vec::new();
         for (site, expected_run, new_run) in contiguous_runs(writes) {
@@ -132,10 +134,11 @@ impl Merge {
             }
             // SAFETY: the range lies in game.exe's image (checked above), which is mapped and readable; the game
             // writes no code while its sound system starts.
-            let base = unsafe { patch::read(site, expected_run.len()) };
+            let base = unsafe { patch::read(Site::new(site), expected_run.len()) };
             // The merge compares and keeps the running build's bytes; each address stays RU 1.06's.
             // SAFETY: as above.
-            let (expected_run, new_run) = unsafe { patch::localize(site, &expected_run, &new_run) };
+            let (expected_run, new_run) =
+                unsafe { patch::localize(Site::new(site), &expected_run, &new_run) };
             let mismatch = expected_run
                 .iter()
                 .enumerate()
@@ -145,7 +148,7 @@ impl Merge {
             } else {
                 (Vec::new(), Vec::new())
             };
-            taken.extend(covered.iter().map(|&(at, _)| at));
+            taken.extend(covered.iter().map(|&(at, _)| Site::new(at)));
             for (i, (&expected, &new)) in expected_run.iter().zip(&new_run).enumerate() {
                 let at = site + i;
                 if shared.iter().any(|&(s, n)| (s..s + n).contains(&at)) {
@@ -182,14 +185,14 @@ impl Merge {
                 }
                 _ => {
                     if let Some((start, old, new)) = run.take() {
-                        writes.push(SiteWrite::native(start, &old, &new)?);
+                        writes.push(SiteWrite::native(Site::new(start), &old, &new)?);
                     }
                     run = Some((at, vec![was], vec![now]));
                 }
             }
         }
         if let Some((start, old, new)) = run {
-            writes.push(SiteWrite::native(start, &old, &new)?);
+            writes.push(SiteWrite::native(Site::new(start), &old, &new)?);
         }
         Ok(writes)
     }
@@ -232,7 +235,7 @@ extern "system" fn load_library_a(name: *const c_char) -> *mut c_void {
         }
     }
     // SAFETY: the slot held kernel32's LoadLibraryA (or a hook of it) of this type before it was redirected here.
-    let real: LoadLibraryA = unsafe { hook::as_fn(REAL_LOAD_LIBRARY.load(Ordering::SeqCst)) };
+    let real: LoadLibraryA = unsafe { hook::as_fn_at(REAL_LOAD_LIBRARY.load(Ordering::SeqCst)) };
     // SAFETY: the caller's argument, passed on unchanged.
     unsafe { real(name) }
 }
@@ -243,7 +246,7 @@ pub(crate) fn block_separate_spelladdon(log: Log) -> Result<(), String> {
     let (slot, real) = imports::slot("mss32.dll", "kernel32.dll", c"LoadLibraryA")?
         .ok_or("mss32.dll imports no LoadLibraryA")?;
     REAL_LOAD_LIBRARY.store(real, Ordering::SeqCst);
-    let write = SiteWrite::pointer(slot, real, load_library_a as *const () as usize);
+    let write = SiteWrite::pointer(Site::of(slot), real, load_library_a as *const () as usize);
     // SAFETY: the slot is mss32.dll's import slot, mapped and holding `real`; it is read by mss32.dll's own code on
     // this thread, which is about to call AIL_startup and has not yet.
     let report = unsafe { group::apply("SpellAddon .asi filter", true, || Ok(vec![write])) };
@@ -261,9 +264,9 @@ mod tests {
     #[test]
     fn merged_bytes_form_one_write_per_run() {
         let mut m = Merge::default();
-        m.bytes.insert(eix_sites::TEXT_500000, (1, 2));
-        m.bytes.insert(eix_sites::TEXT_500001, (3, 4));
-        m.bytes.insert(eix_sites::TEXT_500005, (5, 6));
+        m.bytes.insert(eix_sites::TEXT_500000.ru(), (1, 2));
+        m.bytes.insert(eix_sites::TEXT_500001.ru(), (3, 4));
+        m.bytes.insert(eix_sites::TEXT_500005.ru(), (5, 6));
         let writes = m.writes().unwrap();
         assert_eq!(writes.len(), 2);
         assert_eq!(
@@ -281,7 +284,7 @@ mod tests {
     }
 
     /// addon.dll's 6-byte hook at 0x548315, as `groups::applied_write` reports it.
-    fn addon_hook(at: usize) -> Option<Vec<u8>> {
+    fn addon_hook(at: Site) -> Option<Vec<u8>> {
         (at == eix_sites::UPDATE_MOTION__A85).then(|| vec![0xE9, 0x52, 0x87, 0x4F, 0x01, 0x90])
     }
 
@@ -290,12 +293,17 @@ mod tests {
         let mut base = vec![0xD9, 0x47, 0x14, 0xD9, 0x47, 0x18, 0xDC, 0x0D];
         base[..6].copy_from_slice(&addon_hook(eix_sites::UPDATE_MOTION__A85).unwrap());
         assert_eq!(
-            addon_writes_covered(eix_sites::UPDATE_MOTION__A85, &base, &[0; 8], addon_hook),
-            Ok((vec![(eix_sites::UPDATE_MOTION__A85, 6)], vec![]))
+            addon_writes_covered(
+                eix_sites::UPDATE_MOTION__A85.ru(),
+                &base,
+                &[0; 8],
+                addon_hook
+            ),
+            Ok((vec![(eix_sites::UPDATE_MOTION__A85.ru(), 6)], vec![]))
         );
         assert_eq!(
             addon_writes_covered(
-                eix_sites::UPDATE_MOTION__A82,
+                eix_sites::UPDATE_MOTION__A82.ru(),
                 &[0; 12],
                 &[0; 12],
                 addon_hook
@@ -305,7 +313,7 @@ mod tests {
         );
         assert!(
             addon_writes_covered(
-                eix_sites::UPDATE_MOTION__A88,
+                eix_sites::UPDATE_MOTION__A88.ru(),
                 &base[3..],
                 &[0; 5],
                 addon_hook
@@ -313,16 +321,26 @@ mod tests {
             .is_err()
         );
         assert!(
-            addon_writes_covered(eix_sites::UPDATE_MOTION__A80, &[0; 8], &[0; 8], addon_hook)
-                .is_err()
+            addon_writes_covered(
+                eix_sites::UPDATE_MOTION__A80.ru(),
+                &[0; 8],
+                &[0; 8],
+                addon_hook
+            )
+            .is_err()
         );
         assert_eq!(
-            addon_writes_covered(eix_sites::UPDATE_MOTION__A8B, &[0; 6], &[0; 6], addon_hook),
+            addon_writes_covered(
+                eix_sites::UPDATE_MOTION__A8B.ru(),
+                &[0; 6],
+                &[0; 6],
+                addon_hook
+            ),
             Ok((vec![], vec![]))
         );
         assert_eq!(
             addon_writes_covered(
-                eix_sites::UPDATE_MOTION__A70,
+                eix_sites::UPDATE_MOTION__A70.ru(),
                 &[0; 0x15],
                 &[0; 0x15],
                 addon_hook
@@ -332,7 +350,7 @@ mod tests {
     }
 
     /// DeagrPlayerOnLoose's 12-byte write at 0x5cacfc: the `je` made NOPs, then its call (the displacement made up).
-    fn addon_deagr(at: usize) -> Option<Vec<u8>> {
+    fn addon_deagr(at: Site) -> Option<Vec<u8>> {
         (at == eix_sites::AI_VIEWER_UPDATE__2FC)
             .then(|| vec![0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xE8, 1, 2, 3, 4, 0x90])
     }
@@ -345,19 +363,29 @@ mod tests {
         let mut new = vec![0x74; 54];
         new[48..].copy_from_slice(&[0x90; 6]);
         assert_eq!(
-            addon_writes_covered(eix_sites::AI_VIEWER_UPDATE__2CC, &base, &new, addon_deagr),
-            Ok((vec![], vec![(eix_sites::AI_VIEWER_UPDATE__2FC, 6)]))
+            addon_writes_covered(
+                eix_sites::AI_VIEWER_UPDATE__2CC.ru(),
+                &base,
+                &new,
+                addon_deagr
+            ),
+            Ok((vec![], vec![(eix_sites::AI_VIEWER_UPDATE__2FC.ru(), 6)]))
         );
         new[53] = 0xCC;
         assert!(
-            addon_writes_covered(eix_sites::AI_VIEWER_UPDATE__2CC, &base, &new, addon_deagr)
-                .is_err(),
+            addon_writes_covered(
+                eix_sites::AI_VIEWER_UPDATE__2CC.ru(),
+                &base,
+                &new,
+                addon_deagr
+            )
+            .is_err(),
             "other bytes over part of the addon's write would break it"
         );
     }
 
     /// addon.dll's 7-byte write at 0x626a1e (the perk limit's compare), as the registry reports it.
-    fn addon_compare(at: usize) -> Option<Vec<u8>> {
+    fn addon_compare(at: Site) -> Option<Vec<u8>> {
         (at == eix_sites::TEXT_626A1E).then(|| vec![0x8B, 0x54, 0x02, 0x10, 0x83, 0xFA, 0x64])
     }
 
@@ -376,18 +404,23 @@ mod tests {
         assert_eq!(runs.len(), 2);
         assert_eq!(
             (runs[0].0, runs[0].1.len(), runs[0].2.len()),
-            (eix_sites::TEXT_626A1E, 7, 7)
+            (eix_sites::TEXT_626A1E.ru(), 7, 7)
         );
         assert_eq!(runs[0].2, [0x90, 0x90, 0xE9, 1, 2, 3, 4]);
         // Held whole, the range takes over the addon's write; its first piece alone covers only part of it.
         let held = addon_compare(eix_sites::TEXT_626A1E).unwrap();
         assert_eq!(
-            addon_writes_covered(eix_sites::TEXT_626A1E, &held, &runs[0].2, addon_compare),
-            Ok((vec![(eix_sites::TEXT_626A1E, 7)], vec![]))
+            addon_writes_covered(
+                eix_sites::TEXT_626A1E.ru(),
+                &held,
+                &runs[0].2,
+                addon_compare
+            ),
+            Ok((vec![(eix_sites::TEXT_626A1E.ru(), 7)], vec![]))
         );
         assert!(
             addon_writes_covered(
-                eix_sites::TEXT_626A1E,
+                eix_sites::TEXT_626A1E.ru(),
                 &held[..2],
                 &runs[0].2[..2],
                 addon_compare
@@ -401,7 +434,7 @@ mod tests {
         let mut m = Merge::default();
         let w = SiteWrite::bytes(eix_sites::DATA_7CCFFF, &[0, 0], &[1, 1]).unwrap();
         assert!(m.add(&[w]).is_err());
-        let w = SiteWrite::bytes(0x1000, &[0], &[1]).unwrap();
+        let w = SiteWrite::bytes(Site::new(0x1000), &[0], &[1]).unwrap();
         assert!(m.add(&[w]).is_err());
         assert!(m.bytes.is_empty());
     }
