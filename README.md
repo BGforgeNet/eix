@@ -10,8 +10,8 @@ Reference pages: [eix site](https://bgforgenet.github.io/eix/).
 <!-- ANCHOR: compat -->
 - Mods and plugins work the same way: same `config.reg`, `ai.reg` and `spelladdon.ini`.
 - Game: `game.exe` 1.06, Russian (EI starter's and GOG's Russian builds) or English and German (GOG's English and
-  German builds, one file). Other builds are not supported. A multiplayer game between the Russian and the
-  English/German build is untested.
+  German builds, one file). Other builds are not supported. Players of the Russian and the English/German build can
+  play together.
 <!-- ANCHOR_END: compat -->
 
 <!-- ANCHOR: install -->
