@@ -22,10 +22,15 @@ fn put(bytes: &mut [u8], at: usize, value: u32) {
     }
 }
 
-/// Whether bytes of `kind` at `site` are code: declared so, or in game.exe's code section.
+/// Whether bytes of `kind` at `site` are code: declared so, or by game.exe's section.
 fn is_code(site: usize, kind: Kind) -> bool {
-    kind == Kind::Code
-        || (eix_sites::TEXT_SECTION.ru()..eix_sites::RDATA_SECTION.ru()).contains(&site)
+    match kind {
+        Kind::Code => true,
+        Kind::Data => false,
+        Kind::Section => {
+            (eix_sites::TEXT_SECTION.ru()..eix_sites::RDATA_SECTION.ru()).contains(&site)
+        }
+    }
 }
 
 /// RU 1.06 address `ru` in the running build.
@@ -304,6 +309,20 @@ mod tests {
                 map
             ),
             (map(DATA_7AF784.ru()) as u32).to_le_bytes()
+        );
+    }
+
+    #[test]
+    fn a_pointer_written_into_code_is_data() {
+        // A jump table's entry in `.text`, pointing at high code the build moved.
+        let site = LOW;
+        assert!(is_code(site, Kind::Section));
+        assert!(!is_code(site, Kind::Data));
+        let entry = (HIGH as u32 + 0x10).to_le_bytes();
+        let moved = (map(HIGH + 0x10) as u32).to_le_bytes();
+        assert_eq!(
+            written_with(site, &entry, Some(&moved), &entry, false, map),
+            moved
         );
     }
 

@@ -99,7 +99,8 @@ impl SiteWrite {
             site,
             expected: (expected as u32).to_le_bytes().to_vec(),
             new: (new as u32).to_le_bytes().to_vec(),
-            bytes: Space::Ru(Kind::Section),
+            // A pointer is data wherever it lies: jump tables sit in `.text`.
+            bytes: Space::Ru(Kind::Data),
         }
     }
 
@@ -365,7 +366,11 @@ mod tests {
             SiteWrite::call(site, &[0; 5], 0x1000).map(|w| w.kind()),
             Ok(Kind::Code)
         );
-        assert_eq!(SiteWrite::pointer(site, 0, 1).kind(), Kind::Section);
+        // A pointer is data, even in `.text` (a jump table).
+        assert_eq!(
+            SiteWrite::pointer(eix_sites::TEXT_633234, 0, 1).kind(),
+            Kind::Data
+        );
         assert_eq!(SiteWrite::nop(site, &[0]).kind(), Kind::Section);
     }
 }

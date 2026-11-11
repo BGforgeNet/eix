@@ -95,9 +95,17 @@ fn addon_writes_covered(
     Ok((taken, shared))
 }
 
-/// One run of back-to-back writes: its RU 1.06 site, expected and new bytes, and their kind (code when a piece of it
-/// is).
+/// One run of back-to-back writes: its RU 1.06 site, expected and new bytes, and their kind: code when a piece of it
+/// is, data when every piece is, else its section's (an opcode and its pointer operand in `.text` decode whole).
 type Run = (usize, Vec<u8>, Vec<u8>, Kind);
+
+fn joined(run: Kind, piece: Kind) -> Kind {
+    match (run, piece) {
+        (Kind::Code, _) | (_, Kind::Code) => Kind::Code,
+        (Kind::Data, Kind::Data) => Kind::Data,
+        _ => Kind::Section,
+    }
+}
 
 /// The runs of back-to-back writes: a feature that NOPs the first bytes of a replaced instruction and jumps from the
 /// rest writes two pieces, and addon.dll's write over the same instruction must be weighed against both together.
@@ -108,9 +116,7 @@ fn contiguous_runs(writes: &[SiteWrite]) -> Vec<Run> {
             Some((site, expected, new, kind)) if *site + expected.len() == w.site().ru() => {
                 expected.extend_from_slice(w.expected());
                 new.extend_from_slice(w.new_bytes());
-                if w.kind() == Kind::Code {
-                    *kind = Kind::Code;
-                }
+                *kind = joined(*kind, w.kind());
             }
             _ => runs.push((
                 w.site().ru(),

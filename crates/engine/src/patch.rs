@@ -96,6 +96,8 @@ pub enum Kind {
     Section,
     /// Code wherever it lies: a branch the original put into `.data` is rebased as code.
     Code,
+    /// Data wherever it lies: a pointer in a jump table of `.text` translates as an address.
+    Data,
 }
 
 /// Replaces `expected` at `site` with `new`, only if `expected` is what is there.
