@@ -191,7 +191,7 @@ entry strips items. Set `QuIs` to the active quest-item count when using `camp=4
 | `gameplay` | `enablecheatsinmulti` | 1: allow the console's restricted commands in multiplayer. | same |
 | `gameplay` | `extendedparams` | 1: character creation uses attribute bounds 5..45 and required sum 20000. 2: use `parammin`, `parammax`, `balance` and bypass the sum check. | fixed: keeps fractional `parammin`, `parammax` and `balance` (the original truncates them to integers) |
 | `gameplay` | `longnick` | 1: remove the character-name edit field's length checks. | same |
-| `gameplay` | `disableexppenalty` | 1+: add experience directly to totals, bypass pending experience in training/trade, and remove its loss on respawn. | same |
+| `gameplay` | `disableexppenalty` | 1+: add experience directly to totals, bypass pending experience in training/trade, and remove its loss on respawn. | fixed: multiplayer goes on when a leader dies (the original's game stops there) |
 | `speed` | `allowmpspeed` | 1+: enable multiplayer speed keys and clock-button speed changes. | same |
 | `speed` | `rewritespeed` | 1: clock-button normal/fast periods use `normal` and `fast`. | same |
 | `speed` | `rewritespeedkey` | 1: keyboard normal/fast periods use `normalkey` and `fastkey`. | same |

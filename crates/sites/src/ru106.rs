@@ -1241,7 +1241,6 @@ pub const C_PLAYER_SERVER_SEND_PARTY_STATE__36C: Site = Site::new(0x66_E79C);
 pub const C_PLAYER_SERVER_SET_VARIABLE: Site = Site::new(0x66_EE10);
 pub const C_PLAYER_SERVER_SEND_PAIR_18: Site = Site::new(0x66_F2C0);
 pub const C_PLAYER_SERVER_RESEND_PARTY: Site = Site::new(0x66_F450);
-pub const WORLD_SERVER_RESPAWN__1A7: Site = Site::new(0x66_F667);
 pub const WORLD_SERVER_RESPAWN__1AF: Site = Site::new(0x66_F66F);
 pub const MAPPED_RESOURCE_MAPPED_RESOURCE: Site = Site::new(0x67_1280);
 pub const C_MAPPED_RESOURCE_C_MAPPED_RESOURCE__2: Site = Site::new(0x67_14A2);

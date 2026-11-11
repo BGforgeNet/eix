@@ -321,7 +321,8 @@ const DIRECT_RAISE: [u8; 53] = {
 };
 
 /// `disableexppenalty` >= 1: experience goes straight to the totals (+0x04, +0x08) instead of the pending field,
-/// the camp's trade panel reads +0x04 alone, and `WorldServer::Respawn` no longer takes pending experience.
+/// the camp's trade panel reads +0x04 alone, and the leader's death (`WorldServer::Respawn`) no longer takes pending
+/// experience.
 fn no_exp_penalty(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
@@ -360,15 +361,13 @@ fn no_exp_penalty(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
             &[0x80, 0x00, 0x07, 0x00, 0x00, 0xD8, 0x40, 0x04],
             &[0x40, 0x04, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90],
         ),
-        (eix_sites::WORLD_SERVER_RESPAWN__1A7, &[0x51], &[0x90]),
+        // The leader's death: `call TakePendingExperience` becomes `add esp, 4`, which drops the argument the call
+        // took. The original NOPs that argument's `push ecx` (so the `fstp [esp]` before the call overwrites the
+        // caller's word) and ten bytes from the call on, which cut the next call in two: the game stops on its rest.
         (
             eix_sites::WORLD_SERVER_RESPAWN__1AF,
-            &[
-                0xE8, 0xAC, 0x45, 0xEB, 0xFF, 0x8B, 0xCE, 0xE8, 0x05, 0xF9, 0xFF, 0xFF,
-            ],
-            &[
-                0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xFF, 0xFF,
-            ],
+            &[0xE8, 0xAC, 0x45, 0xEB, 0xFF],
+            &[0x83, 0xC4, 0x04, 0x90, 0x90],
         ),
     ])
 }
@@ -670,6 +669,23 @@ mod tests {
             assert!(b(&ctx, -1).unwrap().is_empty());
         }
         assert!(timer_vars(&ctx, 4).unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_leaders_death_skips_only_the_penalty_call() {
+        let v = values(&[]);
+        let ctx = Ctx::new(&v, no_log);
+        let w = plain(&no_exp_penalty(&ctx, 1).unwrap());
+        // The argument's push stays, and so does the call after the penalty's.
+        assert!(
+            !w.iter()
+                .any(|s| s.0 == eix_sites::WORLD_SERVER_RESPAWN__1AF.back(8))
+        );
+        assert!(w.contains(&(
+            eix_sites::WORLD_SERVER_RESPAWN__1AF,
+            vec![0xE8, 0xAC, 0x45, 0xEB, 0xFF],
+            vec![0x83, 0xC4, 0x04, 0x90, 0x90]
+        )));
     }
 
     #[test]
