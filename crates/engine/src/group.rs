@@ -46,6 +46,15 @@ impl SiteWrite {
         })
     }
 
+    /// [`bytes`](Self::bytes) that hold no address (text or constants, in `.text`'s padding too): another build writes
+    /// them as they are.
+    pub fn plain(site: Site, expected: &[u8], new: &[u8]) -> Result<Self, PatchError> {
+        Ok(Self {
+            bytes: Space::Ru(Kind::Plain),
+            ..Self::bytes(site, expected, new)?
+        })
+    }
+
     /// [`bytes`](Self::bytes) whose bytes are the running build's already, as [`patch::localize`] gives them.
     pub fn native(site: Site, expected: &[u8], new: &[u8]) -> Result<Self, PatchError> {
         Ok(Self {

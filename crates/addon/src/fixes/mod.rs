@@ -206,7 +206,10 @@ pub(crate) fn run(token: &BeforeWinMain, setup: &Setup) {
 
 #[cfg(test)]
 mod tests {
-    use eix_sites::Site;
+    use std::collections::BTreeSet;
+
+    use eix_engine::patch;
+    use eix_sites::{Build, Site};
 
     use super::*;
     use crate::groups::Labelled;
@@ -230,6 +233,9 @@ mod tests {
 
     /// Every write of every fix and mod setting, in the order they apply.
     fn every_write() -> Vec<Labelled> {
+        let _slots = heap_padding::tests::SLOTS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let mut setup = Setup::default();
         // The one entry that builds only when its mod key is set.
         setup.options.config.mod_.show_tutorial_default = Some(0);
@@ -244,6 +250,90 @@ mod tests {
             .collect();
         assert_eq!(built, FIXES.len() + MOD_SETTINGS.len());
         writes
+    }
+
+    /// The fields among `new`'s bytes from `from` on (code written over `expected` at `site`, which another build
+    /// rebases only as far as it decodes) that `build` must change: a game.exe address it moves, a branch whose
+    /// displacement changes there. Only fields that change a byte count: kept bytes take the running build's own.
+    /// Each field is its offset and the value `build` needs there.
+    fn moving_fields(
+        site: Site,
+        expected: &[u8],
+        new: &[u8],
+        from: usize,
+        build: Build,
+    ) -> Vec<(usize, u32)> {
+        let to = |ru: usize| Site::new(ru).in_build(build);
+        let word = |at: usize| {
+            new.get(at..at + 4)
+                .map(|f| u32::from_le_bytes(f.try_into().unwrap()))
+        };
+        let changes = |at: usize| (at..at + 4).any(|i| expected.get(i) != new.get(i));
+        let mut out = Vec::new();
+        for k in from..new.len() {
+            if let Some(v) = word(k)
+                && changes(k)
+                && eix_sites::in_image(v as usize)
+                && to(v as usize) != v as usize
+            {
+                out.push((k, to(v as usize) as u32));
+            }
+            let rel = match (new[k], new.get(k + 1)) {
+                (0xE8 | 0xE9, _) => k + 1,
+                (0x0F, Some(0x80..=0x8F)) => k + 2,
+                _ => continue,
+            };
+            let (Some(disp), true) = (word(rel), changes(rel)) else {
+                continue;
+            };
+            let end = site.ru() + rel + 4;
+            let target = (end as u32).wrapping_add(disp) as usize;
+            let needed = (to(target) as u32).wrapping_sub(to(end) as u32);
+            if needed != disp {
+                out.push((rel, needed));
+            }
+        }
+        out
+    }
+
+    /// Where the engine's decoder stops in code `new`: the end of its whole instructions.
+    fn decoded(new: &[u8]) -> usize {
+        eix_engine::x86::whole_insns(new)
+            .last()
+            .map_or(0, |(at, insn)| at + insn.len)
+    }
+
+    #[test]
+    fn another_build_finds_every_address_a_write_sets() {
+        // A jump from code the EN build moves to code it keeps, behind a byte the decoder does not take.
+        let site = eix_sites::TEXT_633E5F;
+        let rel = (eix_sites::TEXT_SECTION.ru32()).wrapping_sub(site.ru32() + 6);
+        let planted = [&[0x6F, 0xE9][..], &rel.to_le_bytes()].concat();
+        assert_eq!(decoded(&planted), 0);
+        assert_eq!(
+            moving_fields(site, &[0x90; 6], &planted, 0, Build::En106).len(),
+            1
+        );
+        let fixes = every_write()
+            .into_iter()
+            .map(|l| (format!("fix {}", l.label), l.write));
+        let mut wrong = BTreeSet::new();
+        let mut tails = 0;
+        for (label, w) in fixes.chain(spelladdon::writes()) {
+            let new = w.new_bytes();
+            if !patch::is_code(w.site(), w.kind()) || decoded(new) == new.len() {
+                continue;
+            }
+            tails += 1;
+            for (at, _) in moving_fields(w.site(), w.expected(), new, decoded(new), Build::En106) {
+                wrong.insert(format!("{label} at {:#x}+{at}", w.site().ru()));
+            }
+        }
+        assert!(
+            tails > 100,
+            "{tails} writes with bytes the decoder does not take"
+        );
+        assert!(wrong.is_empty(), "left as RU's: {wrong:#?}");
     }
 
     #[test]

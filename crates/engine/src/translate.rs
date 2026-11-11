@@ -22,15 +22,36 @@ fn put(bytes: &mut [u8], at: usize, value: u32) {
     }
 }
 
-/// Whether bytes of `kind` at `site` are code: declared so, or by game.exe's section.
-fn is_code(site: usize, kind: Kind) -> bool {
+/// How bytes at a site translate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Shape {
+    /// Rebased: branch targets and address fields.
+    Code,
+    /// A 4-byte address.
+    Data,
+    /// Not at all.
+    Plain,
+}
+
+/// How bytes of `kind` at `site` translate: as declared, or code in game.exe's `.text` and data elsewhere.
+fn shape(site: usize, kind: Kind) -> Shape {
     match kind {
-        Kind::Code => true,
-        Kind::Data => false,
+        Kind::Code => Shape::Code,
+        Kind::Data => Shape::Data,
+        Kind::Plain => Shape::Plain,
         Kind::Section => {
-            (eix_sites::TEXT_SECTION.ru()..eix_sites::RDATA_SECTION.ru()).contains(&site)
+            if (eix_sites::TEXT_SECTION.ru()..eix_sites::RDATA_SECTION.ru()).contains(&site) {
+                Shape::Code
+            } else {
+                Shape::Data
+            }
         }
     }
+}
+
+/// Whether bytes of `kind` at `site` are code: declared so, or by game.exe's section.
+pub(crate) fn is_code(site: usize, kind: Kind) -> bool {
+    shape(site, kind) == Shape::Code
 }
 
 /// RU 1.06 address `ru` in the running build.
@@ -38,17 +59,16 @@ fn here(ru: usize) -> usize {
     Site::new(ru).here()
 }
 
-/// `bytes`, code written for RU address `site`, moved to `map(site)`; `None` when they do not decode as whole
-/// instructions.
-fn rebase(site: usize, bytes: &[u8], map: impl Fn(usize) -> usize) -> Option<Vec<u8>> {
+/// `bytes`, code written for RU address `site`, moved to `map(site)`, as far as they decode as whole instructions;
+/// the rest is left as it is.
+fn rebase(site: usize, bytes: &[u8], map: impl Fn(usize) -> usize) -> Vec<u8> {
     let to = map(site);
     let mut out = bytes.to_vec();
-    let mut at = 0;
-    while at < bytes.len() {
-        let insn = x86::decode_in_place(&bytes[at..], at).ok()?;
+    for (at, insn) in x86::whole_insns(bytes) {
         let end = at + insn.len;
-        if let Some(r) = insn.rel32 {
-            let rel = word(bytes, at + r)?;
+        if let Some(r) = insn.rel32
+            && let Some(rel) = word(bytes, at + r)
+        {
             let target = ((site + end) as u32).wrapping_add(rel) as usize;
             put(
                 &mut out,
@@ -57,47 +77,43 @@ fn rebase(site: usize, bytes: &[u8], map: impl Fn(usize) -> usize) -> Option<Vec
             );
         }
         for field in [insn.disp32, insn.imm32].into_iter().flatten() {
-            let value = word(bytes, at + field)? as usize;
-            if in_image(value) {
-                put(&mut out, at + field, map(value) as u32);
+            match word(bytes, at + field) {
+                Some(value) if in_image(value as usize) => {
+                    put(&mut out, at + field, map(value as usize) as u32);
+                }
+                _ => {}
             }
         }
-        at = end;
     }
-    Some(out)
+    out
 }
 
-/// Where `bytes` (`code` or data) hold 4-byte fields of their own (a branch displacement, an address operand or
-/// immediate, a data pointer), which their translation sets; `None` for code that does not decode.
-fn own_fields(code: bool, bytes: &[u8]) -> Option<Vec<usize>> {
-    if !code {
-        return Some(if bytes.len() == 4 {
-            Vec::from([0])
-        } else {
-            Vec::new()
-        });
+/// Where `bytes` of `shape` hold 4-byte fields of their own (a branch displacement, an address operand or immediate,
+/// a data pointer), which their translation sets; code only as far as [`rebase`] decodes it.
+fn own_fields(shape: Shape, bytes: &[u8]) -> Vec<usize> {
+    match shape {
+        Shape::Code => x86::whole_insns(bytes)
+            .flat_map(|(at, insn)| {
+                [insn.rel32, insn.disp32, insn.imm32]
+                    .into_iter()
+                    .flatten()
+                    .map(move |f| at + f)
+            })
+            .collect(),
+        Shape::Data if bytes.len() == 4 => Vec::from([0]),
+        Shape::Data | Shape::Plain => Vec::new(),
     }
-    let mut fields = Vec::new();
-    let mut at = 0;
-    while at < bytes.len() {
-        let insn = x86::decode_in_place(&bytes[at..], at).ok()?;
-        fields.extend(
-            [insn.rel32, insn.disp32, insn.imm32]
-                .into_iter()
-                .flatten()
-                .map(|f| at + f),
-        );
-        at += insn.len;
-    }
-    Some(fields)
 }
 
-fn translated_with(site: usize, bytes: &[u8], code: bool, map: impl Fn(usize) -> usize) -> Vec<u8> {
-    if code {
-        return rebase(site, bytes, map).unwrap_or_else(|| bytes.to_vec());
-    }
-    match word(bytes, 0) {
-        Some(value) if bytes.len() == 4 && in_image(value as usize) => {
+fn translated_with(
+    site: usize,
+    bytes: &[u8],
+    shape: Shape,
+    map: impl Fn(usize) -> usize,
+) -> Vec<u8> {
+    match (shape, word(bytes, 0)) {
+        (Shape::Code, _) => rebase(site, bytes, map),
+        (Shape::Data, Some(value)) if bytes.len() == 4 && in_image(value as usize) => {
             (map(value as usize) as u32).to_le_bytes().to_vec()
         }
         _ => bytes.to_vec(),
@@ -107,7 +123,7 @@ fn translated_with(site: usize, bytes: &[u8], code: bool, map: impl Fn(usize) ->
 /// `bytes` of `kind` written for RU address `site`, as the running build would hold them: code rebased, a data
 /// address translated; `bytes` unchanged where neither applies.
 pub(crate) fn translated(site: Site, bytes: &[u8], kind: Kind) -> Vec<u8> {
-    translated_with(site.ru(), bytes, is_code(site.ru(), kind), here)
+    translated_with(site.ru(), bytes, shape(site.ru(), kind), here)
 }
 
 /// The 4-byte fields where `found` differs from `bytes` (written for RU address `site`) as their translation, by
@@ -225,13 +241,13 @@ fn written_with(
     expected: &[u8],
     found: Option<&[u8]>,
     new: &[u8],
-    code: bool,
+    shape: Shape,
     map: impl Fn(usize) -> usize,
 ) -> Vec<u8> {
-    let mut out = translated_with(site, new, code, map);
+    let mut out = translated_with(site, new, shape, map);
     if let Some(found) = found.filter(|f| f.len() == new.len() && expected.len() == new.len()) {
         // A field `new` holds itself is its own, translated above, even where a byte of it equals `expected`'s.
-        let own = own_fields(code, new).unwrap_or_default();
+        let own = own_fields(shape, new);
         let owned = |i: usize| own.iter().any(|&f| (f..f + 4).contains(&i));
         for (i, b) in out.iter_mut().enumerate() {
             if new[i] == expected[i] && !owned(i) {
@@ -252,8 +268,14 @@ pub(crate) fn written(
     new: &[u8],
     kind: Kind,
 ) -> Vec<u8> {
-    let code = is_code(site.ru(), kind);
-    written_with(site.ru(), expected, found, new, code, here)
+    written_with(
+        site.ru(),
+        expected,
+        found,
+        new,
+        shape(site.ru(), kind),
+        here,
+    )
 }
 
 #[cfg(test)]
@@ -288,7 +310,7 @@ mod tests {
             0xE8, rel[0], rel[1], rel[2], rel[3], 0xA1, data[0], data[1], data[2], data[3], 0x75,
             0x02,
         ];
-        let en = rebase(site, &ru, map).unwrap();
+        let en = rebase(site, &ru, map);
         let rel_en = (LOW as u32)
             .wrapping_sub(map(site) as u32 + 5)
             .to_le_bytes();
@@ -313,12 +335,31 @@ mod tests {
             &stub.wrapping_sub(site as u32 + 5).to_le_bytes(),
         ]
         .concat();
-        let en = rebase(site, &ru, map).unwrap();
+        let en = rebase(site, &ru, map);
         assert_eq!(
             en[1..5],
             stub.wrapping_sub(map(site) as u32 + 5).to_le_bytes()
         );
         assert!(equivalent_with(site, &ru, &en, map));
+    }
+
+    #[test]
+    fn code_is_rebased_as_far_as_it_decodes() {
+        // jmp LOW; fld [DATA_7AF784]; then the start of a `fsub [esp + 8]` the bytes after the write complete.
+        let site = HIGH + 0x1000;
+        let rel = (LOW as u32).wrapping_sub(site as u32 + 5).to_le_bytes();
+        let data = DATA_7AF784.ru32().to_le_bytes();
+        let ru = [&[0xE9][..], &rel, &[0xD9, 0x05], &data, &[0xD8, 0x64]].concat();
+        let en = rebase(site, &ru, map);
+        assert_eq!(
+            en[1..5],
+            (LOW as u32)
+                .wrapping_sub(map(site) as u32 + 5)
+                .to_le_bytes()
+        );
+        assert_eq!(en[7..11], (map(DATA_7AF784.ru()) as u32).to_le_bytes());
+        assert_eq!(en[11..], [0xD8, 0x64]);
+        assert_eq!(own_fields(Shape::Code, &ru), [1, 7]);
     }
 
     #[test]
@@ -332,7 +373,7 @@ mod tests {
         let new = [0x8B, 0x15, r0, r1, r2, r3];
         assert!(equivalent_with(site, &expected, &found, map));
         assert_eq!(
-            written_with(site, &expected, Some(&found), &new, true, map),
+            written_with(site, &expected, Some(&found), &new, Shape::Code, map),
             [0x8B, 0x15, e0, e1, e2, e3]
         );
         // The operand's low byte alone needs the bytes around it.
@@ -342,10 +383,15 @@ mod tests {
             translated_with(
                 MOVED_DATA + 0x1000,
                 &DATA_7AF784.ru32().to_le_bytes(),
-                false,
+                Shape::Data,
                 map
             ),
             (map(DATA_7AF784.ru()) as u32).to_le_bytes()
+        );
+        // Plain bytes, though they read as an address, are not.
+        assert_eq!(
+            translated_with(MOVED_DATA, b"Gof\0", Shape::Plain, map),
+            *b"Gof\0"
         );
     }
 
@@ -375,7 +421,7 @@ mod tests {
         let entry = (HIGH as u32 + 0x10).to_le_bytes();
         let moved = (map(HIGH + 0x10) as u32).to_le_bytes();
         assert_eq!(
-            written_with(site, &entry, Some(&moved), &entry, false, map),
+            written_with(site, &entry, Some(&moved), &entry, Shape::Data, map),
             moved
         );
     }
@@ -391,7 +437,7 @@ mod tests {
             let [r0, r1, r2, r3] = stub.wrapping_sub(from as u32 + 5).to_le_bytes();
             [0xE9, r0, r1, r2, r3]
         };
-        let written = written_with(site, &[0; 5], Some(&[0; 5]), &jump(site), true, map);
+        let written = written_with(site, &[0; 5], Some(&[0; 5]), &jump(site), Shape::Code, map);
         assert_eq!(written, jump(map(site)));
     }
 
@@ -410,7 +456,7 @@ mod tests {
         let new = call(rel.wrapping_add(0x1000_0000));
         assert!(equivalent_with(site, &expected, &found, map));
         assert_eq!(
-            written_with(site, &expected, Some(&found), &new, true, map),
+            written_with(site, &expected, Some(&found), &new, Shape::Code, map),
             new
         );
         // A data pointer that shares bytes with the one it replaces is written whole.
@@ -419,7 +465,7 @@ mod tests {
         let moved = (map(HIGH + 0x10) as u32).to_le_bytes();
         let ours = (HIGH as u32 + 0x10 + 0x1000_0000).to_le_bytes();
         assert_eq!(
-            written_with(slot, &was, Some(&moved), &ours, false, map),
+            written_with(slot, &was, Some(&moved), &ours, Shape::Data, map),
             ours
         );
     }

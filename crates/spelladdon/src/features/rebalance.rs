@@ -387,11 +387,25 @@ fn skills_counting(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
         v.float("rebalanceengine", "mul")?,
         v.float("rebalanceengine", "add")?,
     );
-    Ok(vec![SiteWrite::bytes(
-        SCHOOL_PRICE,
-        &SCHOOL_PRICE_WAS,
-        &code,
-    )?])
+    // The code around the constants, which hold no address: another build rebases only the code.
+    let data = SCHOOL_PRICE_DATA..SCHOOL_PRICE_DATA + 16;
+    let part = |r: core::ops::Range<usize>| {
+        (
+            SCHOOL_PRICE.offset(r.start),
+            &SCHOOL_PRICE_WAS[r.clone()],
+            &code[r],
+        )
+    };
+    let (head, constants, tail) = (
+        part(0..data.start),
+        part(data.clone()),
+        part(data.end..code.len()),
+    );
+    Ok(vec![
+        SiteWrite::bytes(head.0, head.1, head.2)?,
+        SiteWrite::plain(constants.0, constants.1, constants.2)?,
+        SiteWrite::bytes(tail.0, tail.1, tail.2)?,
+    ])
 }
 
 /// The running stamina constant `UpdateMotion` multiplies by (1/150), an `f64` in `.rdata`.
@@ -401,7 +415,7 @@ const RUN_CONSTANT_WAS: f64 = f64::from_bits(0x3F7B_4E81_B4E8_1B4E);
 const RUN_CONSTANT_EX: Site = eix_sites::TEXT_548518;
 
 fn run_constant_ex(ctx: &Ctx<'_>) -> Result<SiteWrite, BuildError> {
-    Ok(SiteWrite::bytes(
+    Ok(SiteWrite::plain(
         RUN_CONSTANT_EX,
         &[0x90; 8],
         &ctx.values
@@ -1010,9 +1024,13 @@ const CLICK_BOUND: Bytes = (
     &[0x03, 0x0F, 0x87, 0xAC],
     &[0x04, 0x0F, 0x87, 0xB7],
 );
-const CLICK_TABLE: Bytes = (eix_sites::TEXT_633DF4, &[0xA4], &[0xAC]);
+/// The jump's table operand.
+const CLICK_TABLE: Site = eix_sites::TEXT_633DF4;
 /// The click handler from the easy box's case (ECX the sprite array) to its jump table and padding.
 const CLICK_CASES: Site = eix_sites::TEXT_633E5F;
+/// Where in [`CLICK_CASES`] the jump table starts: the original's, and the rewrite's, which runs to the end.
+const CLICK_TABLE_WAS: usize = 0x45;
+const CLICK_TABLE_NOW: usize = 0x4D;
 const CLICK_CASES_WAS: [u8; 97] = [
     0x8B, 0x51, 0x04, 0xC7, 0x82, 0xCC, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC7, 0x86, 0xEC,
     0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x5E, 0xC2, 0x0C, 0x00, 0x8B, 0x46, 0x74, 0x8B, 0x48,
@@ -1288,7 +1306,7 @@ fn new_difficulty_levels(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
     if value != 1 {
         return Ok(Vec::new());
     }
-    let normal_key = (NORMAL_KEY.as_ptr().expose_provenance() as u32).to_le_bytes();
+    let normal_key = NORMAL_KEY.as_ptr().expose_provenance();
     let easy = common::jump_stub(
         CLICK_CASES,
         &CLICK_CASES_WAS[..3],
@@ -1317,11 +1335,7 @@ fn new_difficulty_levels(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
         read_hard_label,
         0,
     )?);
-    writes.push(SiteWrite::bytes(
-        SECOND_KEY,
-        &HARD_KEY.ru32().to_le_bytes(),
-        &normal_key,
-    )?);
+    writes.push(SiteWrite::pointer(SECOND_KEY, HARD_KEY.ru(), normal_key));
     writes.push(common::branch_before(
         LABELS_DRAW,
         &LABELS_DRAW_WAS,
@@ -1349,14 +1363,30 @@ fn new_difficulty_levels(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
         add_normal_region,
         0,
     )?);
-    writes.extend(common::fixed(&[CLICK_BOUND, CLICK_TABLE])?);
+    writes.extend(common::fixed(&[CLICK_BOUND])?);
+    writes.push(SiteWrite::pointer(
+        CLICK_TABLE,
+        CLICK_CASES.offset(CLICK_TABLE_WAS).ru(),
+        CLICK_CASES.offset(CLICK_TABLE_NOW).ru(),
+    ));
+    // The code, then the table's entries, as pointers: another build decodes only the code.
     writes.push(common::branch(
         CLICK_CASES,
-        &CLICK_CASES_WAS,
-        &click,
+        &CLICK_CASES_WAS[..CLICK_TABLE_NOW],
+        &click[..CLICK_TABLE_NOW],
         0,
         easy,
     )?);
+    let entry = |bytes: &[u8; 97], at: usize| {
+        u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]) as usize
+    };
+    for at in (CLICK_TABLE_NOW..click.len()).step_by(4) {
+        writes.push(SiteWrite::pointer(
+            CLICK_CASES.offset(at),
+            entry(&CLICK_CASES_WAS, at),
+            entry(&click, at),
+        ));
+    }
     writes.extend(common::fixed(&[
         OPTIONS_LOAD,
         OPTIONS_APPLY_SKIP,
@@ -1399,12 +1429,19 @@ mod tests {
         ]);
         let ctx = Ctx::new(&v, no_log);
         let w = plain(&skills_counting(&ctx, 1).unwrap());
-        assert_eq!(w.len(), 1);
-        let (site, was, now) = &w[0];
+        // The code, its constants and the code after them, one after another.
+        let parts: Vec<(Site, usize)> = w.iter().map(|(s, was, _)| (*s, was.len())).collect();
         assert_eq!(
-            (*site, was.as_slice()),
-            (eix_sites::SCHOOL_PRICE, &SCHOOL_PRICE_WAS[..])
+            parts,
+            [
+                (SCHOOL_PRICE, 0x10),
+                (SCHOOL_PRICE.offset(0x10), 0x10),
+                (SCHOOL_PRICE.offset(0x20), 0x40)
+            ]
         );
+        let was: Vec<u8> = w.iter().flat_map(|w| w.1.clone()).collect();
+        let now: Vec<u8> = w.iter().flat_map(|w| w.2.clone()).collect();
+        assert_eq!(was, SCHOOL_PRICE_WAS);
         assert_eq!(now[0x10..0x18], 1.1f64.to_le_bytes());
         assert_eq!(now[0x18..0x1C], 4.95321f32.to_le_bytes());
         assert_eq!(now[0x1C..0x20], [0; 4]);
@@ -1633,8 +1670,11 @@ mod tests {
         let w = plain(&new_difficulty_levels(&ctx, 1).unwrap());
         // The option record's kind, outside the code the original's run is compared on.
         assert!(w.contains(&(eix_sites::DATA_787690, vec![0x01], vec![0x00])));
-        let (_, _, click) = w.iter().find(|w| w.0 == CLICK_CASES).unwrap();
-        let entry = u32::from_le_bytes(click[NORMAL_CASE..NORMAL_CASE + 4].try_into().unwrap());
+        let (_, _, click) = w
+            .iter()
+            .find(|w| w.0 == CLICK_CASES.offset(NORMAL_CASE))
+            .unwrap();
+        let entry = u32::from_le_bytes(click[..].try_into().unwrap());
         assert!(
             entry > 0x10000 && entry as usize != CLICK_END.ru(),
             "{entry:#x}"

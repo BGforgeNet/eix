@@ -812,7 +812,7 @@ fn group_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
     }
     const GGF: Site = eix_sites::SSC_CMD_CALC_GROUP__3C9;
     Ok(vec![
-        bytes(GGF, &[0x90; 4], b"Ggf\0")?,
+        SiteWrite::plain(GGF, &[0x90; 4], b"Ggf\0")?,
         resign(keyword::GROUP_SEE, keyword::FUNCTION, signature::FN_GG, GGF),
     ])
 }
@@ -1149,7 +1149,7 @@ fn unit_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
         unit_see_list,
         0,
     )?;
-    writes.push(bytes(GOF, &[0x90; 4], b"Gof\0")?);
+    writes.push(SiteWrite::plain(GOF, &[0x90; 4], b"Gof\0")?);
     writes.push(resign(
         keyword::UNIT_SEE,
         keyword::FUNCTION,
@@ -1268,7 +1268,7 @@ fn cast_script_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
                     cast_on_object,
                     0,
                 )?,
-                bytes(OFFFO, &[0x90; 6], b"offfo\0")?,
+                SiteWrite::plain(OFFFO, &[0x90; 6], b"offfo\0")?,
                 resign(keyword::CAST, keyword::COMMAND, signature::OFF, OFFFO),
             ])
         }
@@ -1542,7 +1542,7 @@ fn move_to_object_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
         }
         3.. => Ok(vec![
             bytes(SITE, &MOVE_TO_OBJECT, &MOVE_TO_OBJECT_ITEM)?,
-            bytes(OOFFFF, &[0x90; 7], b"ooffff\0")?,
+            SiteWrite::plain(OOFFFF, &[0x90; 7], b"ooffff\0")?,
             resign(
                 keyword::MOVE_TO_OBJECT,
                 keyword::COMMAND,
@@ -1666,9 +1666,17 @@ fn script_checking(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
         return Ok(Vec::new());
     }
     // The strings the original keeps in padding; its own code reads them, ours carries its own.
-    let mut writes = vec![bytes(eix_sites::TEXT_4CF106, &[0x90; 10], b"SAlog.txt\0")?];
+    let mut writes = vec![SiteWrite::plain(
+        eix_sites::TEXT_4CF106,
+        &[0x90; 10],
+        b"SAlog.txt\0",
+    )?];
     if matches!(value, 2 | 4..=7) {
-        writes.push(bytes(eix_sites::TEXT_481575, &[0x90; 11], b"Loading %s\0")?);
+        writes.push(SiteWrite::plain(
+            eix_sites::TEXT_481575,
+            &[0x90; 11],
+            b"Loading %s\0",
+        )?);
         writes.extend(common::jump_at(
             eix_sites::LOAD_MOB_FILE__2E,
             &[0x33, 0xDB, 0x89, 0x5C, 0x24, 0x70],

@@ -98,6 +98,8 @@ pub enum Kind {
     Code,
     /// Data wherever it lies: a pointer in a jump table of `.text` translates as an address.
     Data,
+    /// Bytes that hold no address (text, a constant), the same in every build: nothing in them translates.
+    Plain,
 }
 
 /// Replaces `expected` at `site` with `new`, only if `expected` is what is there.
@@ -188,6 +190,11 @@ pub fn as_built(site: Site, kind: Kind, bytes: &[u8]) -> Vec<u8> {
     } else {
         bytes.to_vec()
     }
+}
+
+/// Whether bytes of `kind` at `site` are code, which another build gets rebased.
+pub fn is_code(site: Site, kind: Kind) -> bool {
+    translate::is_code(site.ru(), kind)
 }
 
 /// # Safety

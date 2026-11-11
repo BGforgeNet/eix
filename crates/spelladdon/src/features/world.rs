@@ -237,13 +237,13 @@ fn info_window_remake(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
         return Ok(Vec::new());
     }
     let tail = PushTail::new(3, INFO_HEADER_BACK)?;
-    let mut writes = fixed(&[
-        // The first format, in padding of `CSceneRenderer::SetSunAndAmbient`.
-        (
-            eix_sites::C_SCENE_RENDERER_SET_SUN_AND_AMBIENT__91,
-            &[0x90; 15],
-            b"%s %d  %s %d%s\0",
-        ),
+    // The first format, in padding of `CSceneRenderer::SetSunAndAmbient`.
+    let mut writes = vec![SiteWrite::plain(
+        eix_sites::C_SCENE_RENDERER_SET_SUN_AND_AMBIENT__91,
+        &[0x90; 15],
+        b"%s %d  %s %d%s\0",
+    )?];
+    writes.extend(fixed(&[
         // CHudUnitPanel::SetupVanilla: cmp ebx, 0x14.
         (eix_sites::C_HUD_UNIT_PANEL_SETUP__7C3, &[0x12], &[0x14]),
         // push 0x500891 instead of 0x792f48, and two more arguments popped.
@@ -263,7 +263,7 @@ fn info_window_remake(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
             &[0x90],
             &[0x94],
         ),
-    ])?;
+    ])?);
     writes.extend(common::jump_at(
         INFO_HEADER,
         &INFO_HEADER_BYTES,
@@ -389,19 +389,17 @@ fn allods_info(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
             y.wrapping_sub(25),
         )?,
     ]);
-    writes.extend(fixed(&[
-        // The text key's prefix, in padding of `SaveEntry::ZoneTitle`, and `CGlobalMap::AllodTitle` pushing it.
-        (
-            eix_sites::SAVE_ENTRY_ZONE_TITLE__F9,
-            &[0x90; 7],
-            b"adesc \0",
-        ),
-        (
-            eix_sites::C_GLOBAL_MAP_ALLOD_TITLE__3E,
-            &[0x00, 0x42, 0x79, 0x00],
-            &[0xC9, 0x3C, 0x65, 0x00],
-        ),
-    ])?);
+    // The text key's prefix, in padding of `SaveEntry::ZoneTitle`, and `CGlobalMap::AllodTitle` pushing it.
+    writes.push(SiteWrite::plain(
+        eix_sites::SAVE_ENTRY_ZONE_TITLE__F9,
+        &[0x90; 7],
+        b"adesc \0",
+    )?);
+    writes.push(SiteWrite::pointer(
+        eix_sites::C_GLOBAL_MAP_ALLOD_TITLE__3E,
+        eix_sites::DATA_794200.ru(),
+        eix_sites::SAVE_ENTRY_ZONE_TITLE__F9.ru(),
+    ));
     Ok(writes)
 }
 
@@ -542,15 +540,20 @@ const LOADING_TEST: Bytes = (
 fn new_loading_screens(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         1 => fixed(&[LOADING_TEST]),
-        2 => fixed(&[
-            LOADING_TEST,
-            (
+        2 => {
+            let mut writes = fixed(&[LOADING_TEST])?;
+            writes.push(SiteWrite::pointer(
                 eix_sites::SELECT_LOADING_MOVIE__BF,
-                &[0xEC, 0xB0, 0x78],
-                &[0x99, 0x51, 0x59],
-            ),
-            (eix_sites::SELECT_LOADING_MOVIE__119, &[0x90; 5], b"gz1g\0"),
-        ]),
+                eix_sites::DATA_78B0EC.ru(),
+                eix_sites::SELECT_LOADING_MOVIE__119.ru(),
+            ));
+            writes.push(SiteWrite::plain(
+                eix_sites::SELECT_LOADING_MOVIE__119,
+                &[0x90; 5],
+                b"gz1g\0",
+            )?);
+            Ok(writes)
+        }
         _ => Ok(Vec::new()),
     }
 }
@@ -727,36 +730,41 @@ fn no_ruins_zone_animation(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
 /// `bigmapspatch` = 1: the network position encoders scale by two floats kept in padding of
 /// `CHudSpellColumn::Construct` instead of 0x73caa0 and 0x73caa4.
 fn big_maps_patch(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
-    when_on(
-        value,
-        &[
-            (
-                eix_sites::DELTA_FIELD_WRITE_POSITION_2D__18,
-                &[0xA0, 0xCA, 0x73],
-                &[0x38, 0xE4, 0x63],
-            ),
-            (
-                eix_sites::DELTA_FIELD_WRITE_POSITION_2D__DD,
-                &[0xA0, 0xCA, 0x73],
-                &[0x38, 0xE4, 0x63],
-            ),
-            (
-                eix_sites::DELTA_FIELD_READ_POSITION_2D__B1,
-                &[0xA4, 0xCA, 0x73],
-                &[0x3C, 0xE4, 0x63],
-            ),
-            (
-                eix_sites::DELTA_FIELD_READ_POSITION_2D__163,
-                &[0xA4, 0xCA, 0x73],
-                &[0x3C, 0xE4, 0x63],
-            ),
-            (
-                eix_sites::C_HUD_SPELL_COLUMN_CONSTRUCT__198,
-                &[0x90; 8],
-                &[0x00, 0xF0, 0x70, 0x41, 0x88, 0x00, 0x88, 0x3D],
-            ),
-        ],
-    )
+    if value != 1 {
+        return Ok(Vec::new());
+    }
+    let floats = eix_sites::C_HUD_SPELL_COLUMN_CONSTRUCT__198;
+    let mut writes: Vec<SiteWrite> = [
+        (
+            eix_sites::DELTA_FIELD_WRITE_POSITION_2D__18,
+            eix_sites::RDATA_73CAA0,
+            0,
+        ),
+        (
+            eix_sites::DELTA_FIELD_WRITE_POSITION_2D__DD,
+            eix_sites::RDATA_73CAA0,
+            0,
+        ),
+        (
+            eix_sites::DELTA_FIELD_READ_POSITION_2D__B1,
+            eix_sites::RDATA_73CAA4,
+            4,
+        ),
+        (
+            eix_sites::DELTA_FIELD_READ_POSITION_2D__163,
+            eix_sites::RDATA_73CAA4,
+            4,
+        ),
+    ]
+    .into_iter()
+    .map(|(site, was, at)| SiteWrite::pointer(site, was.ru(), floats.offset(at).ru()))
+    .collect();
+    writes.push(SiteWrite::plain(
+        floats,
+        &[0x90; 8],
+        &[0x00, 0xF0, 0x70, 0x41, 0x88, 0x00, 0x88, 0x3D],
+    )?);
+    Ok(writes)
 }
 
 /// `CWorldServer::SetZoneExits`+0x50: `mov [esp+0x10], esi; cmp eax, esi`, which becomes `nop; jmp <added code>`. EAX
@@ -792,7 +800,11 @@ fn hidden_zones_exits(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
         return Ok(Vec::new());
     }
     // The variable's name, in padding of `NegateVector`, which the original passes.
-    let mut writes = fixed(&[(eix_sites::NEGATE_VECTOR__19, &[0x90; 7], b"Exits\0\0")])?;
+    let mut writes = vec![SiteWrite::plain(
+        eix_sites::NEGATE_VECTOR__19,
+        &[0x90; 7],
+        b"Exits\0\0",
+    )?];
     writes.extend(common::jump_at(
         ZONE_EXITS,
         &ZONE_EXITS_BYTES,

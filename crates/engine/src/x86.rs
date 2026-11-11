@@ -194,6 +194,18 @@ pub fn decode(code: &[u8], offset: usize) -> Result<Insn, CodeError> {
     decode_with(code, offset, false)
 }
 
+/// The whole instructions `code` starts with ([`decode_in_place`]), each with its offset: up to the first that does
+/// not decode or runs past the end (bytes after a write complete it, or data follows the code).
+pub fn whole_insns(code: &[u8]) -> impl Iterator<Item = (usize, Insn)> + '_ {
+    let mut at = 0;
+    core::iter::from_fn(move || {
+        let insn = decode_in_place(code.get(at..)?, at).ok()?;
+        let start = at;
+        at += insn.len;
+        (at <= code.len()).then_some((start, insn))
+    })
+}
+
 /// [`decode`], which also takes a short branch (as an instruction with no address field): for code that stays where
 /// it is relative to its targets.
 pub fn decode_in_place(code: &[u8], offset: usize) -> Result<Insn, CodeError> {

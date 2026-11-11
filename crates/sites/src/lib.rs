@@ -73,6 +73,11 @@ impl Site {
         here(self.0) as u32
     }
 
+    /// The address in `build`, whichever build runs: for checking bytes meant for another build.
+    pub fn in_build(self, build: Build) -> usize {
+        in_build(build, self.0)
+    }
+
     /// The running build's `address` as a pointer to `T`.
     pub fn ptr<T>(self) -> *mut T {
         core::ptr::with_exposed_provenance_mut(self.here())
@@ -139,7 +144,11 @@ pub fn in_image(address: usize) -> bool {
 
 /// The RU 1.06 address `ru` in the running build; an address outside the image is returned as it is.
 fn here(ru: usize) -> usize {
-    match selected() {
+    in_build(selected(), ru)
+}
+
+fn in_build(build: Build, ru: usize) -> usize {
+    match build {
         Build::Ru106 => ru,
         Build::En106 => shift(en106::RUNS, ru, false),
     }

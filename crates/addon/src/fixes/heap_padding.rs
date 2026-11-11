@@ -88,7 +88,7 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     use std::ptr::null_mut;
@@ -104,6 +104,10 @@ mod tests {
 
     const HEAP_ZERO_MEMORY: u32 = 0x08;
 
+    /// Held while a test points [`ALLOC`] and [`RE_ALLOC`] at kernel32's functions and calls through them: a build of
+    /// the fix, in another test, stores what this process holds at the game's import slots there.
+    pub(crate) static SLOTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// kernel32's export `name`, as the function type `F` the caller names for it.
     fn function<F: Copy>(k: &Dll, name: &std::ffi::CStr) -> F {
         // SAFETY: every caller names a kernel32 heap function with its stdcall signature.
@@ -112,6 +116,7 @@ mod tests {
 
     /// kernel32's heap functions, and the stand-ins pointed at the real ones as the fix points them.
     struct Heap {
+        _slots: std::sync::MutexGuard<'static, ()>,
         heap: *mut c_void,
         alloc: HeapAlloc,
         free: HeapFree,
@@ -122,12 +127,16 @@ mod tests {
 
     impl Heap {
         fn new() -> Self {
+            let slots = SLOTS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let k = Dll::system("kernel32.dll").unwrap();
             let get = |name| k.address(name).unwrap();
             ALLOC.store(get(c"HeapAlloc"), Ordering::SeqCst);
             RE_ALLOC.store(get(c"HeapReAlloc"), Ordering::SeqCst);
             let create: HeapCreate = function(&k, c"HeapCreate");
             Self {
+                _slots: slots,
                 // A private growable heap, as the C runtime's `_crtheap`.
                 // SAFETY: no preconditions.
                 heap: unsafe { create(0, 0x1000, 0) },

@@ -929,8 +929,14 @@ fn heroes_can_hide_weapons(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
         )?,
     ];
     let entry = common::entry(sheathe_by_key, 0)?;
+    // The whole `je` (0F 84), which another build rebases: a displacement alone does not decode.
     for (at, game) in KEY_SELECTED_JUMPS {
-        writes.push(bytes(at, &game, &common::rel32(at.offset(4), entry))?);
+        let je = |rel: &[u8]| [&[0x0F, 0x84][..], rel].concat();
+        writes.push(bytes(
+            at.back(2),
+            &je(&game),
+            &je(&common::rel32(at.offset(4), entry)),
+        )?);
     }
     Ok(writes)
 }
@@ -1618,7 +1624,11 @@ fn new_options(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
         .iter()
         .map(|&(site, was, offset)| SiteWrite::pointer(site, was.ru(), table + offset))
         .collect();
-    writes.push(bytes(KEY_NAMES, &[0x90; 13], b"camp\0kick\0\0\0\0")?);
+    writes.push(SiteWrite::plain(
+        KEY_NAMES,
+        &[0x90; 13],
+        b"camp\0kick\0\0\0\0",
+    )?);
     writes.push(bytes(
         eix_sites::BATTLE_SCREEN_KEY_DOWN__C4,
         &[0x3A],
@@ -2241,15 +2251,15 @@ mod tests {
             [
                 (eix_sites::WEAPON_BAR_MOUSE_UP_VERIFY__62, 1),
                 (eix_sites::WEAPON_BAR_MOUSE_UP_VERIFY__BB, 5),
-                (eix_sites::BATTLE_SCREEN_KEY_DOWN__70F, 4),
-                (eix_sites::BATTLE_SCREEN_KEY_DOWN__789, 4),
-                (eix_sites::BATTLE_SCREEN_KEY_DOWN__7F9, 4),
-                (eix_sites::BATTLE_SCREEN_KEY_DOWN__869, 4)
+                (eix_sites::BATTLE_SCREEN_KEY_DOWN__70F.back(2), 6),
+                (eix_sites::BATTLE_SCREEN_KEY_DOWN__789.back(2), 6),
+                (eix_sites::BATTLE_SCREEN_KEY_DOWN__7F9.back(2), 6),
+                (eix_sites::BATTLE_SCREEN_KEY_DOWN__869.back(2), 6)
             ]
         );
         // The four keys share one entry.
         let target = |w: &SiteWrite| {
-            w.site().offset(4).ru32() + u32::from_le_bytes(w.new_bytes().try_into().unwrap())
+            w.site().offset(6).ru32() + u32::from_le_bytes(w.new_bytes()[2..].try_into().unwrap())
         };
         assert_eq!(target(&w[2]), target(&w[5]));
         let v = values(&[("gameplay", "speedslowremaster", "2")]);
