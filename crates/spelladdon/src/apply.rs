@@ -95,35 +95,20 @@ fn addon_writes_covered(
     Ok((taken, shared))
 }
 
-/// One run of back-to-back writes: its RU 1.06 site, expected and new bytes, and their kind: code when a piece of it
-/// is, data when every piece is, else its section's (an opcode and its pointer operand in `.text` decode whole).
-type Run = (usize, Vec<u8>, Vec<u8>, Kind);
-
-fn joined(run: Kind, piece: Kind) -> Kind {
-    match (run, piece) {
-        (Kind::Code, _) | (_, Kind::Code) => Kind::Code,
-        (Kind::Data, Kind::Data) => Kind::Data,
-        _ => Kind::Section,
-    }
-}
+/// One write, or a run of back-to-back ones: its RU 1.06 site, and its expected and new bytes in the running build.
+type Run = (usize, Vec<u8>, Vec<u8>);
 
 /// The runs of back-to-back writes: a feature that NOPs the first bytes of a replaced instruction and jumps from the
 /// rest writes two pieces, and addon.dll's write over the same instruction must be weighed against both together.
-fn contiguous_runs(writes: &[SiteWrite]) -> Vec<Run> {
+fn contiguous_runs(pieces: &[Run]) -> Vec<Run> {
     let mut runs: Vec<Run> = Vec::new();
-    for w in writes {
+    for (at, expected_piece, new_piece) in pieces {
         match runs.last_mut() {
-            Some((site, expected, new, kind)) if *site + expected.len() == w.site().ru() => {
-                expected.extend_from_slice(w.expected());
-                new.extend_from_slice(w.new_bytes());
-                *kind = joined(*kind, w.kind());
+            Some((site, expected, new)) if *site + expected.len() == *at => {
+                expected.extend_from_slice(expected_piece);
+                new.extend_from_slice(new_piece);
             }
-            _ => runs.push((
-                w.site().ru(),
-                w.expected().to_vec(),
-                w.new_bytes().to_vec(),
-                w.kind(),
-            )),
+            _ => runs.push((*at, expected_piece.clone(), new_piece.clone())),
         }
     }
     runs
@@ -146,20 +131,34 @@ impl Merge {
     pub(crate) fn add(&mut self, writes: &[SiteWrite]) -> Result<Vec<Site>, String> {
         let mut bytes = self.bytes.clone();
         let mut taken = Vec::new();
-        for (site, expected_run, new_run, kind) in contiguous_runs(writes) {
-            if site < IMAGE.start || site + expected_run.len() > IMAGE.end {
+        // The merge compares and keeps the running build's bytes; each address stays RU 1.06's. Each write is made
+        // the build's by itself, as its own kind, against what the earlier features leave there.
+        let mut pieces = Vec::with_capacity(writes.len());
+        for w in writes {
+            let site = w.site().ru();
+            if site < IMAGE.start || site + w.size() > IMAGE.end {
                 return Err(format!(
                     "{site:#x}+{} is outside game.exe's patchable image",
-                    expected_run.len()
+                    w.size()
                 ));
             }
             // SAFETY: the range lies in game.exe's image (checked above), which is mapped and readable; the game
             // writes no code while its sound system starts.
-            let base = unsafe { patch::read(Site::new(site), expected_run.len()) };
-            // The merge compares and keeps the running build's bytes; each address stays RU 1.06's.
+            let base = unsafe { patch::read(w.site(), w.size()) };
+            let found: Vec<u8> = base
+                .iter()
+                .enumerate()
+                .map(|(i, &b)| bytes.get(&(site + i)).map_or(b, |&(_, n)| n))
+                .collect();
             // SAFETY: as above.
-            let (expected_run, new_run) =
-                unsafe { patch::localize(Site::new(site), kind, &expected_run, &new_run) };
+            let (expected, new) = unsafe {
+                patch::localize_against(w.site(), w.kind(), w.expected(), w.new_bytes(), &found)
+            };
+            pieces.push((site, expected, new));
+        }
+        for (site, expected_run, new_run) in contiguous_runs(&pieces) {
+            // SAFETY: as above.
+            let base = unsafe { patch::read(Site::new(site), expected_run.len()) };
             let mismatch = expected_run
                 .iter()
                 .enumerate()
@@ -421,7 +420,8 @@ mod tests {
         )
         .unwrap();
         let apart = SiteWrite::nop(eix_sites::TEXT_626B00, &[0x90]);
-        let runs = contiguous_runs(&[nops, jump, apart]);
+        let piece = |w: &SiteWrite| (w.site().ru(), w.expected().to_vec(), w.new_bytes().to_vec());
+        let runs = contiguous_runs(&[piece(&nops), piece(&jump), piece(&apart)]);
         assert_eq!(runs.len(), 2);
         assert_eq!(
             (runs[0].0, runs[0].1.len(), runs[0].2.len()),

@@ -161,6 +161,25 @@ pub unsafe fn localize(site: Site, kind: Kind, expected: &[u8], new: &[u8]) -> (
     (expected.into_owned(), new.into_owned())
 }
 
+/// [`localize`] against `found` instead of what the site holds now: a merge of writes not yet made weighs each one
+/// against the bytes the earlier ones leave. `found` is the running build's bytes, as long as `expected`.
+///
+/// # Safety
+/// As for [`verify`] (the bytes around the site are read for a field it cuts).
+pub unsafe fn localize_against(
+    site: Site,
+    kind: Kind,
+    expected: &[u8],
+    new: &[u8],
+    found: &[u8],
+) -> (Vec<u8>, Vec<u8>) {
+    if !eix_sites::translating() {
+        return (expected.to_vec(), new.to_vec());
+    }
+    // SAFETY: the caller's guarantee.
+    unsafe { against(site, kind, expected, new, found.to_vec()) }
+}
+
 /// `bytes` of `kind` written at RU 1.06 address `site`, as the running build holds them once written (code rebased,
 /// a data address translated); reads nothing.
 pub fn as_built(site: Site, kind: Kind, bytes: &[u8]) -> Vec<u8> {
@@ -231,6 +250,22 @@ unsafe fn for_build<'a>(
     }
     // SAFETY: the caller's guarantee.
     let found = unsafe { core::slice::from_raw_parts(site.ptr::<u8>(), expected.len()) }.to_vec();
+    // SAFETY: as above.
+    let (expected, new) = unsafe { against(site, kind, expected, new, found) };
+    (Cow::Owned(expected), Cow::Owned(new))
+}
+
+/// [`for_build`] with `found` given: what the site holds, or will once earlier writes not yet made land.
+///
+/// # Safety
+/// As for [`translate::matches`].
+unsafe fn against(
+    site: Site,
+    kind: Kind,
+    expected: &[u8],
+    new: &[u8],
+    found: Vec<u8>,
+) -> (Vec<u8>, Vec<u8>) {
     // SAFETY: the caller's guarantee; a site in the image has its neighbours mapped.
     let matched = unsafe { translate::matches(site, expected, &found) };
     let new = translate::written(site, expected, matched.then_some(&found[..]), new, kind);
@@ -241,7 +276,7 @@ unsafe fn for_build<'a>(
     } else {
         translate::localized(site, expected, &found)
     };
-    (Cow::Owned(expected), Cow::Owned(new))
+    (expected, new)
 }
 
 /// Checks that `expected` is what is at `site`, without writing.
