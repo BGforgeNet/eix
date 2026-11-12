@@ -1029,6 +1029,7 @@ const LOAD_ITERATIONS_MAX: u32 = 0x1_9445;
 /// past [`LOAD_ITERATIONS_MAX`] of them the loop ends.
 extern "C" fn next_id(_: usize, ctx: &mut Context) {
     if ctx.stack_word(5) == Some(ctx.ebx) {
+        LOAD_ITERATIONS.store(0, Ordering::Relaxed);
         ctx.resume = NEXT_ID_BACK;
         return;
     }
@@ -1198,6 +1199,30 @@ fn experimental_fixes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn each_load_has_its_own_iteration_budget() {
+        #[repr(C)]
+        struct Frame {
+            regs: Context,
+            words: [u32; 6],
+        }
+        // SAFETY: the frame consists only of integer registers and stack words.
+        let mut frame: Frame = unsafe { core::mem::zeroed() };
+        frame.regs.ebx = u32::MAX;
+        LOAD_ITERATIONS.store(LOAD_ITERATIONS_MAX, Ordering::Relaxed);
+        frame.words[5] = u32::MAX;
+        next_id(0, &mut frame.regs);
+        assert_eq!(LOAD_ITERATIONS.load(Ordering::Relaxed), 0);
+        frame.words[5] = 1;
+        next_id(0, &mut frame.regs);
+        assert_eq!(frame.regs.resume, NEXT_ID_BACK);
+        assert_eq!(LOAD_ITERATIONS.load(Ordering::Relaxed), 1);
+        LOAD_ITERATIONS.store(LOAD_ITERATIONS_MAX + 1, Ordering::Relaxed);
+        next_id(0, &mut frame.regs);
+        assert_eq!(frame.regs.resume, LOAD_LOOP_EXIT);
+        assert_eq!(LOAD_ITERATIONS.load(Ordering::Relaxed), 0);
+    }
+
     use super::super::testing::{no_log, plain, values};
     use super::*;
 
