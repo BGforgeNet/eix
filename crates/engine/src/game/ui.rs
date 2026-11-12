@@ -413,26 +413,10 @@ impl Surface {
 }
 
 impl Interface {
-    /// Adds `text` to the console window, when there is one: `CInterface3D::ConsoleAddText` 0x5F7EB0 (thiscall,
-    /// `ret 4`).
-    ///
-    /// # Safety
-    /// The process must be a supported game.exe, on the game's thread; `this` must be [`INTERFACE`].
-    pub unsafe fn console_add_text(this: *mut Self, text: &CStr) {
-        // SAFETY: 0x5F7EB0 is `void __thiscall (const char*)`; it skips a null window.
-        let f = unsafe {
-            code::<unsafe extern "thiscall" fn(*mut Self, *const u8)>(
-                eix_sites::C_INTERFACE_3D_CONSOLE_ADD_TEXT,
-            )
-        };
-        // SAFETY: the caller guarantees the build, the thread and the interface; `text` is NUL-terminated.
-        unsafe { f(this, text.as_ptr().cast()) }
-    }
-
     /// Plays an interface sound: `CInterface3D::PlaySound` 0x5F7E60 (thiscall, the file and 0 on the stack, `ret 8`).
     ///
     /// # Safety
-    /// As for [`console_add_text`](Self::console_add_text).
+    /// The process must be a supported game.exe, on the game's thread; `this` must be [`INTERFACE`].
     pub unsafe fn play_sound(this: *mut Self, file: &CStr) {
         // SAFETY: 0x5F7E60 is `void __thiscall (const char*, int)`.
         let f = unsafe {
@@ -440,7 +424,7 @@ impl Interface {
                 eix_sites::C_INTERFACE_3D_PLAY_SOUND,
             )
         };
-        // SAFETY: as for `console_add_text`; `file` is NUL-terminated.
+        // SAFETY: the caller guarantees the build, the thread and the interface; `file` is NUL-terminated.
         unsafe { f(this, file.as_ptr().cast(), 0) }
     }
 
@@ -448,7 +432,8 @@ impl Interface {
     /// `ret 0xC`, as the addon calls it).
     ///
     /// # Safety
-    /// As for [`console_add_text`](Self::console_add_text); `window` a constructed window the interface then owns.
+    /// The process must be a supported game.exe, on the game's thread; `this` must be [`INTERFACE`], and `window`
+    /// a constructed window the interface then owns.
     pub unsafe fn push_window(this: *mut Self, window: *mut c_void) {
         // SAFETY: 0x5F7350 is `void __thiscall (CUiWindow*, bool, bool)`.
         let f = unsafe {
@@ -456,7 +441,7 @@ impl Interface {
                 eix_sites::C_INTERFACE_3D_PUSH_WINDOW,
             )
         };
-        // SAFETY: as for `console_add_text`.
+        // SAFETY: the caller guarantees the build, the thread, the interface and the window.
         unsafe { f(this, window, 1, 1) }
     }
 

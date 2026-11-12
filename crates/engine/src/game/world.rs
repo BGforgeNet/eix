@@ -113,34 +113,6 @@ impl World {
         unsafe { f(this, id, value, kind) }
     }
 
-    /// Pauses (`true`) or resumes the world: `CWorld::SetPaused` 0x566350 (thiscall, `ret 4`).
-    ///
-    /// # Safety
-    /// `this` must be one of the game's worlds, constructed, on the game's thread.
-    pub unsafe fn set_paused(this: *mut Self, paused: bool) {
-        // SAFETY: 0x566350 is `void __thiscall (bool)`: it stores the low byte of its one stack argument.
-        let f = unsafe {
-            code::<unsafe extern "thiscall" fn(*mut Self, u32)>(eix_sites::C_WORLD_SET_PAUSED)
-        };
-        // SAFETY: the caller guarantees the world and the thread.
-        unsafe { f(this, u32::from(paused)) }
-    }
-
-    /// The map object with id `id`, or null: `CWorld::FindMapObject` 0x55FAE0 (thiscall, `ret 4`).
-    ///
-    /// # Safety
-    /// As for [`set_paused`](Self::set_paused); the world's managers must exist (a zone is loaded).
-    pub unsafe fn find_map_object(this: *mut Self, id: i32) -> *mut MapObject {
-        // SAFETY: 0x55FAE0 is `CMapObject* __thiscall (int id)`.
-        let f = unsafe {
-            code::<unsafe extern "thiscall" fn(*mut Self, i32) -> *mut MapObject>(
-                eix_sites::C_WORLD_FIND_MAP_OBJECT,
-            )
-        };
-        // SAFETY: the caller guarantees the world, its managers and the thread.
-        unsafe { f(this, id) }
-    }
-
     /// The server world's object with id `id`, of any kind, or null: `CWorldServer::FindObject` 0x593AA0 (thiscall,
     /// `ret 4`), a lookup in the world's id table.
     ///
@@ -161,7 +133,8 @@ impl World {
     /// (thiscall, `ret 4`).
     ///
     /// # Safety
-    /// As for [`find_map_object`](Self::find_map_object).
+    /// `this` must be one of the game's worlds, constructed, on the game's thread, with its managers present
+    /// (a zone is loaded).
     pub unsafe fn find_unit(this: *mut Self, id: i32) -> *mut Unit {
         // SAFETY: 0x55FB00 is `CUnit* __thiscall (int id)`.
         let f = unsafe {
@@ -169,7 +142,7 @@ impl World {
                 eix_sites::C_WORLD_FIND_UNIT,
             )
         };
-        // SAFETY: as for `find_map_object`.
+        // SAFETY: the caller guarantees the world, its managers and the thread.
         unsafe { f(this, id) }
     }
 }

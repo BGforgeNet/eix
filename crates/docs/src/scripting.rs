@@ -173,11 +173,6 @@ impl Entry {
         text
     }
 
-    /// Whether the page tags the entry `eix`: it is added or changed by eix's addon.dll or SpellAddon.
-    pub fn is_eix(&self) -> bool {
-        self.source != Source::Game
-    }
-
     /// The declaration as a TypeScript signature: `function GetUnitExp(unit: object, what?: string): number`.
     pub fn declaration(&self) -> String {
         let params: Vec<String> = self

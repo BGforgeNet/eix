@@ -155,27 +155,12 @@ const _: () = {
     assert!(offset_of!(ConsoleWindow, shown) == 0x7A);
 };
 
-/// Adds `text` to the window, continuing its last line; a `\n` starts a new one: `ConsoleWindow::AddText` 0x5E4090
-/// (thiscall, `ret 4`).
-///
-/// # Safety
-/// As for [`execute`]; `window` must be the interface's live console window.
-pub unsafe fn add_text(window: *mut ConsoleWindow, text: &CStr) {
-    // SAFETY: 0x5E4090 is `void __thiscall (const char*)`.
-    let f = unsafe {
-        code::<unsafe extern "thiscall" fn(*mut ConsoleWindow, *const u8)>(
-            eix_sites::CONSOLE_WINDOW_ADD_TEXT,
-        )
-    };
-    // SAFETY: the caller guarantees the window and the thread; `text` is NUL-terminated.
-    unsafe { f(window, text.as_ptr().cast()) }
-}
-
 /// Redraws the input line, first keeping the caret and the anchor within it: `ConsoleWindow::DrawInput` 0x5E4A10
 /// (thiscall, plain `ret`).
 ///
 /// # Safety
-/// As for [`add_text`].
+/// The process must be a supported game.exe, on the game's thread, with the console's statics constructed;
+/// `window` must be the interface's live console window.
 pub unsafe fn draw_input(window: *mut ConsoleWindow) {
     // SAFETY: 0x5E4A10 is `void __thiscall ()`.
     let f = unsafe {

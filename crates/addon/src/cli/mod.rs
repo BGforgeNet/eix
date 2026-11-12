@@ -19,8 +19,6 @@ mod check;
 /// What the parse before the patch groups decided.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Early {
-    /// The CommandLine and GraphGenPatches groups' input.
-    pub(crate) command_line: CommandLine,
     /// The command has work after the patch groups ([`late`]).
     pub(crate) late: bool,
 }
@@ -158,10 +156,7 @@ pub(crate) fn early(setup: &mut Setup, exe_enables_t2: bool) -> Early {
     if parse.addon {
         log::info("cli", "game.exe addon", &format!("{command_line:?}"));
     }
-    Early {
-        command_line,
-        late: parse.late,
-    }
+    Early { late: parse.late }
 }
 
 /// The parse after the patch groups, when [`early`] found a command with work for then: runs `check`

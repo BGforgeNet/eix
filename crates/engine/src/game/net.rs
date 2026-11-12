@@ -13,13 +13,10 @@ use eix_sites::Site;
 
 use super::{Global, code};
 
-/// The game client (`g_gameClient`), a counted pointer, null when there is none: `IsMultiplayerClient` 0x57F440
-/// reads it.
-pub const GAME_CLIENT: Global<*mut c_void> = Global::at(eix_sites::G_GAME_CLIENT);
 /// The game server (`g_gameServer`), a counted pointer, null when there is none.
 pub const GAME_SERVER: Global<*mut c_void> = Global::at(eix_sites::G_GAME_SERVER);
 
-/// Whether this game is a network client: `IsMultiplayerClient` 0x57F440, true when [`GAME_CLIENT`] is set and bit 31
+/// Whether this game is a network client: `IsMultiplayerClient` 0x57F440, true when the game client is set and bit 31
 /// of its +4 word is clear. It reads no register, so the caller's `ecx` does not matter.
 ///
 /// # Safety
