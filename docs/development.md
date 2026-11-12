@@ -58,14 +58,13 @@ Two pages are generated, and each has one data file that holds every signature a
   stored by pushes to `main` only; `EIX_IMAGE_KEY` makes xtask use a loaded image carrying that key instead of
   building one.
 - `.github/workflows/pages.yml`: the documentation site, as above.
-- `.github/workflows/release.yml`: on a `v*` tag, the gate, the package, and a draft GitHub release.
+- `.github/workflows/release.yml`: on a `v*` tag, the gate, the package, and the GitHub release.
 
 ## Release
 
 1. Set the version in `Cargo.toml` and add its section to `CHANGELOG.md`.
-2. Push a tag `v<version>`. The release workflow runs the gate, builds the package, and drafts a GitHub release with
-   it and the changelog section.
-3. Check the draft and publish it.
+2. Push a tag `v<version>`. The release workflow runs the gate, builds the package, and publishes a GitHub release
+   with it and the changelog section.
 
 Keep each release's package: an address inside addon.dll in a crash record is read against that exact file, which
 keeps its symbols.
