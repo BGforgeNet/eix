@@ -144,53 +144,42 @@ fn translated_fields(
     site: usize,
     bytes: &[u8],
     found: &[u8],
+    shape: Shape,
     map: impl Fn(usize) -> usize,
 ) -> (Vec<usize>, bool) {
-    let to = map(site);
-    let (mut fields, mut all) = (Vec::new(), bytes.len() == found.len());
-    let mut i = 0;
-    while i < bytes.len().min(found.len()) {
-        if bytes[i] == found[i] {
-            i += 1;
-            continue;
-        }
-        let covered = (i.saturating_sub(3)..=i).find(|&w| {
-            let (Some(ru), Some(now)) = (word(bytes, w), word(found, w)) else {
-                return false;
-            };
-            let absolute = in_image(ru as usize) && map(ru as usize) as u32 == now;
-            // A branch out of the image (into a stub) keeps its target and changes its displacement.
-            let target = ((site + w + 4) as u32).wrapping_add(ru) as usize;
-            let relative = (map(target) as u32).wrapping_sub((to + w + 4) as u32) == now;
-            absolute || relative
-        });
-        match covered {
-            Some(w) => {
-                fields.push(w);
-                i = w + 4;
-            }
-            None => {
-                all = false;
-                i += 1;
-            }
+    let moved = translated_with(site, bytes, shape, map);
+    let mut localized = bytes.to_vec();
+    let mut fields = Vec::new();
+    for field in own_fields(shape, bytes) {
+        let range = field..field + 4;
+        if found.get(range.clone()) == moved.get(range.clone()) {
+            localized[range.clone()].copy_from_slice(&moved[range]);
+            fields.push(field);
         }
     }
-    (fields, all)
+    (fields, localized == found)
 }
 
-fn equivalent_with(site: usize, bytes: &[u8], found: &[u8], map: impl Fn(usize) -> usize) -> bool {
-    translated_fields(site, bytes, found, map).1
+fn equivalent_with(
+    site: usize,
+    bytes: &[u8],
+    found: &[u8],
+    shape: Shape,
+    map: impl Fn(usize) -> usize,
+) -> bool {
+    translated_fields(site, bytes, found, shape, map).1
 }
 
 fn localized_with(
     site: usize,
     bytes: &[u8],
     found: &[u8],
+    shape: Shape,
     map: impl Fn(usize) -> usize,
 ) -> Vec<u8> {
     let mut out = bytes.to_vec();
     if bytes.len() == found.len() {
-        for w in translated_fields(site, bytes, found, map).0 {
+        for w in translated_fields(site, bytes, found, shape, map).0 {
             out[w..w + 4].copy_from_slice(&found[w..w + 4]);
         }
     }
@@ -200,36 +189,73 @@ fn localized_with(
 /// `bytes` (expected at RU address `site`) with each 4-byte field that `found` holds translated taken from `found`:
 /// what the running build holds where only part of the bytes match (an earlier write covers the rest), so the rest
 /// is left for the caller to judge.
-pub(crate) fn localized(site: Site, bytes: &[u8], found: &[u8]) -> Vec<u8> {
-    localized_with(site.ru(), bytes, found, here)
+pub(crate) fn localized(site: Site, bytes: &[u8], found: &[u8], kind: Kind) -> Vec<u8> {
+    localized_with(site.ru(), bytes, found, shape(site.ru(), kind), here)
 }
 
-/// The bytes a 4-byte field can reach on either side of a site.
-const REACH: usize = 3;
+/// The maximum x86 instruction length: enough context to decode a field a site cuts.
+const REACH: usize = 15;
 
 /// Whether `found` (read at `here(site)`) is `bytes` (written for RU address `site`) translated: equal but for 4-byte
-/// fields that hold an address or a branch displacement whose translation the found field is. Needs no decoding, so
-/// it also holds for part of an instruction; a site that cuts a field (the low byte of an address operand) is judged
-/// with the bytes around it, which the site does not cover and so must be the same in both.
+/// fields the decoder identifies as addresses or branch displacements, or a declared data pointer. A site that cuts
+/// an instruction is judged with the bytes around it, which it does not cover and so must be the same in both.
 ///
 /// # Safety
 /// `here(site)`, with [`REACH`] bytes on either side, must be mapped, readable memory that no other thread writes
 /// meanwhile, when `site` lies in game.exe's image.
-pub(crate) unsafe fn matches(site: Site, bytes: &[u8], found: &[u8]) -> bool {
+pub(crate) unsafe fn matches(site: Site, bytes: &[u8], found: &[u8], kind: Kind) -> bool {
     let site = site.ru();
-    if found == bytes || equivalent_with(site, bytes, found, here) {
+    let shape = shape(site, kind);
+    if found == bytes || equivalent_with(site, bytes, found, shape, here) {
         return true;
     }
-    if !in_image(site) || bytes.len() != found.len() {
+    if shape != Shape::Code || !in_image(site) || bytes.len() != found.len() {
+        return false;
+    }
+    // Whole instructions establish their own boundaries; surrounding bytes cannot turn their opcodes into operands.
+    if x86::whole_insns(bytes)
+        .map(|(_, insn)| insn.len)
+        .sum::<usize>()
+        == bytes.len()
+    {
         return false;
     }
     let at = here(site);
     // SAFETY: the caller's guarantee.
     let read = |from: usize| unsafe { core::slice::from_raw_parts(from as *const u8, REACH) };
     let (before, after) = (read(at - REACH), read(at + bytes.len()));
+    equivalent_around(site, bytes, found, before, after, here)
+}
+
+fn equivalent_around(
+    site: usize,
+    bytes: &[u8],
+    found: &[u8],
+    before: &[u8],
+    after: &[u8],
+    map: impl Fn(usize) -> usize,
+) -> bool {
+    let reach = before.len();
     let ru = [before, bytes, after].concat();
     let now = [before, found, after].concat();
-    equivalent_with(site - REACH, &ru, &now, here)
+    // Start at the site for an instruction cut at its end, or at a preceding instruction whose field crosses it.
+    (0..=reach).rev().any(|start| {
+        let Ok(insn) = x86::decode_in_place(&ru[start..], 0) else {
+            return false;
+        };
+        let crosses = [insn.rel32, insn.disp32, insn.imm32]
+            .into_iter()
+            .flatten()
+            .any(|f| start + f <= reach && start + f + 4 > reach);
+        (start == reach || crosses)
+            && equivalent_with(
+                site - reach + start,
+                &ru[start..],
+                &now[start..],
+                Shape::Code,
+                &map,
+            )
+    })
 }
 
 /// What the running build holds at RU address `site` when it is `bytes` translated, else `bytes` (a mismatch the
@@ -241,7 +267,7 @@ pub(crate) unsafe fn expected(site: Site, bytes: &[u8]) -> Vec<u8> {
     // SAFETY: the caller's guarantee.
     let found = unsafe { core::slice::from_raw_parts(site.ptr::<u8>(), bytes.len()) };
     // SAFETY: as above.
-    if unsafe { matches(site, bytes, found) } {
+    if unsafe { matches(site, bytes, found, Kind::Code) } {
         found.to_vec()
     } else {
         bytes.to_vec()
@@ -313,6 +339,60 @@ mod tests {
     }
 
     #[test]
+    fn nop_bytes_are_not_a_relative_displacement() {
+        let site = eix_sites::TERRAIN_GROUND_AND_WATER_DEPTH__3E9.ru();
+        let en = |at| Site::new(at).in_build(eix_sites::Build::En106);
+        let expected = [0x90; 7];
+        let found = [0xD0, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90];
+        for kind in [Kind::Section, Kind::Code, Kind::Data, Kind::Plain] {
+            let shape = shape(site, kind);
+            assert!(!equivalent_with(site, &expected, &found, shape, en));
+            assert_eq!(localized_with(site, &expected, &found, shape, en), expected);
+        }
+    }
+
+    #[test]
+    fn a_cut_address_field_uses_its_instruction() {
+        let site = LOW;
+        let address = DATA_7AF784.ru32().to_le_bytes();
+        let moved = (map(DATA_7AF784.ru()) as u32).to_le_bytes();
+        let before = [0x8B, 0x0D];
+        assert!(equivalent_around(
+            site + 2,
+            &address,
+            &moved,
+            &before,
+            &[],
+            map
+        ));
+        assert!(equivalent_around(
+            site + 2,
+            &address[..1],
+            &moved[..1],
+            &before,
+            &address[1..],
+            map
+        ));
+        // A push with an 8-bit immediate does not give the following bytes an address field.
+        assert!(!equivalent_around(
+            site + 2,
+            &address,
+            &moved,
+            &[0x90, 0x6A],
+            &[],
+            map
+        ));
+    }
+
+    #[test]
+    fn an_absolute_operand_cannot_match_a_relative_translation() {
+        let site = HIGH + 0x1000;
+        let expected = [0xB8, 0x90, 0x90, 0x90, 0x90];
+        let found = [0xB8, 0xD0, 0x90, 0x90, 0x90];
+        assert!(!equivalent_with(site, &expected, &found, Shape::Code, map));
+    }
+
+    #[test]
     fn rebases_branches_and_addresses() {
         // call LOW from high code; mov eax, [DATA_7AF784]; jne short
         let site = ENTRY.ru() + 0xD6;
@@ -329,13 +409,28 @@ mod tests {
         assert_eq!(&en[1..5], &rel_en);
         assert_eq!(en[6..10], (map(DATA_7AF784.ru()) as u32).to_le_bytes());
         assert_eq!(&en[10..], &[0x75, 0x02]);
-        assert!(equivalent_with(site, &ru, &en, map));
-        // Part of the instruction (the address operand alone) is equivalent too.
-        assert!(equivalent_with(site + 6, &ru[6..10], &en[6..10], map));
+        assert!(equivalent_with(site, &ru, &en, Shape::Code, map));
+        // A declared address operand is translated as data.
+        assert!(equivalent_with(
+            site + 6,
+            &ru[6..10],
+            &en[6..10],
+            Shape::Data,
+            map
+        ));
+        assert!(!equivalent_with(site, &ru, &en, Shape::Plain, map));
+        assert!(!equivalent_with(
+            site + 6,
+            &ru[6..10],
+            &en[6..10],
+            Shape::Plain,
+            map
+        ));
+        assert_eq!(localized_with(site, &ru, &en, Shape::Plain, map), ru);
         // A field that is not the translation is not.
         let mut wrong = en.clone();
         wrong[7] ^= 1;
-        assert!(!equivalent_with(site, &ru, &wrong, map));
+        assert!(!equivalent_with(site, &ru, &wrong, Shape::Code, map));
     }
 
     #[test]
@@ -352,7 +447,7 @@ mod tests {
             en[1..5],
             stub.wrapping_sub(map(site) as u32 + 5).to_le_bytes()
         );
-        assert!(equivalent_with(site, &ru, &en, map));
+        assert!(equivalent_with(site, &ru, &en, Shape::Code, map));
     }
 
     #[test]
@@ -383,13 +478,13 @@ mod tests {
         let expected = [0x8B, 0x0D, r0, r1, r2, r3];
         let found = [0x8B, 0x0D, e0, e1, e2, e3];
         let new = [0x8B, 0x15, r0, r1, r2, r3];
-        assert!(equivalent_with(site, &expected, &found, map));
+        assert!(equivalent_with(site, &expected, &found, Shape::Code, map));
         assert_eq!(
             written_with(site, &expected, Some(&found), &new, Shape::Code, map),
             [0x8B, 0x15, e0, e1, e2, e3]
         );
         // The operand's low byte alone needs the bytes around it.
-        assert!(!equivalent_with(site + 2, &[r0], &[e0], map));
+        assert!(!equivalent_with(site + 2, &[r0], &[e0], Shape::Code, map));
         // A data pointer is translated as a value.
         assert_eq!(
             translated_with(
@@ -417,9 +512,9 @@ mod tests {
         let [e0, e1, e2, e3] = rel.wrapping_sub(0x40).to_le_bytes();
         let expected = [0xE8, r0, r1, r2, r3, 0x33, 0xC0];
         let found = [0xE8, e0, e1, e2, e3, 0xEB, 0x10];
-        assert!(!equivalent_with(site, &expected, &found, map));
+        assert!(!equivalent_with(site, &expected, &found, Shape::Code, map));
         assert_eq!(
-            localized_with(site, &expected, &found, map),
+            localized_with(site, &expected, &found, Shape::Code, map),
             [0xE8, e0, e1, e2, e3, 0x33, 0xC0]
         );
     }
@@ -466,7 +561,7 @@ mod tests {
         let expected = call(rel);
         let found = call(rel.wrapping_sub(0x40));
         let new = call(rel.wrapping_add(0x1000_0000));
-        assert!(equivalent_with(site, &expected, &found, map));
+        assert!(equivalent_with(site, &expected, &found, Shape::Code, map));
         assert_eq!(
             written_with(site, &expected, Some(&found), &new, Shape::Code, map),
             new

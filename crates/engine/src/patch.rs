@@ -308,14 +308,14 @@ unsafe fn against(
     found: Vec<u8>,
 ) -> (Vec<u8>, Vec<u8>) {
     // SAFETY: the caller's guarantee; a site in the image has its neighbours mapped.
-    let matched = unsafe { translate::matches(site, expected, &found) };
+    let matched = unsafe { translate::matches(site, expected, &found, kind) };
     let new = translate::written(site, expected, matched.then_some(&found[..]), new, kind);
     // Where the bytes match only in part (an earlier write holds the rest), the fields that translate are the build's;
     // the rest stays RU's, for the caller to judge.
     let expected = if matched {
         found
     } else {
-        translate::localized(site, expected, &found)
+        translate::localized(site, expected, &found, kind)
     };
     (expected, new)
 }
@@ -326,9 +326,17 @@ unsafe fn against(
 /// `site..site + expected.len()` must be mapped, readable memory of this process that no other thread writes while
 /// the call lasts.
 pub unsafe fn verify(site: Site, expected: &[u8]) -> Result<(), PatchError> {
+    // SAFETY: the caller's guarantee.
+    unsafe { verify_as(site, Kind::Section, expected) }
+}
+
+/// [`verify`] for bytes of `kind`.
+///
+/// # Safety
+/// As for [`verify`].
+pub unsafe fn verify_as(site: Site, kind: Kind, expected: &[u8]) -> Result<(), PatchError> {
     // SAFETY: the caller's guarantee, for the site in the running build.
-    // The expected bytes are matched without decoding, so their kind does not matter.
-    let (expected, _) = unsafe { for_build(site, Kind::Section, expected, expected) };
+    let (expected, _) = unsafe { for_build(site, kind, expected, expected) };
     // SAFETY: as above.
     unsafe { verify_at(site, &expected) }
 }

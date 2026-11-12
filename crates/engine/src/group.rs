@@ -262,7 +262,7 @@ impl SiteWrite {
             // SAFETY: the caller's guarantee.
             Space::Native => unsafe { patch::verify_native(self.site, &self.expected) },
             // SAFETY: the caller's guarantee.
-            Space::Ru(_) => unsafe { patch::verify(self.site, &self.expected) },
+            Space::Ru(kind) => unsafe { patch::verify_as(self.site, kind, &self.expected) },
         }
     }
 
