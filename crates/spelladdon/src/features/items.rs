@@ -1444,17 +1444,10 @@ fn camp_controls(strip: usize) -> Result<Vec<SiteWrite>, BuildError> {
 /// ([`camp_music`]).
 fn camp(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let strip = usize::from(value == 3);
-    let event = hook::context_hook(
-        eix_sites::C_INTERFACE_3D_ON_STRING_EVENT__7F,
-        &[0x83, 0xC4, 0x08, 0x85, 0xC0],
-        Mode::Before,
-        camp_event,
-        strip,
-    );
     if value < 1 {
         return Ok(Vec::new());
     }
-    let mut writes = vec![event?];
+    let mut writes = vec![crate::events::camp_hook(camp_event, strip)?];
     if value == 1 {
         return Ok(writes);
     }

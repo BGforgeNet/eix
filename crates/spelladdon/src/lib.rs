@@ -12,9 +12,12 @@ use eix_engine::hook::{self, Context, HookError, Mode};
 use eix_sites::Site;
 
 mod apply;
+mod events;
 mod features;
 mod registry;
 mod startup;
+
+pub use events::string_event_hook;
 
 /// How serious a log line is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

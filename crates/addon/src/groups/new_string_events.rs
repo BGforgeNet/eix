@@ -15,14 +15,11 @@ use std::ffi::CStr;
 use eix_engine::game::flow;
 use eix_engine::game::mfc::{self, GameArray, GameString};
 use eix_engine::game::ui::{self, Interface};
-use eix_engine::hook::{self, Context, Mode};
+use eix_engine::hook::Context;
 use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
 
-/// `add esp, 8; test eax, eax`, after the `_stricmp` with the first event name.
-const SITE: Site = eix_sites::C_INTERFACE_3D_ON_STRING_EVENT__7F;
-const ORIGINAL: [u8; 5] = [0x83, 0xC4, 0x08, 0x85, 0xC0];
 /// Where the function's clean-up starts.
 const DONE: Site = eix_sites::C_INTERFACE_3D_ON_STRING_EVENT__1E9;
 /// The words, at the site's stack +0x10.
@@ -74,6 +71,6 @@ extern "C" fn game_over(_: usize, ctx: &mut Context) {
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
     Ok(vec![Labelled {
         label: "NewStringEvents #0".to_owned(),
-        write: hook::context_hook(SITE, &ORIGINAL, Mode::Before, game_over, 0)?,
+        write: spelladdon::string_event_hook(game_over)?,
     }])
 }
