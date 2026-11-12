@@ -14,7 +14,7 @@ use eix_sites::Site;
 
 use super::common::{self, Bytes, NOWHERE, read, write};
 use super::{BuildError, Ctx};
-use crate::Level;
+use crate::types::Level;
 
 /// `AIAttention::SpellKind`'s bound, the operand of `cmp eax, 0x29` at 0x5CEDD1: the number of spell types.
 const SPELL_KIND_BOUND: Site = eix_sites::AI_ATTENTION_SPELL_KIND__13;

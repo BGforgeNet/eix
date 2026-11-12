@@ -6,7 +6,7 @@ use eix_engine::registry::hkcu_value;
 use eix_engine::win::to_ansi;
 
 use super::{Action, BuildError, Ctx};
-use crate::{Level, Log};
+use crate::types::{Level, Log};
 
 const MB_OK: u32 = 0;
 const MB_HELP: u32 = 0x4000;

@@ -23,7 +23,7 @@ use eix_engine::patch;
 use eix_sites::Site;
 
 use super::{BuildError, Ctx};
-use crate::{Level, Log};
+use crate::types::{Level, Log};
 
 static RUNTIME_LOG: OnceLock<Log> = OnceLock::new();
 static REFUSED: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());

@@ -13,7 +13,7 @@ use eix_engine::group::SiteWrite;
 use eix_engine::hook::HookError;
 use eix_engine::patch::PatchError;
 
-use crate::Log;
+use crate::types::Log;
 
 pub(crate) mod ai;
 pub(crate) mod combat;
@@ -111,8 +111,8 @@ pub(crate) mod testing {
     use eix_sites::Site;
 
     use super::Ctx;
-    use crate::Level;
     use crate::registry::{self, FEATURES};
+    use crate::types::Level;
 
     /// Fixed `(section, key, value)` triples; every other key takes its built-in default.
     struct Ini<'a>(&'a [(&'a str, &'a str, &'a str)]);

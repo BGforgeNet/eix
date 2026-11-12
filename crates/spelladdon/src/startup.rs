@@ -12,7 +12,7 @@ use eix_sites::Site;
 use crate::apply::{self, Merge};
 use crate::features::{Action, Ctx};
 use crate::registry::{self, FEATURES};
-use crate::{Earlier, Level, Log};
+use crate::types::{Earlier, Level, Log};
 
 /// The INI's file name, in the mod folder or the game folder.
 const INI: &[u8] = b"SPELLADDON.INI";

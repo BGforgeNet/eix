@@ -466,7 +466,12 @@ pub(crate) fn last_spells_damage_type(
     {
         match damage_slot(ctx, key) {
             Ok(value) => *slot = value,
-            Err(error) => (ctx.log)(crate::Level::Warn, "spelladdon", &error.to_string(), key),
+            Err(error) => (ctx.log)(
+                crate::types::Level::Warn,
+                "spelladdon",
+                &error.to_string(),
+                key,
+            ),
         }
     }
     DAMAGE_SLOTS.store(u32::from_le_bytes(slots), Ordering::Relaxed);

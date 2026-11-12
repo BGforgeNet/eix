@@ -17,7 +17,7 @@ use eix_engine::patch::{self, Kind};
 use eix_engine::{hook, imports};
 use eix_sites::Site;
 
-use crate::{Level, Log};
+use crate::types::{Level, Log};
 
 /// game.exe RU 1.06 from its headers to the end of `.data`, where the original's added code and patches lie; `.rsrc`
 /// is never written.
@@ -36,7 +36,7 @@ pub(crate) fn unprotect_image() -> Result<(), String> {
 #[derive(Debug)]
 pub(crate) struct Merge {
     bytes: BTreeMap<usize, (u8, u8)>,
-    addon: crate::Earlier,
+    addon: crate::types::Earlier,
 }
 
 impl Default for Merge {
@@ -61,7 +61,7 @@ fn addon_writes_covered(
     site: usize,
     base: &[u8],
     new: &[u8],
-    addon: crate::Earlier,
+    addon: crate::types::Earlier,
 ) -> Result<(Vec<Span>, Vec<Span>), String> {
     let end = site + base.len();
     let (mut taken, mut shared) = (Vec::new(), Vec::new());
@@ -116,7 +116,7 @@ fn contiguous_runs(pieces: &[Run]) -> Vec<Run> {
 
 impl Merge {
     /// No writes yet; `addon` names addon.dll's writes, which SpellAddon's own may take over.
-    pub(crate) fn new(addon: crate::Earlier) -> Self {
+    pub(crate) fn new(addon: crate::types::Earlier) -> Self {
         Self {
             bytes: BTreeMap::new(),
             addon,
@@ -232,6 +232,16 @@ impl Merge {
 
 type LoadLibraryA = unsafe extern "system" fn(*const c_char) -> *mut c_void;
 
+/// Whether Miles loading `path` would load a separate SpellAddon: a file `SpellAddon*.asi`, in any case.
+fn is_separate_spelladdon(path: &[u8]) -> bool {
+    let name = path
+        .rsplit(|&c| c == b'\\' || c == b'/')
+        .next()
+        .unwrap_or(path)
+        .to_ascii_lowercase();
+    name.starts_with(b"spelladdon") && name.ends_with(b".asi")
+}
+
 /// mss32.dll's `LoadLibraryA`, which the filter calls for every other file.
 static REAL_LOAD_LIBRARY: AtomicUsize = AtomicUsize::new(0);
 static LOG: OnceLock<Log> = OnceLock::new();
@@ -242,7 +252,7 @@ extern "system" fn load_library_a(name: *const c_char) -> *mut c_void {
     if !name.is_null() {
         // SAFETY: LoadLibraryA's argument is a NUL-terminated file name.
         let path = unsafe { CStr::from_ptr(name) }.to_bytes();
-        if crate::is_separate_spelladdon(path) {
+        if is_separate_spelladdon(path) {
             if let Some(log) = LOG.get() {
                 log(
                     Level::Warn,
@@ -279,6 +289,18 @@ pub(crate) fn block_separate_spelladdon(log: Log) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tells_a_separate_spelladdon_by_its_file_name() {
+        assert!(is_separate_spelladdon(
+            b"C:\\GOG\\EvilIslands\\SpellAddonXa.asi"
+        ));
+        assert!(is_separate_spelladdon(b".\\SPELLADDONX.ASI"));
+        assert!(is_separate_spelladdon(b"spelladdon.asi"));
+        assert!(!is_separate_spelladdon(b"C:\\Game\\mp3dec.asi"));
+        assert!(!is_separate_spelladdon(b"C:\\SpellAddon\\EI_Plugin.asi"));
+        assert!(!is_separate_spelladdon(b"SpellAddonXa.asi.bak"));
+    }
 
     /// game.exe is not loaded in a test, so merging is checked on the run-forming step alone.
     #[test]
