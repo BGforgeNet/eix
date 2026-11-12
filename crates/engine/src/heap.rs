@@ -22,7 +22,7 @@ fn heap() -> *mut c_void {
 
 /// Where an over-aligned block keeps its heap address: the word before the aligned pointer.
 fn slot(aligned: *mut u8) -> *mut *mut u8 {
-    (aligned as usize - WORD) as *mut *mut u8
+    aligned.map_addr(|addr| addr - WORD).cast()
 }
 
 // SAFETY: blocks come from HeapAlloc and go back to HeapFree on the same heap; over-aligned blocks are padded so the
@@ -66,7 +66,7 @@ fn alloc_with(layout: Layout, flags: u32) -> *mut u8 {
     if block.is_null() {
         return block;
     }
-    let aligned = (block as usize + WORD).next_multiple_of(layout.align()) as *mut u8;
+    let aligned = block.map_addr(|addr| (addr + WORD).next_multiple_of(layout.align()));
     // SAFETY: the slot word and `layout.size()` bytes from `aligned` lie inside the `size`-byte block.
     unsafe { slot(aligned).write(block) };
     aligned
