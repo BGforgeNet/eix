@@ -1009,7 +1009,7 @@ pub(crate) fn link_remaster(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bu
     )?)
 }
 
-/// `jne +0x15; mov eax, [esi+0x6C]` at `CSpellContainer::Finalize`+0x2A5, after `cmp al, 't'` on a modifier's code
+/// `jne +0x15; mov eax, [esi+0x6C]` at `CSpellContainer::Build`+0x2A5, after `cmp al, 't'` on a modifier's code
 /// letter: 't' and 'c' set flags in `[esi+0x6C]`.
 const FINALIZE_LETTER: Site = eix_sites::C_SPELL_CONTAINER_BUILD__2A5;
 const FINALIZE_LETTER_BYTES: [u8; 5] = [0x75, 0x15, 0x8B, 0x46, 0x6C];
@@ -1029,9 +1029,9 @@ const EFFECT_TARGET: Site = eix_sites::C_SPELL_EFFECT_START__59;
 const EFFECT_TARGET_BYTES: [u8; 8] = [0x8B, 0x11, 0x8D, 0x85, 0xE8, 0xFC, 0xFF, 0xFF];
 const EFFECT_POINT: Site = eix_sites::C_SPELL_EFFECT_START__42;
 
-/// `Finalize`'s letter test: 't' as before; 'f' sets [`FAKE_SOURCE`].
+/// `Build`'s letter test: 't' as before; 'f' sets [`FAKE_SOURCE`].
 extern "C" fn finalize_letter(_: usize, ctx: &mut Context) {
-    // SAFETY: ESI is the spell container `Finalize` fills.
+    // SAFETY: ESI is the spell container `Build` fills.
     let flags = unsafe { read::<u32>(ctx.esi + 0x6C) };
     if ctx.eflags & 0x40 != 0 {
         ctx.eax = flags;
