@@ -40,12 +40,16 @@ extern "C" fn fatal_exit(code: i32) -> ! {
 }
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
+    build_calls(&EXIT_CALLS)
+}
+
+fn build_calls(calls: &[(Site, [u8; 5]); 2]) -> Result<Vec<Labelled>, BuildError> {
     let to = fatal_exit as *const () as usize;
-    EXIT_CALLS
+    calls
         .iter()
         .enumerate()
         // AntiCrash (DisableExitOnCrashReport, applied before the fixes) NOPs FatalError's call: nothing to redirect.
-        .filter(|(_, (site, bytes))| crate::game::holds(*site, bytes))
+        .filter(|(i, (site, _))| *i != 0 || !crate::game::holds(*site, &[0x90; 5]))
         .map(|(i, &(site, bytes))| {
             let (write, _) = hook::redirect_call(site, bytes, to)?;
             Ok(Labelled {
@@ -59,6 +63,48 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use eix_engine::group::{self, Outcome};
+
+    fn apply_calls(found: &mut [[u8; 5]; 2]) -> group::Report {
+        let calls = [
+            (Site::of(found[0].as_ptr() as usize), EXIT_CALLS[0].1),
+            (Site::of(found[1].as_ptr() as usize), EXIT_CALLS[1].1),
+        ];
+        let writes = build_calls(&calls).unwrap();
+        // SAFETY: both sites are live, private buffers; their bytes are never executed.
+        unsafe {
+            group::apply("FatalErrorExit", true, || {
+                Ok(writes.into_iter().map(|l| l.write).collect())
+            })
+        }
+    }
+
+    #[test]
+    fn anticrash_nops_skip_only_the_first_call() {
+        let mut found = [[0x90; 5], EXIT_CALLS[1].1];
+        assert_eq!(apply_calls(&mut found).outcome, Outcome::Applied);
+        assert_eq!(found[0], [0x90; 5]);
+        assert_ne!(found[1], EXIT_CALLS[1].1);
+    }
+
+    #[test]
+    fn unexpected_bytes_fail_the_whole_group() {
+        for (index, bytes) in [
+            (0, [0xCC; 5]),
+            (0, [0x90, 0x90, 0x90, 0x90, 0xCC]),
+            (1, [0x90; 5]),
+        ] {
+            let mut found = EXIT_CALLS.map(|(_, bytes)| bytes);
+            found[index] = bytes;
+            let before = found;
+            let report = apply_calls(&mut found);
+            assert!(matches!(report.outcome, Outcome::Failed { .. }), "{report}");
+            assert_eq!(found, before);
+            let text = report.to_string();
+            assert!(text.contains("expected E8"), "{text}");
+            assert!(text.contains("but found"), "{text}");
+        }
+    }
 
     #[test]
     fn both_calls_were_exit() {

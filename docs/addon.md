@@ -240,4 +240,4 @@ Only the differences; everything else behaves as the original.
 | spelladdon.ini duplicate keys | the first value wins, with a warning naming the section, key, used and ignored values (the original keeps the first silently) |
 | The fixed patch | the spell-name patch that the original always writes is written only when an INI is found |
 | `SpellAddonInfo.txt` | not written (the original writes its documentation to the working folder) |
-| Sites that do not hold | a feature whose sites do not hold the expected bytes, or whose original crashes, is logged and left out; the others apply (the original writes anyway, and a crash stops every later feature) |
+| Sites that do not hold | a feature whose sites do not hold the expected bytes, or whose original crashes, is logged and left out; the others apply (the original writes anyway, and a crash stops every later feature). FatalErrorExit skips only AntiCrash's five NOPs at FatalError's exit call; any other mismatch fails the whole group |
