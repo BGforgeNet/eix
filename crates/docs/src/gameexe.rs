@@ -84,7 +84,7 @@ fn keywords(file: &[u8]) -> BTreeMap<String, Keyword> {
 }
 
 #[test]
-#[ignore = "needs the game's game.exe: EIX_GAME_DIR=<the game folder, as a Windows path under Wine>"]
+#[ignore = "needs the game's game.exe: EIX_GAME_DIR=<the game folder, as a host path>"]
 fn the_game_entries_match_the_keyword_table() {
     let dir = std::env::var("EIX_GAME_DIR").expect("EIX_GAME_DIR names the game folder");
     let file = std::fs::read(std::path::Path::new(&dir).join("game.exe")).expect("game.exe reads");
