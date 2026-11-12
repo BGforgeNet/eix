@@ -1950,7 +1950,7 @@ pub(crate) fn randomless_aimed_hits(
         _ => return Ok(Vec::new()),
     };
     let start = matches!(value, 2 | 6 | 7 | 9);
-    let v = ctx.values;
+    let v = &ctx.values;
     let aim = Aim {
         damage,
         fallback: v.int("gameplay", "bodypart")? as u32,

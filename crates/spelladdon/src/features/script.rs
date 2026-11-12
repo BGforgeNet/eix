@@ -241,18 +241,20 @@ extern "C" fn set_game_speed(_: usize, ctx: &mut Context) {
 }
 
 /// `gssetvar` = 1: `GSSetVar` sets the game speed.
-pub(crate) fn gs_set_var(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn gs_set_var(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
-    Ok(vec![common::branch_before(
+    let mut writes = vec![common::branch_before(
         eix_sites::SCRIPT_RUN_EXECUTE__1BB2,
         &[0x8B, 0x0A, 0x51, 0x8B, 0x48, 0x20],
         &[0x90, 0xE9, 0, 0, 0, 0],
         1,
         set_game_speed,
         0,
-    )?])
+    )?];
+    writes.extend(ctx.runtime_write::<i32>(UPDATE_PERIOD.site()));
+    Ok(writes)
 }
 
 /// Whether saving is forbidden: player 0's variable "Save" is not 0.

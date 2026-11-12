@@ -452,11 +452,12 @@ const RET: &[u8] = &[0xC3];
 
 /// `timervars` 1, 2 or 3: the timer word's writes, at the original's places (1 and 3 differ in which battle-screen
 /// paths set it; 2 sets it from `CInterface3D::Activate` instead of the briefing).
-pub(crate) fn timer_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn timer_vars(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !matches!(value, 1..=3) {
         return Ok(Vec::new());
     }
     let mut writes = fixed(&TIMER_CALLS)?;
+    writes.extend(ctx.runtime_write::<u16>(TIMER_WORD));
     writes.push(SiteWrite::bytes(
         eix_sites::LOAD_MISSION__18,
         &[0x8B, 0x0D, 0x84, 0xF7, 0x7A, 0x00],

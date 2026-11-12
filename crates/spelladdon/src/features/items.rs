@@ -706,7 +706,7 @@ pub(crate) fn encumbrance_move_speed(
     if value != 1 {
         return Ok(Vec::new());
     }
-    let v = ctx.values;
+    let v = &ctx.values;
     let remaster = v.flag("gameplay", "speedslowremaster")? == 2;
     let mut writes = vec![hook::context_hook(
         eix_sites::UNIT_STATS_RECOMPUTE__67A,

@@ -66,13 +66,40 @@ impl From<String> for BuildError {
 /// What a build reads.
 pub(crate) struct Ctx<'a> {
     /// Every INI value.
-    pub(crate) values: &'a Values,
+    pub(crate) values: Inputs<'a>,
     /// addon.log.
     pub(crate) log: Log,
     /// The folder spelladdon.ini was read from, in the ANSI code page, without a trailing `\`.
     pub(crate) ini_dir: Vec<u8>,
     /// Startup actions prepared by a build; only the startup runner performs them.
     pub(crate) actions: RefCell<Vec<Action>>,
+    /// Describe fixed image ranges without reading live code or applying run-time writes.
+    pub(crate) inventory: bool,
+}
+
+/// Read-only feature inputs.
+pub(crate) struct Inputs<'a> {
+    values: &'a Values,
+    #[cfg(test)]
+    pub(crate) flags: RefCell<std::collections::BTreeSet<(String, String)>>,
+}
+
+impl std::ops::Deref for Inputs<'_> {
+    type Target = Values;
+
+    fn deref(&self) -> &Self::Target {
+        self.values
+    }
+}
+
+impl Inputs<'_> {
+    pub(crate) fn flag(&self, section: &str, key: &str) -> Result<i8, KeyError> {
+        #[cfg(test)]
+        self.flags
+            .borrow_mut()
+            .insert((section.to_owned(), key.to_owned()));
+        self.values.flag(section, key)
+    }
 }
 
 /// An external effect to perform once at startup, in feature order.
@@ -86,10 +113,31 @@ pub(crate) enum Action {
 impl<'a> Ctx<'a> {
     pub(crate) fn new(values: &'a Values, log: Log) -> Self {
         Self {
-            values,
+            values: Inputs {
+                values,
+                #[cfg(test)]
+                flags: RefCell::default(),
+            },
             log,
             ini_dir: Vec::new(),
             actions: RefCell::new(Vec::new()),
+            inventory: false,
+        }
+    }
+
+    pub(crate) fn inventory(values: &'a Values, log: Log) -> Self {
+        Self {
+            inventory: true,
+            ..Self::new(values, log)
+        }
+    }
+
+    /// A run-time global has no fixed before/after bytes; only its site and width describe all its writes.
+    pub(crate) fn runtime_write<T>(&self, site: eix_sites::Site) -> Vec<SiteWrite> {
+        if self.inventory {
+            vec![SiteWrite::nop(site, &vec![0x90; size_of::<T>()])]
+        } else {
+            Vec::new()
         }
     }
 }

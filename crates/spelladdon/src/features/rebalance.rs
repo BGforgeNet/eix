@@ -348,7 +348,7 @@ pub(crate) fn skills_counting(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>
     if value != 1 {
         return Ok(Vec::new());
     }
-    let v = ctx.values;
+    let v = &ctx.values;
     let code = school_price(
         v.double("rebalanceengine", "pow")?,
         v.float("rebalanceengine", "mul")?,

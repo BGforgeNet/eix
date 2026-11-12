@@ -861,6 +861,9 @@ pub(crate) fn aggrmod(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
     if flag("follow")? != 0 {
         writes.extend(common::fixed(&[VIEWER_FOLLOW_JE])?);
     }
+    if value == 1 {
+        writes.extend(ctx.runtime_write::<u32>(AGGR_LAST_EAX));
+    }
     Ok(writes)
 }
 

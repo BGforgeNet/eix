@@ -34,9 +34,13 @@ extern "C" fn on_sound_start(_: usize, _: &mut Context) {
     }
 }
 
-/// Every write SpellAddon may make, each with the patch or `[section] key=value` that makes it, every other key at
-/// its default. addon.dll's own fixes keep clear of these sites: SpellAddon applies later, and a feature that found
-/// their bytes would be left out.
+/// Every fixed game-image range SpellAddon can write, including flag combinations and run-time globals, labelled
+/// by feature. The entries describe overlapping ranges, not an installable patch list: values are representative,
+/// and live-code copies and run-time globals use placeholder bytes. Heap objects and stacks are not image sites.
+/// Engine fixes use these ranges to keep clear of SpellAddon's writes.
+///
+/// # Panics
+/// A feature cannot build its range description; returning a partial list would hide overlaps.
 pub fn writes() -> Vec<(String, SiteWrite)> {
     startup::writes()
 }

@@ -65,29 +65,49 @@ impl Profile for Defaults {
     }
 }
 
-/// Every write SpellAddon may make, each with what makes it: the fixed patch, then each feature at each positive
-/// value of its flag that it builds and does not skip, every other key at its default.
+/// Values that expose additional sites, alongside the default profile.
+struct AdditionalSites;
+
+impl Profile for AdditionalSites {
+    fn int(&self, section: &str, key: &str, default: i32) -> i32 {
+        match (section, key) {
+            ("gameplay", "newoptions" | "newperks" | "follow" | "loseallyfast")
+            | ("rebalanceengine", "meleesum_2") => 1,
+            ("gameplay", "speedslowremaster") => 2,
+            ("gameplay", "damageboost") => 5,
+            ("gameplay", "saveall") => 32,
+            ("gameplay", "maxcountofmerc") => 51,
+            _ => default,
+        }
+    }
+
+    fn text(&self, section: &str, key: &str, default: &str, size: usize) -> Vec<u8> {
+        Defaults.text(section, key, default, size)
+    }
+}
+
+/// Fixed image write ranges from all signed flag values and the profiles that add sites or extend a write.
+/// Feature builds supply the ranges and the descriptions of run-time globals.
 pub(crate) fn writes() -> Vec<(String, SiteWrite)> {
     fn no_log(_: Level, _: &str, _: &str, _: &str) {}
-    let values = Values::read(&Defaults);
-    let ctx = Ctx::new(&values, no_log);
-    // The fixed patch's two byte strings have one length, so it always builds.
-    let mut out: Vec<(String, SiteWrite)> = SiteWrite::bytes(FIXED_PATCH, &FIXED_WAS, &FIXED_NOW)
-        .map(|w| ("fixed patch".to_owned(), w))
-        .into_iter()
-        .collect();
-    for f in &FEATURES {
-        let Some(build) = f.build else { continue };
-        for value in 1..=i8::MAX {
-            if registry::skipped(f, value, &values).is_some() {
-                continue;
+    let fixed = SiteWrite::bytes(FIXED_PATCH, &FIXED_WAS, &FIXED_NOW)
+        .unwrap_or_else(|e| panic!("fixed patch: {e}"));
+    let mut out = vec![("fixed patch".to_owned(), fixed)];
+    for (profile, values) in [
+        ("", Values::read(&Defaults)),
+        (" (additional sites)", Values::read(&AdditionalSites)),
+    ] {
+        let ctx = Ctx::inventory(&values, no_log);
+        for f in &FEATURES {
+            let Some(build) = f.build else { continue };
+            for value in i8::MIN..=i8::MAX {
+                if registry::skipped(f, value, &values).is_some() {
+                    continue;
+                }
+                let name = format!("[{}] {}={value}{profile}", f.section, f.key.trim_end());
+                let writes = build(&ctx, value).unwrap_or_else(|e| panic!("{name}: {e}"));
+                out.extend(writes.into_iter().map(|w| (name.clone(), w)));
             }
-            // A value the feature does not take builds nothing or fails; neither writes anything.
-            let Ok(writes) = build(&ctx, value) else {
-                continue;
-            };
-            let name = format!("[{}] {}={value}", f.section, f.key.trim_end());
-            out.extend(writes.into_iter().map(|w| (name.clone(), w)));
         }
     }
     out
@@ -369,6 +389,163 @@ fn keep(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    use crate::features::testing::{no_log, values};
+
+    /// Secondary flags at each branch boundary, including the signed-byte endpoints.
+    const FLAGS: &[&str] = &[
+        "-128", "-1", "0", "1", "2", "3", "4", "5", "6", "12", "13", "16", "31", "32", "33", "127",
+    ];
+
+    type Input = (&'static str, &'static str, &'static [&'static str]);
+
+    /// Inputs read by a feature or its skip condition, including those that only change bytes within a site.
+    fn inputs(key: &str) -> Vec<Input> {
+        let flags: &[(&str, &str)] = match key {
+            "rewritenpcvisionarc" => &[("gameplay", "removenpcsblock")],
+            "autorunmobfile" => &[("gameplay", "newspells")],
+            "genocideincvars" => &[("gameplay", "genocidedipvars")],
+            "avgarmors" => &[("gameplay", "newperks")],
+            "meleesum_low" => &[
+                ("rebalanceengine", "meleesum_1"),
+                ("rebalanceengine", "meleesum_2"),
+            ],
+            "possessioncharmlink" | "nightpower" => &[("gameplay", "damageboost")],
+            "shopschanges" => &[("gameplay", "shopsnewnormalchanges")],
+            "encumbrancemovespeed" => &[("gameplay", "speedslowremaster")],
+            "encumbranceattackspeed" => &[
+                ("animationsspeed", "rewriteactionsspeed"),
+                ("gameplay", "actionspatch"),
+            ],
+            "camp" => &[("gameplay", "newoptions")],
+            "newoptions" => &[("gameplay", "camp")],
+            "visionfix" => &[("gameplay", "aggrmod")],
+            "increasinghitchance" => &[("gameplay", "newattackdefence")],
+            "newrangedweapontypes" => &[("gameplay", "rangedweaponbackstabs")],
+            "extendedmerc" => &[("gameplay", "saveall")],
+            _ => &[],
+        };
+        let mut inputs: Vec<Input> = flags.iter().map(|&(s, k)| (s, k, FLAGS)).collect();
+        if key == "extendedmerc" {
+            inputs.push((
+                "gameplay",
+                "maxcountofmerc",
+                &["-2147483648", "-1", "0", "50", "51", "2147483647"],
+            ));
+        }
+        if key == "aggrmod" {
+            for key in ["follow", "loseallyfast", "improve"] {
+                inputs.push(("gameplay", key, &["-1", "0", "1"]));
+            }
+        }
+        inputs
+    }
+
+    fn combinations(inputs: &[Input]) -> Vec<Vec<(&'static str, &'static str, &'static str)>> {
+        let mut out = vec![Vec::new()];
+        for &(section, key, values) in inputs {
+            out = out
+                .into_iter()
+                .flat_map(|pairs| {
+                    values.iter().map(move |&value| {
+                        let mut next = pairs.clone();
+                        next.push((section, key, value));
+                        next
+                    })
+                })
+                .collect();
+        }
+        out
+    }
+
+    #[test]
+    fn inventory_covers_feature_combinations() {
+        let mut covered: BTreeMap<String, BTreeSet<usize>> = BTreeMap::new();
+        for (name, write) in writes() {
+            let owner = name.split('=').next().unwrap().to_owned();
+            covered
+                .entry(owner)
+                .or_default()
+                .extend(write.site().ru()..write.site().ru() + write.size());
+        }
+        let mut missing = BTreeSet::new();
+        for feature in &FEATURES {
+            let Some(build) = feature.build else { continue };
+            let owner = format!("[{}] {}", feature.section, feature.key.trim_end());
+            let covered = covered.get(&owner).cloned().unwrap_or_default();
+            let inputs = inputs(feature.key);
+            for pairs in combinations(&inputs) {
+                let config = values(&pairs);
+                let ctx = Ctx::inventory(&config, no_log);
+                for value in i8::MIN..=i8::MAX {
+                    if registry::skipped(feature, value, &config).is_some() {
+                        continue;
+                    }
+                    let built = match build(&ctx, value) {
+                        Ok(writes) => writes,
+                        Err(e) => {
+                            missing.insert(format!("{owner}={value}: build failed: {e}"));
+                            continue;
+                        }
+                    };
+                    for write in built {
+                        if (write.site().ru()..write.site().ru() + write.size())
+                            .any(|at| !covered.contains(&at))
+                        {
+                            missing.insert(format!(
+                                "{owner}: {:#x}+{}",
+                                write.site().ru(),
+                                write.size()
+                            ));
+                        }
+                    }
+                }
+                for (section, key) in ctx.values.flags.borrow().iter() {
+                    assert!(
+                        inputs.iter().any(|(s, k, _)| section == s && key == k),
+                        "{owner}: [{section}] {key} has no combination domain"
+                    );
+                }
+            }
+        }
+        assert!(missing.is_empty(), "unlisted feature writes: {missing:#?}");
+    }
+
+    #[test]
+    fn inventory_covers_the_timer_word() {
+        let inventory = writes();
+        for mode in 1..=3 {
+            let owner = format!("[speedrun] timervars={mode}");
+            for at in eix_sites::C_DIPLOMACY_GET_HOSTILE_MASK__1D.ru()
+                ..eix_sites::C_DIPLOMACY_GET_HOSTILE_MASK__1D.ru() + 2
+            {
+                assert!(
+                    inventory.iter().any(|(name, w)| name == &owner
+                        && (w.site().ru()..w.site().ru() + w.size()).contains(&at)),
+                    "{owner}: timer byte {at:#x} is unlisted"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn inventory_covers_run_time_globals() {
+        let inventory = writes();
+        for (owner, site) in [
+            ("[gameplay] aggrmod=1", eix_sites::DATA_799CF8),
+            ("[speed] gssetvar=1", eix_sites::DATA_78FF34),
+        ] {
+            for at in site.ru()..site.ru() + 4 {
+                assert!(
+                    inventory.iter().any(|(name, w)| name == owner
+                        && (w.site().ru()..w.site().ru() + w.size()).contains(&at)),
+                    "{owner}: byte {at:#x} is unlisted"
+                );
+            }
+        }
+    }
+
     #[test]
     fn font_failure_logs_the_ansi_path() {
         static MESSAGE: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
