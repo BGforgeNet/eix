@@ -60,4 +60,8 @@ First release.
   0..255 warn; anonymous objects of one mob file each get their own ID; `ChargeMethod=2` gives every hero the whole
   experience; with Lua attack scripts players hurt each other only with `enablekillsinmulti`, which keeps god mode;
   `normalkey` defaults to the game's 55; a cast of no time plays at normal speed; with `disableexppenalty` a
-  multiplayer game goes on when a leader dies.
+  multiplayer game goes on when a leader dies; `gameover` script events work with `camp` on; each save load gets
+  its own `expirementalfxes` iteration budget; script field indices past the unit, damage types outside the damage
+  record and `Exits` counts above a zone's own are refused or capped with a warning; `IsFileExists` refuses Windows'
+  other spellings of the parent folder; `aigraph` reports a graph it could not save and exits non-zero, and the crash
+  box names no backup or dump that failed.
