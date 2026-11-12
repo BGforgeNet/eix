@@ -317,28 +317,38 @@ mod tests {
         };
         let changes = |at: usize| (at..at + 4).any(|i| expected.get(i) != new.get(i));
         let mut out = Vec::new();
-        for k in from..new.len() {
-            if let Some(v) = word(k)
-                && changes(k)
+        let absolute = |at| {
+            if let Some(v) = word(at)
+                && changes(at)
                 && eix_sites::in_image(v as usize)
                 && to(v as usize) != v as usize
             {
-                out.push((k, to(v as usize) as u32));
+                Some((at, to(v as usize) as u32))
+            } else {
+                None
             }
-            let rel = match (new[k], new.get(k + 1)) {
-                (0xE8 | 0xE9, _) => k + 1,
-                (0x0F, Some(0x80..=0x8F)) => k + 2,
-                _ => continue,
-            };
-            let (Some(disp), true) = (word(rel), changes(rel)) else {
+        };
+        let mut at = from;
+        while at < new.len() {
+            let Ok(insn) = eix_engine::x86::decode_in_place(&new[at..], at) else {
+                out.extend(absolute(at));
+                at += 1;
                 continue;
             };
-            let end = site.ru() + rel + 4;
-            let target = (end as u32).wrapping_add(disp) as usize;
-            let needed = (to(target) as u32).wrapping_sub(to(end) as u32);
-            if needed != disp {
-                out.push((rel, needed));
+            for field in [insn.disp32, insn.imm32].into_iter().flatten() {
+                out.extend(absolute(at + field));
             }
+            if let Some(rel) = insn.rel32.map(|field| at + field)
+                && let (Some(disp), true) = (word(rel), changes(rel))
+            {
+                let end = site.ru() + rel + 4;
+                let target = (end as u32).wrapping_add(disp) as usize;
+                let needed = (to(target) as u32).wrapping_sub(to(end) as u32);
+                if needed != disp {
+                    out.push((rel, needed));
+                }
+            }
+            at += insn.len;
         }
         out
     }
@@ -348,6 +358,27 @@ mod tests {
         eix_engine::x86::whole_insns(new)
             .last()
             .map_or(0, |(at, insn)| at + insn.len)
+    }
+
+    #[test]
+    fn branch_displacements_are_not_scanned_as_opcodes() {
+        let site = eix_sites::ACTION_COLUMN_MOUSE_UP_VERIFY__43;
+        for displacement in [0x1000_0000u32, 0x1000_E800, 0x1000_E900] {
+            let code = [
+                &[0x17, 0x83, 0xF8, 0x02, 0x75, 0x05, 0xE8][..],
+                &displacement.to_le_bytes(),
+                &[0x90, 0x50, 0x8B, 0xCF],
+            ]
+            .concat();
+            let target = site.ru32().wrapping_add(11).wrapping_add(displacement);
+            assert!(!eix_sites::in_image(target as usize));
+            let needed = target.wrapping_sub(site.in_build(Build::En106) as u32 + 11);
+            assert_eq!(
+                moving_fields(site, &[0x90; 15], &code, 0, Build::En106),
+                [(7, needed)],
+                "displacement {displacement:#x}"
+            );
+        }
     }
 
     #[test]

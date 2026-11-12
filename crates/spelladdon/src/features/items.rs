@@ -1405,11 +1405,17 @@ fn camp_controls(strip: usize) -> Result<Vec<SiteWrite>, BuildError> {
         0,
         button,
     )?);
-    writes.push(common::branch(
+    writes.push(SiteWrite::plain(
         eix_sites::ACTION_COLUMN_MOUSE_UP_VERIFY__43,
-        &CLICK_WAS,
-        &CLICK_NOW,
-        6,
+        &CLICK_WAS[..1],
+        &CLICK_NOW[..1],
+    )?);
+    // The short jump's operand is separate so the call-containing code starts at an instruction boundary.
+    writes.push(common::branch(
+        eix_sites::ACTION_COLUMN_MOUSE_UP_VERIFY__43.offset(1),
+        &CLICK_WAS[1..],
+        &CLICK_NOW[1..],
+        5,
         click,
     )?);
     Ok(writes)
