@@ -363,7 +363,7 @@ mod tests {
     #[test]
     fn branch_displacements_are_not_scanned_as_opcodes() {
         let site = eix_sites::ACTION_COLUMN_MOUSE_UP_VERIFY__43;
-        for displacement in [0x1000_0000u32, 0x1000_E800, 0x1000_E900] {
+        for displacement in [0x2000_0000u32, 0x2000_E800, 0x2000_E900] {
             let code = [
                 &[0x17, 0x83, 0xF8, 0x02, 0x75, 0x05, 0xE8][..],
                 &displacement.to_le_bytes(),
