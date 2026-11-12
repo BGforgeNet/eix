@@ -98,6 +98,7 @@ extern "C" fn clipboard(_: usize, ctx: &mut Context) {
         }
         b'c' | b'x' if w.caret != w.anchor => {
             let selected = console_edit::mid(console_edit::left(&input, high), low);
+            // OnChar runs on the game's window thread, whose active window owns the clipboard text.
             set_clipboard_text(&from_ansi(selected));
             if letter == b'x' {
                 // SAFETY: as above.

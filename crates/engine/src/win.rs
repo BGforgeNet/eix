@@ -34,6 +34,7 @@ use windows_sys::Win32::System::Threading::{
     CRITICAL_SECTION, EnterCriticalSection, ExitProcess, GetCurrentProcess, LeaveCriticalSection,
     TerminateProcess,
 };
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CharLowerA, CharUpperA, ClipCursor, GetClientRect, GetForegroundWindow, MB_ICONERROR, MB_OK,
     MessageBoxW, wvsprintfA,
@@ -285,7 +286,8 @@ pub fn change_case(text: &[u8], upper: bool) -> Vec<u8> {
 /// `CF_UNICODETEXT`.
 const UNICODE_TEXT: u32 = 13;
 
-/// Puts `text` (UTF-16, no NUL) on the clipboard as Unicode text; false when the clipboard cannot be had.
+/// Puts `text` (UTF-16, no NUL) on the clipboard as Unicode text, owned by the calling thread's active window.
+/// Returns false when there is no active window or the clipboard cannot be had.
 pub fn set_clipboard_text(text: &[u16]) -> bool {
     let bytes = (text.len() + 1) * 2;
     // SAFETY: a moveable, zeroed block of `bytes`.
@@ -304,22 +306,47 @@ pub fn set_clipboard_text(text: &[u16]) -> bool {
     unsafe { core::ptr::copy_nonoverlapping(text.as_ptr(), at, text.len()) };
     // SAFETY: locked above; the result only says whether it is still locked.
     unsafe { GlobalUnlock(block) };
-    // SAFETY: no owner window.
-    if unsafe { OpenClipboard(core::ptr::null_mut()) } == 0 {
-        // SAFETY: as above.
-        unsafe { GlobalFree(block) };
-        return false;
-    }
-    // SAFETY: the clipboard is open.
-    unsafe { EmptyClipboard() };
+    let open = |owner| {
+        // SAFETY: a stale handle only makes the call fail.
+        unsafe { OpenClipboard(owner) != 0 }
+    };
+    let empty = || {
+        // SAFETY: called only while the clipboard is open.
+        unsafe { EmptyClipboard() };
+    };
     let publish = |block| {
         // SAFETY: the clipboard is open; the block is a live, unlocked moveable allocation.
         unsafe { SetClipboardData(UNICODE_TEXT, block) }
     };
+    let close = || {
+        // SAFETY: called only after opening the clipboard.
+        unsafe { CloseClipboard() };
+    };
+    // SAFETY: no preconditions; a thread without an active window gets null.
+    let owner = unsafe { GetActiveWindow() };
+    // SAFETY: the block is ours; publication transfers ownership only on success.
+    unsafe { with_clipboard_owner(owner, block, open, empty, publish, close) }
+}
+
+/// # Safety
+/// `block` is an owned, unlocked GlobalAlloc block; `publish` takes ownership only when it returns non-null.
+unsafe fn with_clipboard_owner(
+    owner: HWND,
+    block: *mut c_void,
+    open: impl FnOnce(HWND) -> bool,
+    empty: impl FnOnce(),
+    publish: impl FnOnce(*mut c_void) -> *mut c_void,
+    close: impl FnOnce(),
+) -> bool {
+    if owner.is_null() || !open(owner) {
+        // SAFETY: the clipboard never took ownership of this unlocked block.
+        unsafe { GlobalFree(block) };
+        return false;
+    }
+    empty();
     // SAFETY: the block is ours; `publish` transfers ownership only on success.
     let set = unsafe { publish_clipboard_block(block, publish) };
-    // SAFETY: opened above.
-    unsafe { CloseClipboard() };
+    close();
     set
 }
 
@@ -534,6 +561,81 @@ mod tests {
         let terminated = [65, 0, 66];
         // SAFETY: all three units are readable.
         assert_eq!(unsafe { clipboard_units(terminated.as_ptr(), 6) }, [65]);
+    }
+
+    #[test]
+    fn clipboard_publication_uses_the_window_and_closes_after_publication() {
+        use core::cell::RefCell;
+
+        for accepted in [true, false] {
+            let calls = RefCell::new(Vec::new());
+            // SAFETY: a fresh moveable allocation.
+            let block = unsafe { GlobalAlloc(GMEM_MOVEABLE, 4) };
+            assert!(!block.is_null());
+            let open = |owner| {
+                calls.borrow_mut().push(("open", owner as usize));
+                true
+            };
+            let empty = || calls.borrow_mut().push(("empty", 0));
+            let publish = |owned| {
+                calls.borrow_mut().push(("publish", 0));
+                assert_eq!(owned, block);
+                if accepted {
+                    owned
+                } else {
+                    core::ptr::null_mut()
+                }
+            };
+            let close = || calls.borrow_mut().push(("close", 0));
+            // SAFETY: the block is ours; the publisher retains it only on success, until freed below.
+            let set =
+                unsafe { with_clipboard_owner(window(42), block, open, empty, publish, close) };
+            // SAFETY: GlobalSize returns zero if the refused block was freed.
+            let left = unsafe { GlobalSize(block) };
+            if left != 0 {
+                // SAFETY: the test owns the accepted block, or a block not freed after refusal.
+                unsafe { GlobalFree(block) };
+            }
+            assert_eq!(set, accepted);
+            assert_eq!(left != 0, accepted);
+            assert_eq!(
+                calls.into_inner(),
+                [("open", 42), ("empty", 0), ("publish", 0), ("close", 0)]
+            );
+        }
+    }
+
+    #[test]
+    fn clipboard_publication_without_an_owner_does_not_open_or_empty() {
+        use core::cell::RefCell;
+
+        let calls = RefCell::new(Vec::new());
+        // SAFETY: a fresh moveable allocation.
+        let block = unsafe { GlobalAlloc(GMEM_MOVEABLE, 4) };
+        assert!(!block.is_null());
+        let open = |_| {
+            calls.borrow_mut().push("open");
+            true
+        };
+        let empty = || calls.borrow_mut().push("empty");
+        let publish = |_| {
+            calls.borrow_mut().push("publish");
+            core::ptr::null_mut()
+        };
+        let close = || calls.borrow_mut().push("close");
+        // SAFETY: the block is ours and the publisher never takes ownership.
+        let set = unsafe {
+            with_clipboard_owner(core::ptr::null_mut(), block, open, empty, publish, close)
+        };
+        // SAFETY: GlobalSize returns zero for a freed block.
+        let left = unsafe { GlobalSize(block) };
+        if left != 0 {
+            // SAFETY: a block that was not freed remains ours.
+            unsafe { GlobalFree(block) };
+        }
+        assert!(!set);
+        assert_eq!(left, 0);
+        assert!(calls.into_inner().is_empty());
     }
 
     #[test]
