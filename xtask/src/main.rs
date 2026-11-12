@@ -203,12 +203,13 @@ fn container(task: &str) -> Result<(), String> {
         }
     }
     let src = format!("{}:/src:Z", root.display());
+    let mut podman = Command::new("podman");
+    podman.args(["run", "--rm", "-v", &src]);
+    if let Some(mount) = git_mount(&root, &git_common_dir(&root)?) {
+        podman.args(["-v", &mount]);
+    }
     run(
-        Command::new("podman").args([
-            "run",
-            "--rm",
-            "-v",
-            &src,
+        podman.args([
             "-v",
             "eix-cargo:/root/.cargo/registry",
             "-w",
@@ -226,6 +227,28 @@ fn container(task: &str) -> Result<(), String> {
         ]),
         &format!("container {task}"),
     )
+}
+
+/// The repository's shared git directory, as an absolute path.
+fn git_common_dir(root: &Path) -> Result<PathBuf, String> {
+    let out = Command::new("git")
+        .args(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("git rev-parse could not start: {e}"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "git rev-parse failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ));
+    }
+    Ok(PathBuf::from(String::from_utf8_lossy(&out.stdout).trim()))
+}
+
+/// The read-only mount a linked worktree needs: its `.git` file points at the shared git directory by absolute path,
+/// outside the tree mounted at /src, and the public-text check runs `git ls-files`. None for a plain clone.
+fn git_mount(root: &Path, common: &Path) -> Option<String> {
+    (!common.starts_with(root)).then(|| format!("{0}:{0}:ro", common.display()))
 }
 
 /// The key label of the build image; none when there is no image or it has no label.
@@ -256,4 +279,26 @@ fn root() -> PathBuf {
 /// Where cargo puts its output: `CARGO_TARGET_DIR`, else `target` under the root.
 fn target_dir() -> PathBuf {
     std::env::var_os("CARGO_TARGET_DIR").map_or_else(|| root().join("target"), PathBuf::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::git_mount;
+    use std::path::Path;
+
+    #[test]
+    fn a_plain_clone_needs_no_git_mount() {
+        assert_eq!(
+            git_mount(Path::new("/w/eix"), Path::new("/w/eix/.git")),
+            None
+        );
+    }
+
+    #[test]
+    fn a_linked_worktree_mounts_the_shared_git_directory_read_only() {
+        assert_eq!(
+            git_mount(Path::new("/w/eix-wt/a"), Path::new("/w/eix/.git")).as_deref(),
+            Some("/w/eix/.git:/w/eix/.git:ro")
+        );
+    }
 }
