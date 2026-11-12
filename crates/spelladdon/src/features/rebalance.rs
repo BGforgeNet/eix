@@ -1379,23 +1379,32 @@ mod tests {
     fn switches_write_only_at_their_values() {
         let v = values(&[]);
         let ctx = Ctx::new(&v, no_log);
-        let keys: std::collections::BTreeSet<_> = ORIGINAL
-            .iter()
-            .map(|(section, key, ..)| (*section, *key))
-            .collect();
-        for (section, key) in keys {
-            let build = crate::registry::FEATURES
-                .iter()
-                .find(|f| f.section == section && f.key == key)
-                .unwrap()
-                .build
-                .unwrap();
+        // Each build and whether it also acts on 3.
+        let cases: &[(super::super::Build, bool)] = &[
+            (skills_counting, false),
+            (run_ability_time, false),
+            (new_run_system, false),
+            (actions_speed, false),
+            (difficulty_change, false),
+            (level_counting, false),
+            (experience_for_intelligence, false),
+            (backstab_visual_base, false),
+            (difficulty_reset, false),
+            (n_hits, false),
+            (actions_patch, false),
+            (speed_boost, false),
+            (dexterity_move_speed, true),
+            (clever_animations, false),
+            (new_perks, true),
+            (new_difficulty_levels, false),
+            (automatic_run_control, false),
+        ];
+        for (i, (build, on_three)) in cases.iter().enumerate() {
             for value in [0, 3, -1] {
-                // The blocks here that act on any value from 1 up.
-                if matches!(key, "actionsdexteritymovespeed" | "newperks") && value > 0 {
+                if *on_three && value > 0 {
                     continue;
                 }
-                assert!(build(&ctx, value).unwrap().is_empty(), "{key} = {value}");
+                assert!(build(&ctx, value).unwrap().is_empty(), "case {i} = {value}");
             }
         }
     }

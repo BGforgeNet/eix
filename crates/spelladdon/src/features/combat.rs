@@ -2021,36 +2021,40 @@ mod tests {
         writes.iter().map(|w| (w.site(), w.size())).collect()
     }
 
-    /// The features whose block acts on a value of 3 as well.
-    const ON_AT_THREE: [&str; 6] = [
-        "archersdefence",
-        "unbreakablebodyparts",
-        "changeweightrangebonuses",
-        "damageboost",
-        "newattackdefence",
-        "randomlessaimedhits",
-    ];
-
     #[test]
     fn switches_write_only_at_their_values() {
         let v = values(&[]);
         let ctx = Ctx::new(&v, no_log);
-        let keys: std::collections::BTreeSet<_> = ORIGINAL
-            .iter()
-            .map(|(section, key, ..)| (*section, *key))
-            .collect();
-        for (section, key) in keys {
-            let build = crate::registry::FEATURES
-                .iter()
-                .find(|f| f.section == section && f.key == key)
-                .unwrap()
-                .build
-                .unwrap();
+        // Each build and whether it also acts on 3.
+        let cases: &[(super::super::Build, bool)] = &[
+            (archers_defence, true),
+            (unbreakable_body_parts, true),
+            (kills_in_multi, false),
+            (ranged_weapon_backstabs, false),
+            (only_min_damage, false),
+            (weight_range_bonuses, true),
+            (strength_stats, false),
+            (heroes_armors, false),
+            (backstabs_for_all, false),
+            (run_away_distance, false),
+            (damage_boost, true),
+            (new_attack_defence, true),
+            (melee_sum_low, false),
+            (increasing_hit_chance, false),
+            (night_power, false),
+            (duels, false),
+            (melee_sum_1, false),
+            (melee_sum_2, false),
+            (new_ranged_weapon_types, false),
+            (acid_attack, false),
+            (randomless_aimed_hits, true),
+        ];
+        for (i, (build, on_three)) in cases.iter().enumerate() {
             for value in [0, 3, -1] {
-                if ON_AT_THREE.contains(&key) && value > 0 {
+                if *on_three && value > 0 {
                     continue;
                 }
-                assert!(build(&ctx, value).unwrap().is_empty(), "{key} = {value}");
+                assert!(build(&ctx, value).unwrap().is_empty(), "case {i} = {value}");
             }
         }
     }
