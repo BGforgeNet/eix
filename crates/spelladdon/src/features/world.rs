@@ -12,7 +12,6 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use eix_core::x86_flags;
-use eix_engine::ansi;
 use eix_engine::game::player::NamedFloatTable;
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::Context;
@@ -21,8 +20,7 @@ use eix_engine::x87::Ext;
 use eix_sites::Site;
 
 use super::common::{self, Bytes, PushTail, fixed, read};
-use super::{Build, BuildError, Ctx};
-use crate::Level;
+use super::{Action, Build, BuildError, Ctx};
 
 /// The implemented features: `(section, key, build)`.
 pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
@@ -500,18 +498,7 @@ fn change_font(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
         let mut path = ctx.ini_dir.clone();
         path.push(b'\\');
         path.extend_from_slice(ctx.values.text("fonts", "newfont5")?);
-        // The original ignores the result; a failure is logged, the four names still apply.
-        if ansi::add_private_font(&path) == 0 {
-            (ctx.log)(
-                Level::Warn,
-                "spelladdon",
-                &format!(
-                    "changefont: the font file {} was not added",
-                    String::from_utf8_lossy(&path)
-                ),
-                "",
-            );
-        }
+        ctx.actions.borrow_mut().push(Action::AddFont(path));
     }
     Ok(writes)
 }
@@ -1214,6 +1201,18 @@ fn experimental_fixes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn font_build_defers_registration() {
+        let values = values(&[("fonts", "newfont5", "example.ttf")]);
+        let mut ctx = Ctx::new(&values, no_log);
+        ctx.ini_dir = b"mod".to_vec();
+        assert_eq!(change_font(&ctx, 2).unwrap().len(), 8);
+        assert_eq!(
+            ctx.actions.take(),
+            [super::super::Action::AddFont(b"mod\\example.ttf".to_vec())]
+        );
+    }
+
     #[test]
     fn exit_counts_keep_nonpositive_values_and_never_exceed_the_table() {
         assert_eq!(exit_count(1, 3, -2), 3);

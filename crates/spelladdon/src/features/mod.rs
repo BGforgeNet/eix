@@ -5,6 +5,7 @@
 //! game.exe; it returns none for a value its feature does nothing with. Writes expect game.exe's own bytes: where an
 //! earlier feature wrote the same bytes, the later one wins, as in the original.
 
+use std::cell::RefCell;
 use std::fmt;
 
 use eix_core::spelladdon::{KeyError, Values};
@@ -70,6 +71,16 @@ pub(crate) struct Ctx<'a> {
     pub(crate) log: Log,
     /// The folder spelladdon.ini was read from, in the ANSI code page, without a trailing `\`.
     pub(crate) ini_dir: Vec<u8>,
+    /// Startup actions prepared by a build; only the startup runner performs them.
+    pub(crate) actions: RefCell<Vec<Action>>,
+}
+
+/// An external effect to perform once at startup, in feature order.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Action {
+    ImportantAlerts,
+    VersionAlerts,
+    AddFont(Vec<u8>),
 }
 
 impl<'a> Ctx<'a> {
@@ -78,6 +89,7 @@ impl<'a> Ctx<'a> {
             values,
             log,
             ini_dir: Vec::new(),
+            actions: RefCell::new(Vec::new()),
         }
     }
 }

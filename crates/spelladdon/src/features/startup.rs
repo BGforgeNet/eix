@@ -5,8 +5,8 @@ use eix_engine::group::SiteWrite;
 use eix_engine::registry::hkcu_value;
 use eix_engine::win::to_ansi;
 
-use super::{Build, BuildError, Ctx};
-use crate::Level;
+use super::{Action, Build, BuildError, Ctx};
+use crate::{Level, Log};
 
 /// The implemented features: `(section, key, build)`.
 pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
@@ -23,10 +23,14 @@ const PATH_BUFFER: usize = 0x104;
 
 /// `importantalerts` >= 1: a modal box with the starter's `AddonPath` and the caption "2"; without the value, the
 /// caption "3" over the unwritten buffer, a run of 0xCC bytes. The game waits until it is closed.
-fn important_alerts(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
-    if value < 1 {
-        return Ok(Vec::new());
+fn important_alerts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+    if value >= 1 {
+        ctx.actions.borrow_mut().push(Action::ImportantAlerts);
     }
+    Ok(Vec::new())
+}
+
+pub(crate) fn show_important_alerts() {
     let read = hkcu_value("Software\\Gipat.Ru\\EI_Starter\\Settings", "AddonPath").filter(
         |(ty, bytes)| matches!(*ty, REG_SZ | REG_EXPAND_SZ) && bytes.len() <= 2 * PATH_BUFFER,
     );
@@ -46,7 +50,6 @@ fn important_alerts(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
             ansi::message_box(&[0xCC; PATH_BUFFER], b"3", MB_HELP);
         }
     }
-    Ok(Vec::new())
 }
 
 /// The `.asi` files `versionalerts` does not warn about. The original's list (with its own name rewritten to
@@ -76,22 +79,26 @@ fn version_alert_for(name: &[u8]) -> bool {
 
 /// `versionalerts` = 1: one box per `.asi` file of the working folder that is not on the known list.
 fn version_alerts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
-    use std::os::windows::ffi::OsStrExt;
-    if value != 1 {
-        return Ok(Vec::new());
+    if value == 1 {
+        ctx.actions.borrow_mut().push(Action::VersionAlerts);
     }
+    Ok(Vec::new())
+}
+
+pub(crate) fn show_version_alerts(log: Log) {
+    use std::os::windows::ffi::OsStrExt;
     // The original skips the first entry FindFirstFile returns, which in a game folder is ".", and std lists
     // neither "." nor "..": every file is looked at in both.
     let entries = match std::fs::read_dir(".") {
         Ok(e) => e,
         Err(e) => {
-            (ctx.log)(
+            log(
                 Level::Warn,
                 "spelladdon",
                 &format!("versionalerts: cannot list the working folder: {e}"),
                 "",
             );
-            return Ok(Vec::new());
+            return;
         }
     };
     for entry in entries.flatten() {
@@ -104,12 +111,25 @@ fn version_alerts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
             );
         }
     }
-    Ok(Vec::new())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn diagnostics_build_actions_without_showing_them() {
+        use super::super::Action;
+        use super::super::testing::{no_log, values};
+        let values = values(&[]);
+        let ctx = Ctx::new(&values, no_log);
+        assert!(important_alerts(&ctx, 1).unwrap().is_empty());
+        assert!(version_alerts(&ctx, 1).unwrap().is_empty());
+        assert_eq!(
+            ctx.actions.take(),
+            [Action::ImportantAlerts, Action::VersionAlerts]
+        );
+    }
 
     #[test]
     fn version_alerts_pick_unknown_lowercase_asi_files() {

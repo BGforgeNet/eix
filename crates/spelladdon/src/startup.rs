@@ -10,7 +10,7 @@ use eix_engine::win::{from_ansi, to_ansi};
 use eix_sites::Site;
 
 use crate::apply::{self, Merge};
-use crate::features::Ctx;
+use crate::features::{Action, Ctx};
 use crate::registry::{self, FEATURES};
 use crate::{Earlier, Level, Log};
 
@@ -227,7 +227,14 @@ pub(crate) fn run(mod_dir: &[u8], log: Log, addon: Earlier) {
             continue;
         };
         let owner = format!("SpellAddon {name}");
-        match eix_engine::owners::building(&owner, || build(&ctx, value)) {
+        let result = eix_engine::owners::building(&owner, || build(&ctx, value));
+        let actions = ctx.actions.take();
+        if result.is_ok() {
+            for action in actions {
+                perform(action, log);
+            }
+        }
+        match result {
             Ok(writes) if writes.is_empty() => {
                 if value != 0 {
                     log(
@@ -271,6 +278,28 @@ pub(crate) fn run(mod_dir: &[u8], log: Log, addon: Earlier) {
         ),
         "",
     );
+}
+
+/// Performs the external actions at their feature's place in startup order.
+fn perform(action: Action, log: Log) {
+    match action {
+        Action::ImportantAlerts => crate::features::startup::show_important_alerts(),
+        Action::VersionAlerts => crate::features::startup::show_version_alerts(log),
+        Action::AddFont(path) => {
+            // The original ignores the result; a failure is logged, the four names still apply.
+            if ansi::add_private_font(&path) == 0 {
+                log(
+                    Level::Warn,
+                    "spelladdon",
+                    &format!(
+                        "changefont: the font file {} was not added",
+                        String::from_utf8_lossy(&path)
+                    ),
+                    "",
+                );
+            }
+        }
+    }
 }
 
 fn read_values(profile: &impl Profile, text: &[u8], log: Log) -> Values {
