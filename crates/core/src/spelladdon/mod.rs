@@ -185,34 +185,18 @@ pub struct Diagnostic {
 pub fn duplicate_keys(text: &[u8]) -> Vec<Diagnostic> {
     use std::collections::BTreeMap;
 
-    let mut section = None;
     let mut first = BTreeMap::new();
     let mut diagnostics = Vec::new();
-    for line in text.split(|&c| c == b'\n') {
-        let line = line.trim_ascii();
-        if line.starts_with(b";") {
-            continue;
-        }
-        if let Some(rest) = line.strip_prefix(b"[") {
-            section = rest
-                .iter()
-                .position(|&c| c == b']')
-                .map(|end| rest[..end].trim_ascii().to_ascii_lowercase());
-            continue;
-        }
-        let Some(section) = &section else { continue };
-        let Some(equal) = line.iter().position(|&c| c == b'=') else {
-            continue;
-        };
-        let name = line[..equal].trim_ascii().to_ascii_lowercase();
-        let value = String::from_utf8_lossy(line[equal + 1..].trim_ascii()).into_owned();
-        let key = (section.clone(), name);
+    for (section, name, value) in crate::ini::entries(text) {
+        let section = section.to_ascii_lowercase();
+        let value = String::from_utf8_lossy(value).into_owned();
+        let key = (section.clone(), name.to_ascii_lowercase());
         if let Some(used) = first.get(&key) {
             diagnostics.push(Diagnostic {
                 warning: true,
                 key: format!(
                     "[{}] {:?}",
-                    String::from_utf8_lossy(section),
+                    String::from_utf8_lossy(&section),
                     String::from_utf8_lossy(&key.1)
                 ),
                 message: format!("duplicate key: using {used:?}, ignoring {value:?}"),

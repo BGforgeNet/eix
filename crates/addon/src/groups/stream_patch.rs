@@ -8,10 +8,10 @@
 
 use std::sync::OnceLock;
 
-use eix_engine::game::mfc::{self, GameString};
+use eix_engine::game::mfc::GameString;
 use eix_engine::hook::{self, Context};
 
-use super::{BuildError, Labelled, Setup, static_c_str};
+use super::{BuildError, Labelled, Setup, game_text};
 use crate::setup::path;
 
 /// The mod's `Stream\` folder: the text, and the address of the game string holding it.
@@ -41,15 +41,8 @@ extern "C" fn handler(_: usize, ctx: &mut Context) {
 
 pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     let folder = [&setup.mod_dir[..], b"Stream\\"].concat();
-    let text = static_c_str(folder.clone())?;
-    let string: &'static mut GameString = Box::leak(Box::new(GameString {
-        chars: core::ptr::null_mut(),
-    }));
-    let address = core::ptr::from_mut(string);
-    // SAFETY: the build is a supported one (checked before the WinMain hook); the slot is fresh, writable and holds no
-    // string; this runs on the game's thread before WinMain.
-    unsafe { mfc::construct(address, text) };
-    let _ = FOLDER.set((folder, address.expose_provenance()));
+    let address = game_text::game_string(folder.clone())?;
+    let _ = FOLDER.set((folder, address));
     let (write, _) = hook::call_hook(
         eix_sites::C_SOUND_MANAGER_READ_STREAM_VANILLA__288,
         [0xE8, 0x72, 0x55, 0x04, 0x00],

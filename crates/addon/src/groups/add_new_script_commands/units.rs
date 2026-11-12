@@ -2,6 +2,7 @@
 //! data is its server controller (the unit's +0x240).
 #![expect(unsafe_code, reason = "reading the game's units and objects")]
 
+use eix_core::rules::TEXT_KEY_IDS;
 use eix_core::script::{self, ExpKind, Skill};
 use eix_engine::float::ftol;
 use eix_engine::game::flow;
@@ -13,9 +14,6 @@ use eix_engine::game::world::{OBJECT_MAP, ObjectMap, SECTOR_MAP, SectorMap};
 
 use super::{Call, invalid_arguments};
 use crate::report;
-
-/// Ids from here on are text keys: the player's and the named units'.
-const TEXT_KEY: i32 = 1_000_000_000;
 
 /// Whether `object` is a unit.
 ///
@@ -129,7 +127,7 @@ pub(super) fn get_armor(call: &Call) -> bool {
         // SAFETY: as above; the controller's unit is live.
         let unit = unsafe { (*data).unit };
         // SAFETY: as above.
-        let text_key = unsafe { (*unit).map_object.transform.base.id } >= TEXT_KEY;
+        let text_key = unsafe { (*unit).map_object.transform.base.id } >= TEXT_KEY_IDS;
         // SAFETY: as above.
         let block = unsafe { Unit::protection_block(unit, text_key) };
         call.set_float(block[part]);
@@ -164,7 +162,7 @@ impl Filter {
         // SAFETY: passed on.
         let unit = unsafe { is_unit(object) };
         // SAFETY: as above.
-        let text_key = unsafe { (*object).id } >= TEXT_KEY;
+        let text_key = unsafe { (*object).id } >= TEXT_KEY_IDS;
         // SAFETY: as above; the dead test is asked only of text-key objects, as in the original.
         let alive = text_key && unsafe { EngineObject::is_dead(object) } == 0;
         (if unit { self.units } else { self.others }) || (alive && self.living)
@@ -400,7 +398,7 @@ pub(super) fn is_player(call: &Call) -> bool {
     if !object.is_null() && unsafe { is_unit(object) } {
         // SAFETY: a unit, as just checked.
         let unit = unsafe { &*object.cast::<Unit>() };
-        if unit.map_object.transform.base.id >= TEXT_KEY && !unit.player.is_null() {
+        if unit.map_object.transform.base.id >= TEXT_KEY_IDS && !unit.player.is_null() {
             call.set_float(1.0);
         }
     }

@@ -167,16 +167,6 @@ pub fn str_mid(len: i32, start: i32, count: i32) -> Option<(usize, usize)> {
     Some((first, last.max(first)))
 }
 
-/// `IsFileExists`' refusal: with `\` read as `/`, the path is `..`, contains `/../`, starts with `../` or ends with
-/// `/..`.
-pub fn path_climbs(path: &[u8]) -> bool {
-    let p: Vec<u8> = path
-        .iter()
-        .map(|&c| if c == b'\\' { b'/' } else { c })
-        .collect();
-    p == b".." || p.windows(4).any(|w| w == b"/../") || p.starts_with(b"../") || p.ends_with(b"/..")
-}
-
 /// `GetUnitExp`'s kinds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExpKind {
@@ -431,16 +421,6 @@ mod tests {
         assert_eq!(str_mid(6, 9, 2), Some((5, 6)));
         assert_eq!(str_mid(6, 2, -1), None);
         assert_eq!(str_mid(0, 1, 0), Some((0, 0)));
-    }
-
-    #[test]
-    fn climbing_paths_are_refused() {
-        assert!(path_climbs(b".."));
-        assert!(path_climbs(b"a\\..\\b"));
-        assert!(path_climbs(b"../x"));
-        assert!(path_climbs(b"x/.."));
-        assert!(!path_climbs(b"a..b"));
-        assert!(!path_climbs(b"maps\\zone1.mob"));
     }
 
     #[test]

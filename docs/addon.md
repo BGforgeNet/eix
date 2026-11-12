@@ -204,6 +204,10 @@ addon.dll adds functions and commands to the game's script language, and replace
 [script reference](scripting.md) lists them with the rest of the language, tagged `eix`, with the differences from
 addon.dll 0.12.4.2.
 
+`IsFileExists` accepts only paths below the mod folder. It refuses empty or rooted paths, colons, NUL bytes, and
+parent-folder components, including Windows spellings such as `...` and `.. `. A refused path reports the existing
+`'..' string literal is forbidden` error and leaves the result unchanged.
+
 ## Loader and start-up behavior
 
 Only the differences; everything else behaves as the original.

@@ -3,6 +3,7 @@
 
 use std::ffi::{CStr, CString};
 
+use eix_core::rules::TEXT_KEY_IDS;
 use eix_core::script;
 use eix_engine::float::ftol;
 use eix_engine::game::console;
@@ -18,9 +19,6 @@ use eix_engine::win::{file_exists, from_ansi};
 
 use super::{Call, MOD_DIR, invalid_arguments};
 use crate::{ini, report};
-
-/// Ids from here on are text keys: the player's and the named units'.
-const TEXT_KEY: i32 = 1_000_000_000;
 
 /// The player with the number of float argument `i`, or null.
 fn player(call: &Call, i: usize) -> (i32, *mut Player) {
@@ -274,13 +272,9 @@ pub(super) fn game_over_msg(call: &Call) -> bool {
 /// the result left alone.
 pub(super) fn is_file_exists(call: &Call) -> bool {
     let name = call.string(0).to_bytes();
-    if script::path_climbs(name) {
+    let Some(relative) = eix_core::ini::mod_relative_path(name) else {
         return report::script_error("IsFileExists", b"'..' string literal is forbidden");
-    }
-    let relative: Vec<u8> = name
-        .iter()
-        .map(|&c| if c == b'\\' { b'/' } else { c })
-        .collect();
+    };
     let base = MOD_DIR.get().map(Vec::as_slice).unwrap_or_default();
     let path = [base, &relative].concat();
     call.set_float(if file_exists(&from_ansi(&path)) {
@@ -360,7 +354,7 @@ pub(super) fn give_unit_weapon(call: &Call) -> bool {
     // SAFETY: the server world, in a zone; `name` is NUL-terminated.
     let item = unsafe { World::create_item(SERVER_WORLD.as_ptr(), name) };
     // SAFETY: a live unit.
-    if stats_from_item && unsafe { (*unit).map_object.transform.base.id } >= TEXT_KEY {
+    if stats_from_item && unsafe { (*unit).map_object.transform.base.id } >= TEXT_KEY_IDS {
         report::script_warning(
             b"GiveUnitWeapon: third param (override stats) can be applyed only on non-heroes units. Ignored",
         );
@@ -449,7 +443,7 @@ pub(super) fn give_unit_armor(call: &Call) -> bool {
     // SAFETY: the server world, in a zone; `name` is NUL-terminated.
     let item = unsafe { World::create_item(SERVER_WORLD.as_ptr(), name) };
     // SAFETY: a live unit.
-    if stats_from_items && unsafe { (*unit).map_object.transform.base.id } >= TEXT_KEY {
+    if stats_from_items && unsafe { (*unit).map_object.transform.base.id } >= TEXT_KEY_IDS {
         report::script_warning(
             b"GiveUnitArmor: third param (override stats) can be applyed only on non-heroes units. Ignored",
         );

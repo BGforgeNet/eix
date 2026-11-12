@@ -91,34 +91,48 @@ pub struct Document {
     entries: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)>,
 }
 
+/// Section, key and raw value of each INI entry, with surrounding spaces removed. A section without `]` uses the
+/// rest of its line as its name, just as the value reader does.
+pub(crate) fn entries(text: &[u8]) -> impl Iterator<Item = (&[u8], &[u8], &[u8])> {
+    let mut section = None;
+    text.split(|&c| c == b'\n').filter_map(move |line| {
+        let line = line.trim_ascii();
+        if line.is_empty() || line.starts_with(b";") {
+            return None;
+        }
+        if let Some(rest) = line.strip_prefix(b"[") {
+            section = Some(
+                rest.split(|&c| c == b']')
+                    .next()
+                    .unwrap_or(rest)
+                    .trim_ascii(),
+            );
+            return None;
+        }
+        let current = section?;
+        let at = line.iter().position(|&c| c == b'=')?;
+        let key = line[..at].trim_ascii();
+        if key.is_empty() {
+            return None;
+        }
+        Some((current, key, line[at + 1..].trim_ascii()))
+    })
+}
+
 impl Document {
     /// The values of `text`.
     pub fn parse(text: &[u8]) -> Self {
         let mut entries = Vec::new();
-        let mut section: Option<Vec<u8>> = None;
-        for line in text.split(|&c| c == b'\n') {
-            let line = line.trim_ascii();
-            if line.is_empty() || line.starts_with(b";") {
-                continue;
-            }
-            if let Some(rest) = line.strip_prefix(b"[") {
-                let name = rest.split(|&c| c == b']').next().unwrap_or(rest);
-                section = Some(name.trim_ascii().to_ascii_lowercase());
-                continue;
-            }
-            let (Some(current), Some(at)) = (&section, line.iter().position(|&c| c == b'=')) else {
-                continue;
-            };
-            let key = line[..at].trim_ascii();
-            if key.is_empty() {
-                continue;
-            }
-            let value = line[at + 1..].trim_ascii();
+        for (section, key, value) in self::entries(text) {
             let value = match value {
                 [b'"', inner @ .., b'"'] => inner,
                 other => other,
             };
-            entries.push((current.clone(), key.to_ascii_lowercase(), value.to_vec()));
+            entries.push((
+                section.to_ascii_lowercase(),
+                key.to_ascii_lowercase(),
+                value.to_vec(),
+            ));
         }
         Self { entries }
     }

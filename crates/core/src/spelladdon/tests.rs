@@ -334,6 +334,21 @@ fn duplicates_warn_for_each_ignored_value_including_unknown_keys() {
 }
 
 #[test]
+fn an_unclosed_section_uses_the_rest_of_the_line_as_its_name() {
+    let text = b"[gameplay]\nkey=1\n[other\nkey=2\nKEY=3\n";
+    let doc = crate::ini::Document::parse(text);
+    assert_eq!(doc.get(b"gameplay", b"key"), Some(&b"1"[..]));
+    assert_eq!(doc.get(b"other", b"key"), Some(&b"2"[..]));
+    let messages = duplicate_keys(text);
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0].key, "[other] \"key\"");
+    assert_eq!(
+        messages[0].message,
+        "duplicate key: using \"2\", ignoring \"3\""
+    );
+}
+
+#[test]
 fn integers_keep_their_width() {
     let v = Values::read(&Fake::with(&[
         ("gameplay", "maxcountofmerc", "300"),

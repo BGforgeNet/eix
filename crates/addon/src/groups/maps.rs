@@ -13,12 +13,11 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use eix_core::mod_files::MapsIndex;
-use eix_engine::game::mfc::{self, GameString};
 use eix_engine::hook::{self, Context, Mode};
 use eix_sites::Site;
 
 use super::arg_path::c_str;
-use super::{BuildError, Labelled, Setup, static_c_str};
+use super::{BuildError, Labelled, Setup, game_text};
 use crate::log;
 use crate::setup::{ansi, path};
 
@@ -180,15 +179,8 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
         &maps.display().to_string(),
     );
     let _ = INDEX.set(index);
-    let text = static_c_str(setup.mod_dir.clone())?;
-    let string: &'static mut GameString = Box::leak(Box::new(GameString {
-        chars: core::ptr::null_mut(),
-    }));
-    let address = core::ptr::from_mut(string);
-    // SAFETY: the build is a supported one (checked before the WinMain hook); the slot is fresh, writable and holds no
-    // string; this runs on the game's thread before WinMain.
-    unsafe { mfc::construct(address, text) };
-    let _ = MOD_FOLDER.set(address.expose_provenance() as u32);
+    let address = game_text::game_string(setup.mod_dir.clone())?;
+    let _ = MOD_FOLDER.set(address as u32);
     let mut out = Vec::new();
     for (i, (label, site, original, _)) in SITES.iter().enumerate() {
         out.push(Labelled {
