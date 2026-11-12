@@ -383,7 +383,7 @@ extern "C" fn possession_register(_: usize, ctx: &mut Context) {
     // SAFETY: as above.
     ctx.ecx = unsafe { read::<u32>(ctx.ebp - 0x14) };
     // SAFETY: as above.
-    ctx.eax = unsafe { read::<u32>(caster + 0x0C) };
+    ctx.eax = unsafe { read::<u32>(target + 0x0C) };
 }
 
 /// `possessionpatch` = 1: Possession no longer takes the caster's sight.
