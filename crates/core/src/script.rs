@@ -97,7 +97,8 @@ pub fn signature_step(rest: &[u8], previous: Option<u8>, at_close: bool) -> Sign
 }
 
 /// Whether a record's signature passes the addon's check before it is registered: argument letters only from
-/// `fgos+?`; a `?` followed by an argument letter, then the end or another `?`; a `+` only last and not first.
+/// `fgos+?`; a `+` only last and not first. A `?` is accepted when the next byte is one of `fgos`, or the byte two
+/// places later is absent or `?` (so `F?`, `F??` and `F?ff` all pass).
 pub fn signature_is_valid(signature: &[u8]) -> bool {
     let args = if is_function_signature(signature) {
         &signature[1..]
@@ -389,6 +390,13 @@ mod tests {
         assert!(!signature_is_valid(b"Fx"));
         assert!(!signature_is_valid(b"+f"));
         assert!(!signature_is_valid(b"f+f"));
+    }
+
+    #[test]
+    fn question_marks_accept_short_and_repeated_optional_suffixes() {
+        assert!(signature_is_valid(b"F?"));
+        assert!(signature_is_valid(b"F??"));
+        assert!(signature_is_valid(b"F?ff"));
     }
 
     #[test]
