@@ -33,8 +33,6 @@ const SPELL_KIND_TABLE_BYTES: [u8; CASTER_ENTRIES as usize] = [
     0x08, 0x03, 0x07, 0x04, 0x07, 0x04, 0x05, 0x08, 0x05, 0x05, 0x05, 0x05, 0x00, 0x00, 0x90, 0x90,
     0x90, 0x90, 0x90, 0x90, 0x90, 0x90,
 ];
-/// `CSpell::IsOffensive`'s bound, the operand of `cmp eax, 0x26` at 0x68B776.
-const IS_OFFENSIVE_BOUND: Site = eix_sites::C_SPELL_IS_OFFENSIVE__8;
 /// `CSpell::IsOffensive`'s byte table, one entry per spell type: `[aioffendtable] 0` to `37`.
 const IS_OFFENSIVE_TABLE: Site = eix_sites::C_SPELL_IS_OFFENSIVE__28;
 const IS_OFFENSIVE_TABLE_BYTES: [u8; 38] = [
@@ -42,9 +40,6 @@ const IS_OFFENSIVE_TABLE_BYTES: [u8; 38] = [
     0x01, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01,
     0x00, 0x01, 0x00, 0x01, 0x00, 0x01,
 ];
-/// What `newbigtables` makes of the table address's low byte and of `IsOffensive`'s bound.
-const NEW_BIG_TABLES: u8 = 0x57;
-
 /// The low byte of each `[<section>] 0` .. `<count - 1>`.
 fn table(ctx: &Ctx<'_>, section: &str, count: usize) -> Result<Vec<u8>, BuildError> {
     (0..count)
@@ -52,23 +47,14 @@ fn table(ctx: &Ctx<'_>, section: &str, count: usize) -> Result<Vec<u8>, BuildErr
         .collect()
 }
 
-fn new_big_tables_on(ctx: &Ctx<'_>) -> Result<bool, BuildError> {
-    Ok(ctx.values.flag("gameplay", "newbigtables")? == 1)
-}
-
 /// `rebuildedaicastertable` = 1: `SpellKind` maps 54 spell types through the INI's table, which starts 4 bytes
-/// before the game's (11 bytes after it with `newbigtables`, whose table then reads past what was written).
+/// before the game's.
 pub(crate) fn caster_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
-    let low = if new_big_tables_on(ctx)? {
-        NEW_BIG_TABLES
-    } else {
-        SPELL_KIND_TABLE.ru() as u8
-    };
     let mut lookup = SPELL_KIND_LOOKUP_WAS;
-    lookup[2] = low;
+    lookup[2] = SPELL_KIND_TABLE.ru() as u8;
     Ok(vec![
         SiteWrite::bytes(SPELL_KIND_BOUND, &[0x29], &[CASTER_ENTRIES])?,
         SiteWrite::bytes(SPELL_KIND_LOOKUP, &SPELL_KIND_LOOKUP_WAS, &lookup)?,
@@ -80,31 +66,23 @@ pub(crate) fn caster_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, B
     ])
 }
 
-/// `newbigtables` writes only inside the two table blocks (both builds read it); its third test moves an arena
-/// offset of a later block and writes nothing.
+/// `newbigtables` = 1 is in the registry's skip list, and the tables above ignore it: the original moves the caster
+/// lookup past the table it writes and raises `IsOffensive`'s bound past its 39 entries, so spell types from 39 on
+/// read code bytes as jump-table slots.
 pub(crate) fn new_big_tables(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
     Ok(Vec::new())
 }
 
-/// `rebuildedaioffendtable` = 1: `IsOffensive`'s table comes from the INI (0 harmful, 1 friendly); `newbigtables`
-/// raises its bound to 0x57 without a longer table.
+/// `rebuildedaioffendtable` = 1: `IsOffensive`'s table comes from the INI (0 harmful, 1 friendly).
 pub(crate) fn offend_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
-    let mut writes = vec![SiteWrite::bytes(
+    Ok(vec![SiteWrite::bytes(
         IS_OFFENSIVE_TABLE,
         &IS_OFFENSIVE_TABLE_BYTES,
         &table(ctx, "aioffendtable", IS_OFFENSIVE_TABLE_BYTES.len())?,
-    )?];
-    if new_big_tables_on(ctx)? {
-        writes.push(SiteWrite::bytes(
-            IS_OFFENSIVE_BOUND,
-            &[0x26],
-            &[NEW_BIG_TABLES],
-        )?);
-    }
-    Ok(writes)
+    )?])
 }
 
 /// `je 0x5CAE03` at `AIViewer::Update`+0x2A0, the "lost from sight" jump after the radius test.
@@ -1200,7 +1178,6 @@ mod tests {
     #[rustfmt::skip]
     const ORIGINAL: &[Original] = &[
         ("aicastertable", "rebuildedaicastertable", 1, &[], &[(eix_sites::AI_ATTENTION_SPELL_KIND__13, "36"), (eix_sites::AI_ATTENTION_SPELL_KIND__1A, "48"), (eix_sites::AI_ATTENTION_SPELL_KIND__88, "08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08"), (eix_sites::AI_ATTENTION_SPELL_KIND__A4, "08 08 08"), (eix_sites::AI_ATTENTION_SPELL_KIND__A9, "08 08 08 08 08 08"), (eix_sites::AI_ATTENTION_SPELL_KIND__B0, "08 08 08 08 08 08 08 08 08 08 08 08 08 08")]),
-        ("aicastertable", "rebuildedaicastertable", 1, &[("gameplay", "newbigtables", "1"), ("aioffendtable", "rebuildedaioffendtable", "1")], &[(eix_sites::AI_ATTENTION_SPELL_KIND__13, "36"), (eix_sites::AI_ATTENTION_SPELL_KIND__1A, "57"), (eix_sites::AI_ATTENTION_SPELL_KIND__88, "08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08"), (eix_sites::AI_ATTENTION_SPELL_KIND__A4, "08 08 08"), (eix_sites::AI_ATTENTION_SPELL_KIND__A9, "08 08 08 08 08 08"), (eix_sites::AI_ATTENTION_SPELL_KIND__B0, "08 08 08 08 08 08 08 08 08 08 08 08 08 08"), (eix_sites::C_SPELL_IS_OFFENSIVE__8, "57"), (eix_sites::C_SPELL_IS_OFFENSIVE__28, "08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08")]),
         ("aioffendtable", "rebuildedaioffendtable", 1, &[], &[(eix_sites::C_SPELL_IS_OFFENSIVE__28, "08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08 08")]),
         ("gameplay", "visionfix", 1, &[], &[(eix_sites::AI_VIEWER_UPDATE__2A0, "90 90 90 90 90 90"), (eix_sites::AI_VIEWER_UPDATE__2FC, "90 90 90 90 90 90")]),
         ("gameplay", "visionfix", 1, &[("gameplay", "aggrmod", "6")], &[(eix_sites::AI_VIEWER_UPDATE__280, "EB"), (eix_sites::AI_VIEWER_UPDATE__2A0, "90 90 90 90 90 90"), (eix_sites::AI_VIEWER_UPDATE__2CC, "74 1E D9 81 D4 02 00 00 D8 8A A4 02 00 00 D8 4D F4 D8 5D F8 DF E0 F6 C4 41 74 05 E9 ?? ?? ?? ?? 90 90 90 90 90 90 90 E9 0B 01 00 00 90 90 90 90 90 90 90 90 90 90")]),
@@ -1323,29 +1300,22 @@ mod tests {
     }
 
     #[test]
-    fn new_big_tables_moves_the_caster_table_and_raises_the_offend_bound() {
-        let v = values(&[
+    fn new_big_tables_changes_neither_table() {
+        let big = values(&[
             ("gameplay", "newbigtables", "1"),
             ("aioffendtable", "1", "1"),
         ]);
-        let ctx = Ctx::new(&v, no_log);
-        assert_eq!(plain(&caster_table(&ctx, 1).unwrap())[1].2[2], 0x57);
-        let mut table = vec![8u8; 38];
-        table[1] = 1;
+        let plain_ini = values(&[("aioffendtable", "1", "1")]);
+        let big = Ctx::new(&big, no_log);
+        let plain_ini = Ctx::new(&plain_ini, no_log);
         assert_eq!(
-            plain(&offend_table(&ctx, 1).unwrap()),
-            [
-                (
-                    eix_sites::C_SPELL_IS_OFFENSIVE__28,
-                    IS_OFFENSIVE_TABLE_BYTES.to_vec(),
-                    table
-                ),
-                (eix_sites::C_SPELL_IS_OFFENSIVE__8, vec![0x26], vec![0x57])
-            ]
+            plain(&caster_table(&big, 1).unwrap()),
+            plain(&caster_table(&plain_ini, 1).unwrap())
         );
-        assert!(new_big_tables(&ctx, 1).unwrap().is_empty());
-        let v = values(&[]);
-        let ctx = Ctx::new(&v, no_log);
-        assert_eq!(plain(&offend_table(&ctx, 1).unwrap()).len(), 1);
+        assert_eq!(
+            plain(&offend_table(&big, 1).unwrap()),
+            plain(&offend_table(&plain_ini, 1).unwrap())
+        );
+        assert!(new_big_tables(&big, 1).unwrap().is_empty());
     }
 }

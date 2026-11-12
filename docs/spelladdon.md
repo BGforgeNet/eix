@@ -172,7 +172,7 @@ entry strips items. Set `QuIs` to the active quest-item count when using `camp=4
 | `visioninweather` | 1: use `visionweathermul` in bad weather. | same |
 | `nightvisionincaves` | 1+: dark zones always use night vision, without daytime growth. | same |
 | `nightpowervisionpatch` | 1: ramp night level between `visionevening`/`visionnight` and `visionmorning`/`visionday`, with slope `visionmulpowbetween`. | same |
-| `newbigtables` | 1: alter the rebuilt AI tables' positions/bounds. Requires the corresponding rebuild switches; it supplies no extra entries. The caster lookup shifts beyond the written table, and the offensive bound grows beyond its 38 entries. | same |
+| `newbigtables` | 1 is skipped. | 1 skipped (with a rebuilt AI table, spell types from 39 on jump through code bytes) |
 | `allvisible` | 1 is skipped. | 1 skipped (corrupts the options load) |
 | `sizerebalance` | 1-3 are skipped. | 1-3 skipped (corrupts the unit) |
 | `unitsrunfromdangers` | 1 is skipped. | 1 skipped (passes a point as a unit) |
@@ -452,7 +452,7 @@ switch is odd. Modes 2/5/7 apply all bonuses. `effectredraws=1` displays all bon
 
 | Section | Keys | Default | Accepted meaning |
 |---|---|---|---|
-| `aicastertable` | `0` through `53` | All 8 | B; 0 missile, 1 area attack, 2 lasting area attack, 3 out-of-combat buff, 4 combat buff, 5 unused, 6 healing, 7 debuff, 8 unused. Used with `rebuildedaicastertable=1`; with `newbigtables=1`, key n no longer classifies spell type n. |
+| `aicastertable` | `0` through `53` | All 8 | B; 0 missile, 1 area attack, 2 lasting area attack, 3 out-of-combat buff, 4 combat buff, 5 unused, 6 healing, 7 debuff, 8 unused. Used with `rebuildedaicastertable=1`. |
 | `aioffendtable` | `0` through `37` | All 8 | B; 0 harmful, 1 friendly. Set meaningful entries before enabling `rebuildedaioffendtable=1`; the default 8 is not a normal classification. |
 
 ### Read-only placeholders - `[gameplay]`

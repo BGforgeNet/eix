@@ -59,6 +59,9 @@ pub(crate) fn skipped(f: &Feature, value: i8, values: &Values) -> Option<&'stati
         ("gameplay", "nightpower", 1) => {
             Some("the original turns every attack and defence value into garbage")
         }
+        ("gameplay", "newbigtables", 1) => {
+            Some("the original jumps through code bytes for spell types 39 and up")
+        }
         ("gameplay", "randomlessaimedhits", 10) => Some("the original calls code it never wrote"),
         ("gameplay", "armorspell", 1) => Some("the original corrupts the stats refresh"),
         ("gameplay", "vampirism", 1) => Some("the original runs unfinished code"),
@@ -408,5 +411,6 @@ mod tests {
         assert!(skipped(find("randomlessaimedhits"), 9, &alone).is_none());
         assert!(skipped(find("scriptchecking"), 7, &alone).is_none());
         assert!(skipped(find("scriptchecking"), 8, &alone).is_some());
+        assert!(skipped(find("newbigtables"), 1, &alone).is_some());
     }
 }
