@@ -475,14 +475,14 @@ pub(crate) fn last_spells_damage_type(
         }
     }
     DAMAGE_SLOTS.store(u32::from_le_bytes(slots), Ordering::Relaxed);
+    let mut checks = Vec::new();
     for (tail, site) in DAMAGE_TAILS
         .iter()
         .zip([DAMAGE_LIGHTNING_TAIL, DAMAGE_FIRE_TAIL])
     {
-        tail.store(
-            hook::trampoline(site, &DAMAGE_TAIL_BYTES)?,
-            Ordering::Relaxed,
-        );
+        let (check, copy) = hook::trampoline(site, &DAMAGE_TAIL_BYTES)?;
+        checks.push(check);
+        tail.store(copy, Ordering::Relaxed);
     }
     // The original's layout at both sites: `nop; jmp <added code>`.
     let mut writes = common::jump_at(DAMAGE_LIGHTNING, &DAMAGE_LIGHTNING_BYTES, 1, damage_type, 0)?;
@@ -493,6 +493,7 @@ pub(crate) fn last_spells_damage_type(
         damage_type,
         1,
     )?);
+    writes.extend(checks);
     Ok(writes)
 }
 

@@ -59,7 +59,8 @@ extern "C" fn cost(_: usize, ctx: &mut Context) {
 }
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
-    MULTIPLY.store(hook::trampoline(COST, &COST_MULTIPLY)?, Ordering::SeqCst);
+    let (check, multiply) = hook::trampoline(COST, &COST_MULTIPLY)?;
+    MULTIPLY.store(multiply, Ordering::SeqCst);
     Ok(vec![
         Labelled {
             label: "FixRepairPrice #0".to_owned(),
@@ -67,7 +68,8 @@ pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
         },
         Labelled {
             label: "FixRepairPrice #1".to_owned(),
-            write: hook::context_hook(COST, &COST_MULTIPLY[..5], Mode::Drop, cost, 0)?,
+            write: hook::context_hook(COST, &COST_MULTIPLY[..5], Mode::Drop, cost, 0)?
+                .requiring(check),
         },
     ])
 }

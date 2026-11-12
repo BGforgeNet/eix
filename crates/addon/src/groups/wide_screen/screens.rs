@@ -198,13 +198,11 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
     )?;
     SET_MODE_ORIGINAL.store(set_mode_original, Ordering::SeqCst);
 
-    AXIS_SWAP_RESUME.store(
-        hook::trampoline(
-            AXIS_SWAP.offset(AXIS_SWAP_REST),
-            &AXIS_SWAP_ORIGINAL[AXIS_SWAP_REST..AXIS_SWAP_END],
-        )?,
-        Ordering::SeqCst,
-    );
+    let (check, resume) = hook::trampoline(
+        AXIS_SWAP.offset(AXIS_SWAP_REST),
+        &AXIS_SWAP_ORIGINAL[AXIS_SWAP_REST..AXIS_SWAP_END],
+    )?;
+    AXIS_SWAP_RESUME.store(resume, Ordering::SeqCst);
     let axis = l.axis_scale().to_bits() as usize;
 
     let mut font = vec![0xD8, 0x0D];
@@ -228,7 +226,8 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
         (
             91,
             hook::context_hook(AXIS_SWAP, &AXIS_SWAP_ORIGINAL, Mode::Drop, axis_swap, axis)?
-                .padded(0xCC),
+                .padded(0xCC)
+                .requiring(check),
         ),
     ])
 }

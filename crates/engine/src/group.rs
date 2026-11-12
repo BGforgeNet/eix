@@ -90,6 +90,7 @@ pub struct SiteWrite {
     expected: Vec<u8>,
     new: Vec<u8>,
     bytes: Space,
+    checks: Vec<Self>,
 }
 
 /// Whose bytes a write holds.
@@ -116,6 +117,7 @@ impl SiteWrite {
             expected: expected.to_vec(),
             new: new.to_vec(),
             bytes: Space::Ru(Kind::Section),
+            checks: Vec::new(),
         })
     }
 
@@ -143,6 +145,7 @@ impl SiteWrite {
             expected: expected.to_vec(),
             new: vec![0x90; expected.len()],
             bytes: Space::Ru(Kind::Section),
+            checks: Vec::new(),
         }
     }
 
@@ -171,6 +174,7 @@ impl SiteWrite {
             new,
             // A branch is code wherever it lies: the original put some into `.data`.
             bytes: Space::Ru(Kind::Code),
+            checks: Vec::new(),
         })
     }
 
@@ -183,7 +187,31 @@ impl SiteWrite {
             new: (new as u32).to_le_bytes().to_vec(),
             // A pointer is data wherever it lies: jump tables sit in `.text`.
             bytes: Space::Ru(Kind::Data),
+            checks: Vec::new(),
         }
+    }
+
+    /// Checks code without writing it, for instructions copied into a trampoline or covered by a hook.
+    pub(crate) fn check_code(site: Site, expected: &[u8]) -> Self {
+        Self {
+            site,
+            expected: expected.to_vec(),
+            new: Vec::new(),
+            bytes: Space::Ru(Kind::Code),
+            checks: Vec::new(),
+        }
+    }
+
+    /// Requires another site's expected bytes before this write can be applied. The requirement writes nothing.
+    pub fn requiring(mut self, mut check: Self) -> Self {
+        check.new.clear();
+        self.checks.push(check);
+        self
+    }
+
+    /// The verify-only requirements a merge must retain when it replaces this write.
+    pub fn checks(&self) -> &[Self] {
+        &self.checks
     }
 
     /// This branch write with every byte after its 5-byte branch set to `byte` instead of a NOP: `int3` (CC) marks
@@ -226,6 +254,10 @@ impl SiteWrite {
     /// # Safety
     /// As for [`patch::verify`].
     unsafe fn verify(&self) -> Result<(), PatchError> {
+        for check in &self.checks {
+            // SAFETY: the caller guarantees every required range is mapped and not written meanwhile.
+            unsafe { check.verify() }?;
+        }
         match self.bytes {
             // SAFETY: the caller's guarantee.
             Space::Native => unsafe { patch::verify_native(self.site, &self.expected) },
@@ -239,6 +271,9 @@ impl SiteWrite {
     /// # Safety
     /// As for [`patch::write`].
     unsafe fn write(&self, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
+        if self.new.is_empty() {
+            return Ok(());
+        }
         match self.bytes {
             // SAFETY: the caller's guarantee.
             Space::Native => unsafe { patch::write_native(self.site, expected, new) },
@@ -293,8 +328,8 @@ impl fmt::Display for Report {
 /// then every write is made. A failed write undoes the ones before it.
 ///
 /// # Safety
-/// Every site must be mapped memory of this process that no other thread runs or writes while the call lasts, and
-/// each write must leave code and data the game can run with.
+/// Every site, including verify-only requirements, must be mapped memory of this process that no other thread runs
+/// or writes while the call lasts. Each write must leave code and data the game can run with.
 pub unsafe fn apply(
     name: &'static str,
     enabled: bool,
@@ -312,7 +347,9 @@ pub unsafe fn apply(
             // SAFETY: the caller's guarantees, passed on.
             unsafe { write_all(&writes) }?;
             for w in &writes {
-                crate::owners::site(w.site.here(), w.new.len(), name);
+                if !w.new.is_empty() {
+                    crate::owners::site(w.site.here(), w.new.len(), name);
+                }
             }
             Ok(())
         });

@@ -37,6 +37,7 @@ pub(crate) fn unprotect_image() -> Result<(), String> {
 #[derive(Debug)]
 pub(crate) struct Merge {
     bytes: BTreeMap<usize, (u8, u8)>,
+    checks: Vec<SiteWrite>,
     addon: crate::types::Earlier,
 }
 
@@ -120,6 +121,7 @@ impl Merge {
     pub(crate) fn new(addon: crate::types::Earlier) -> Self {
         Self {
             bytes: BTreeMap::new(),
+            checks: Vec::new(),
             addon,
         }
     }
@@ -131,12 +133,18 @@ impl Merge {
     /// feature is kept.
     pub(crate) fn add(&mut self, writes: &[SiteWrite]) -> Result<Vec<Site>, String> {
         let mut bytes = self.bytes.clone();
+        let mut checks = self.checks.clone();
         let mut taken = Vec::new();
         // The merge compares and keeps the running build's bytes; each address stays RU 1.06's. Each write is made
         // the build's by itself, as its own kind, against what the earlier features leave there.
         let mut pieces = Vec::with_capacity(writes.len());
         for w in writes {
             let site = w.site().ru();
+            checks.extend_from_slice(w.checks());
+            if w.size() == 0 {
+                checks.push(w.clone());
+                continue;
+            }
             if site < IMAGE.start || site + w.size() > IMAGE.end {
                 return Err(format!(
                     "{site:#x}+{} is outside game.exe's patchable image",
@@ -156,6 +164,15 @@ impl Merge {
                 patch::localize_against(w.site(), w.kind(), w.expected(), w.new_bytes(), &found)
             };
             pieces.push((site, expected, new));
+        }
+        for check in &checks {
+            let site = check.site().ru();
+            if site < IMAGE.start || site + check.expected().len() > IMAGE.end {
+                return Err(format!(
+                    "{site:#x}+{} is outside game.exe's patchable image",
+                    check.expected().len()
+                ));
+            }
         }
         for (site, expected_run, new_run) in contiguous_runs(&pieces) {
             // SAFETY: as above.
@@ -191,12 +208,13 @@ impl Merge {
             }
         }
         self.bytes = bytes;
+        self.checks = checks;
         Ok(taken)
     }
 
     /// The merged writes: one per run of consecutive changed addresses, in the running build's bytes.
     fn writes(&self) -> Result<Vec<SiteWrite>, patch::PatchError> {
-        let mut writes = Vec::new();
+        let mut writes = self.checks.clone();
         let mut run: Option<(usize, Vec<u8>, Vec<u8>)> = None;
         for (&at, &(was, now)) in &self.bytes {
             match &mut run {
@@ -301,6 +319,25 @@ mod tests {
         assert!(!is_separate_spelladdon(b"C:\\Game\\mp3dec.asi"));
         assert!(!is_separate_spelladdon(b"C:\\SpellAddon\\EI_Plugin.asi"));
         assert!(!is_separate_spelladdon(b"SpellAddonXa.asi.bak"));
+    }
+
+    #[test]
+    fn merged_writes_keep_trampoline_requirements() {
+        let mut source = [0x90; 7];
+        let site = Site::of(source.as_mut_ptr() as usize);
+        let (check, _) = hook::trampoline(site, &[0x90; 7]).unwrap();
+        let mut other = [0x42];
+        let other_site = Site::of(other.as_mut_ptr() as usize);
+        let mut merged = Merge::default();
+        merged.checks.push(check);
+        merged.bytes.insert(other_site.ru(), (0x42, 0x90));
+        source[6] = 0xCC;
+        assert!(matches!(merged.apply().outcome, Outcome::Failed {
+            error: hook::HookError::Patch(patch::PatchError::Mismatch { site: at, .. }),
+            ref unrestored,
+        } if at == site && unrestored.is_empty()));
+        assert_eq!(source, [0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xCC]);
+        assert_eq!(other, [0x42]);
     }
 
     /// game.exe is not loaded in a test, so merging is checked on the run-forming step alone.

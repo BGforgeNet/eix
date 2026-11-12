@@ -554,14 +554,17 @@ pub(crate) fn new_attack_defence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWri
             &RESOLVE_HIT_MARK_WAS,
             &resolve_hit_mark(value),
         )?);
-        let copy = hook::trampoline(RESOLVE_END, &RESOLVE_END_WAS)?;
-        writes.push(common::branch(
-            RESOLVE_END,
-            &RESOLVE_END_WAS,
-            &[0x90, 0x90, 0xE9, 0, 0, 0, 0],
-            2,
-            copy,
-        )?);
+        let (check, copy) = hook::trampoline(RESOLVE_END, &RESOLVE_END_WAS)?;
+        writes.push(
+            common::branch(
+                RESOLVE_END,
+                &RESOLVE_END_WAS,
+                &[0x90, 0x90, 0xE9, 0, 0, 0, 0],
+                2,
+                copy,
+            )?
+            .requiring(check),
+        );
         let stub = common::jump_stub(APPLY_HIT, &[], apply_attack_factor, 0, APPLY_HIT_GO_ON)?;
         writes.push(common::branch(
             APPLY_HIT,
@@ -1960,8 +1963,8 @@ pub(crate) fn randomless_aimed_hits(
         ranged_distance: v.float("gameplay", "rangeddistance")?,
     };
     let chooser = common::entry(aim_part, common::keep(aim))?;
-    let copy = hook::trampoline(AIM_PICKED, &AIM_PICKED_WAS)?;
-    let mut writes = Vec::new();
+    let (check, copy) = hook::trampoline(AIM_PICKED, &AIM_PICKED_WAS)?;
+    let mut writes = vec![check];
     if start {
         // `nop; jmp`, the stub running the replaced instructions after the handler, as the original's tail does.
         let stub = hook::stub(

@@ -265,10 +265,8 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
     }
 
     let tail = TEXT_EXTENT.offset(TEXT_EXTENT_TAIL);
-    TEXT_EXTENT_RESUME.store(
-        hook::trampoline(tail, &TEXT_EXTENT_ORIGINAL[TEXT_EXTENT_TAIL..])?,
-        Ordering::SeqCst,
-    );
+    let (check, resume) = hook::trampoline(tail, &TEXT_EXTENT_ORIGINAL[TEXT_EXTENT_TAIL..])?;
+    TEXT_EXTENT_RESUME.store(resume, Ordering::SeqCst);
     sites.push((
         88,
         hook::context_hook(
@@ -278,7 +276,8 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
             text_extent,
             0,
         )?
-        .padded(0xCC),
+        .padded(0xCC)
+        .requiring(check),
     ));
 
     let shift = usize::try_from(l.pick_shift()).map_err(|e| BuildError::from(e.to_string()))?;

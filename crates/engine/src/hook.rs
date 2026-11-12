@@ -364,7 +364,12 @@ fn hook_covering(
         site.offset(covered.len()),
         false,
     )?;
-    SiteWrite::jmp(site, written, stub)
+    let write = SiteWrite::jmp(site, written, stub)?;
+    Ok(if covered.len() == written.len() {
+        write
+    } else {
+        write.requiring(SiteWrite::check_code(site, covered))
+    })
 }
 
 /// [`context_hook`], entered by a `call` instead of a `jmp`: the site becomes a call to the stub, which drops the
@@ -616,22 +621,29 @@ pub fn replace_function(
     original: &[u8],
     replacement: usize,
 ) -> Result<(SiteWrite, usize), HookError> {
-    let trampoline = trampoline(site, original)?;
-    Ok((SiteWrite::jmp(site, original, replacement)?, trampoline))
+    let (check, trampoline) = trampoline(site, original)?;
+    Ok((
+        SiteWrite::jmp(site, original, replacement)?.requiring(check),
+        trampoline,
+    ))
 }
 
 /// A copy of `original` from `site` that goes on at `site + original.len()`: runs the code a hook replaces.
-pub fn trampoline(site: Site, original: &[u8]) -> Result<usize, HookError> {
+/// Returns its verify-only requirement and address. Add the requirement to the installing write with
+/// [`SiteWrite::requiring`], or to the same patch group.
+pub fn trampoline(site: Site, original: &[u8]) -> Result<(SiteWrite, usize), HookError> {
     check_len(site, original)?;
+    let check = SiteWrite::check_code(site, original);
     let len = original.len() + 5;
     let copy = for_build(site, original);
     let original = &copy[..];
-    exec::place(len, |at| {
+    let at = exec::place(len, |at| {
         let mut code = relocate(site, original, at)?;
         let from = Site::of(at + code.len());
         code.extend(patch::jmp_rel32(from, site.offset(original.len()).here()));
         Ok::<_, HookError>(code)
-    })
+    })?;
+    Ok((check, at))
 }
 
 /// The code at RU 1.06 address `site` whose bytes are `original`, as the running build holds it: the bytes found
@@ -1183,6 +1195,61 @@ mod tests {
             context_hook_covering(site, &[0x90; 5], &[0x91; 6], Mode::Drop, drop_handler, 0),
             Err(HookError::NotCovering { site })
         );
+    }
+
+    #[test]
+    fn a_changed_covered_tail_refuses_the_whole_group() {
+        extern "C" fn keep(_: usize, _: &mut Context) {}
+        extern "C" fn keep_fpu(_: usize, _: &mut FpuContext) {}
+        let covered = [0x8B, 0x84, 0x24, 0, 0, 0, 0];
+        for mode in [Mode::Drop, Mode::Before, Mode::After] {
+            for fpu in [false, true] {
+                let mut code = covered;
+                let site = Site::of(code.as_mut_ptr() as usize);
+                let hook = if fpu {
+                    fpu_hook(site, &covered[..5], &covered, mode, keep_fpu, 0)
+                } else {
+                    context_hook_covering(site, &covered[..5], &covered, mode, keep, 0)
+                }
+                .unwrap();
+                code[6] = 1;
+                let before = code;
+                let mut other = [0x42];
+                let other_site = Site::of(other.as_mut_ptr() as usize);
+                // SAFETY: both buffers are ours and no other thread reads or writes them.
+                let report = unsafe {
+                    group::apply("covered tail", true, || {
+                        Ok(vec![SiteWrite::nop(other_site, &[0x42]), hook])
+                    })
+                };
+                assert!(matches!(report.outcome, Outcome::Failed {
+                    error: HookError::Patch(patch::PatchError::Mismatch { site: at, .. }),
+                    ref unrestored,
+                } if at == site && unrestored.is_empty()));
+                assert_eq!(code, before);
+                assert_eq!(other, [0x42]);
+            }
+        }
+    }
+
+    #[test]
+    fn a_changed_trampoline_source_refuses_the_whole_group() {
+        let original = [0x90; 7];
+        let mut code = original;
+        let site = Site::of(code.as_mut_ptr() as usize);
+        let (check, copy) = trampoline(site, &original).unwrap();
+        let write = SiteWrite::jmp(site, &original[..5], copy)
+            .unwrap()
+            .requiring(check);
+        code[6] = 0xCC;
+        let before = code;
+        assert!(
+            matches!(install("trampoline tail", Ok(write)), Outcome::Failed {
+            error: HookError::Patch(patch::PatchError::Mismatch { site: at, .. }),
+            ref unrestored,
+        } if at == site && unrestored.is_empty())
+        );
+        assert_eq!(code, before);
     }
 
     #[test]
