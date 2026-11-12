@@ -60,6 +60,16 @@ pub(crate) struct Setup {
     pub(crate) console_log_level: i32,
 }
 
+impl Setup {
+    /// Makes this mod's settings effective before its main script runs.
+    pub(crate) fn activate(&self) {
+        log::set_threshold(self.log_level);
+        crate::report::set_console_threshold(self.console_log_level);
+        crate::ini::select_mod(self);
+        crate::lua::run_main_script(self);
+    }
+}
+
 /// A log level under [`SETTINGS`]: a DWORD read as signed and clamped to 0..=4, else `default`.
 fn log_level(name: &str, default: i32) -> i32 {
     registry::hkcu_dword(SETTINGS, name).map_or(default, |v| (v as i32).clamp(0, 4))

@@ -195,6 +195,8 @@ Run these from the game folder (CommandLine; `aigraph` also GraphGenPatches):
 | `game.exe addon aigraph multi <mob> [mpr]` | Generate the multiplayer AI graph |
 
 Place `--moddir <name>` before the command to select a mod under the starter's `Mods` folder.
+Script INI reads (`GSGetIniNumber`, `GSGetIniString` and Lua `GetIniValue`) use that selected mod's folder,
+including reads from its main script.
 Without an `mpr` argument, the map name is derived from the mob name, dropping `-lmp`.
 Script-check exit codes: 0 success, 2 unreadable file, 3 nothing checked, 4 script error or failed batch.
 AI-graph exit codes: 0 saved or usage shown, 1 invalid mode, zone-load, path or output-file failure, 3 missing input

@@ -57,10 +57,8 @@ fn addon_main(token: &game::BeforeWinMain) {
     log::info("main", "WinMain hook: applying the mod", "");
     let exe_enables_t2 = game::exe_enables_t2();
     let mut setup = setup::read(exe_enables_t2);
-    log::set_threshold(setup.log_level);
-    report::set_console_threshold(setup.console_log_level);
     // The original runs main.lua from its config read, before plugins and patch groups.
-    lua::run_main_script(&setup);
+    setup.activate();
     let command = cli::early(&mut setup, exe_enables_t2);
     // The original reads the setting with the rest of its options, and a crash before that backs nothing up.
     if setup.options.settings.auto_recover != 0 {

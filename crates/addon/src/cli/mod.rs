@@ -10,8 +10,8 @@ use eix_core::cli::{
 use eix_core::options::CommandLine;
 use eix_engine::win::{ansi_text, error_box, exit_process, write_stdout};
 
+use crate::log;
 use crate::setup::{self, Setup, ansi, path};
-use crate::{log, lua};
 
 mod aigraph;
 mod check;
@@ -120,9 +120,7 @@ pub(crate) fn early(setup: &mut Setup, exe_enables_t2: bool) -> Early {
                 let dir = setup::named_mod_dir(&name);
                 log::info("cli", "--moddir: the options of", &ansi_text(&dir));
                 *setup = setup::read_for(exe_enables_t2, dir);
-                log::set_threshold(setup.log_level);
-                crate::report::set_console_threshold(setup.console_log_level);
-                lua::run_main_script(setup);
+                setup.activate();
             }
             Step::GraphGen => graph = true,
             Step::Exit { text, code } => {

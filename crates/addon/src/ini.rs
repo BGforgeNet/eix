@@ -2,7 +2,7 @@
 //! Lua function.
 
 use std::collections::BTreeSet;
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 
 use eix_core::ini;
 use eix_engine::ansi;
@@ -16,10 +16,14 @@ const VALUE_BYTES: usize = 4096;
 /// The calls already reported, by file, section and key.
 static REPORTED: Mutex<BTreeSet<Vec<u8>>> = Mutex::new(BTreeSet::new());
 
-/// The mod folder, from the registry at the first call.
-fn mod_dir() -> &'static [u8] {
-    static DIR: OnceLock<Vec<u8>> = OnceLock::new();
-    DIR.get_or_init(setup::mod_dir)
+/// The folder of the Setup in effect, replaced before that mod's scripts run.
+static MOD_DIR: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+
+pub(crate) fn select_mod(setup: &setup::Setup) {
+    MOD_DIR
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone_from(&setup.mod_dir);
 }
 
 /// Logs `what` for the call once. A script may read every tick, and a missing value or a refused path stays so for
@@ -45,12 +49,15 @@ pub(crate) fn read(file: &[u8], section: &[u8], key: &[u8]) -> Option<Vec<u8>> {
         report_once("not a path below the mod folder", file, section, key);
         return None;
     };
-    let base = mod_dir();
+    let base = MOD_DIR
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
     if base.is_empty() {
         report_once("there is no mod folder", file, section, key);
         return None;
     }
-    let full = [base, &relative].concat();
+    let full = [base.as_slice(), &relative].concat();
     // Two reads with different defaults tell a missing key from a value equal to a default: only a present value
     // comes back the same.
     let value = |default: &[u8]| {
@@ -77,5 +84,48 @@ pub(crate) fn number(file: &[u8], section: &[u8], key: &[u8], default: f32) -> f
             report_once("the value is not a number", file, section, key);
             default
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::setup::Setup;
+
+    #[test]
+    fn script_reads_follow_the_active_setup() {
+        let dir = std::env::temp_dir().join(format!("eix-ini-{}", std::process::id()));
+        let first = dir.join("first");
+        let second = dir.join("second");
+        std::fs::create_dir_all(&first).unwrap();
+        std::fs::create_dir_all(&second).unwrap();
+        std::fs::write(first.join("values.ini"), b"[data]\nname=first\nnumber=11\n").unwrap();
+        std::fs::write(
+            second.join("values.ini"),
+            b"[data]\nname=second\nnumber=22\n",
+        )
+        .unwrap();
+        let mut setup = Setup {
+            mod_dir: [setup::ansi(first.as_os_str()), b"\\".to_vec()].concat(),
+            log_level: log::threshold(),
+            ..Setup::default()
+        };
+        setup.options.ai.addon.enable_lua_scripts = 0;
+        setup.activate();
+        assert_eq!(
+            read(b"values.ini", b"data", b"name"),
+            Some(b"first".to_vec())
+        );
+        assert_eq!(number(b"values.ini", b"data", b"number", -1.0), 11.0);
+        setup.mod_dir = [setup::ansi(second.as_os_str()), b"\\".to_vec()].concat();
+        setup.activate();
+        assert_eq!(
+            read(b"values.ini", b"data", b"name"),
+            Some(b"second".to_vec())
+        );
+        assert_eq!(number(b"values.ini", b"data", b"number", -1.0), 22.0);
+        setup.mod_dir.clear();
+        setup.activate();
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
