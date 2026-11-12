@@ -104,7 +104,7 @@ fn write_dump(dump: &Path, write: impl FnOnce(&[u16]) -> Result<(), String>) -> 
 }
 
 fn handle(c: &Crash) {
-    // Written while the other threads still run: a stopped thread could hold addon.log's lock.
+    // Resolve modules while the other threads still run: a stopped thread could hold the loader lock.
     let returns: Vec<Place> = c
         .code_pointers_on_stack(STACK_WORDS)
         .into_iter()

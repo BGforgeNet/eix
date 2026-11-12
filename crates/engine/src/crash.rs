@@ -1,7 +1,7 @@
 //! A crash handler's Windows side: the process's unhandled-exception filter, which hands the crash to a handler once,
 //! after the filters other modules set later (see [`keep_first`]); what the handler reads of the crash (registers, the
 //! access, code addresses on the stack); stopping the other threads; and a minidump through dbghelp.dll's
-//! `MiniDumpWriteDump` (loaded when needed, as the original addon loads it).
+//! `MiniDumpWriteDump` (loaded before the handler can suspend other threads).
 #![expect(
     unsafe_code,
     reason = "the exception filter, reading the crash's records and stack, thread suspension and minidump Win32 calls"
@@ -44,6 +44,7 @@ pub struct Crash {
     /// The code and address of a fault inside another module's filter, which ended that filter early.
     pub chained_fault: Option<(u32, usize)>,
     pointers: *const EXCEPTION_POINTERS,
+    dump_writer: Result<MiniDumpWriteDump, String>,
 }
 
 /// The crashing thread's integer registers and flags.
@@ -66,8 +67,9 @@ impl Crash {
     /// Writes a minidump of the process for this exception to `path` (UTF-16, no NUL), with the whole memory when
     /// `full`, else the memory the stacks point at. The error names the step that failed and the system's error.
     pub fn write_minidump(&self, path: &[u16], full: bool) -> Result<(), String> {
+        let write = *self.dump_writer.as_ref().map_err(Clone::clone)?;
         // SAFETY: a `Crash` exists only inside the running filter, on the crashing thread, with its pointers.
-        unsafe { write_minidump(path, self.pointers, full) }
+        unsafe { write_minidump(write, path, self.pointers, full) }
     }
 
     /// The registers at the exception; none without a context record.
@@ -306,6 +308,7 @@ unsafe fn run_handler(pointers: *const EXCEPTION_POINTERS, chained_fault: Option
         address,
         chained_fault,
         pointers,
+        dump_writer: load_dump_writer(),
     });
 }
 
@@ -413,13 +416,8 @@ const FULL_MEMORY: u32 = 0x2;
 /// `MiniDumpWithIndirectlyReferencedMemory`.
 const INDIRECT_MEMORY: u32 = 0x40;
 
-/// # Safety
-/// `pointers` must be null or the pointers Windows passed to the running filter, on the crashing thread.
-unsafe fn write_minidump(
-    path: &[u16],
-    pointers: *const EXCEPTION_POINTERS,
-    full: bool,
-) -> Result<(), String> {
+/// Resolves the dump writer while other threads can still release the loader lock; the DLL stays loaded.
+fn load_dump_writer() -> Result<MiniDumpWriteDump, String> {
     let dbghelp = wide("dbghelp.dll");
     // SAFETY: a NUL-terminated name.
     let module = unsafe { LoadLibraryW(dbghelp.as_ptr()) };
@@ -431,7 +429,18 @@ unsafe fn write_minidump(
         return Err(os_error("dbghelp.dll has no MiniDumpWriteDump"));
     };
     // SAFETY: dbghelp's `MiniDumpWriteDump` has this signature.
-    let write: MiniDumpWriteDump = unsafe { crate::hook::as_fn_at(f as usize) };
+    Ok(unsafe { crate::hook::as_fn_at(f as usize) })
+}
+
+/// # Safety
+/// `write` must be dbghelp's loaded export; `pointers` must be null or the pointers Windows passed to the running
+/// filter, on the crashing thread.
+unsafe fn write_minidump(
+    write: MiniDumpWriteDump,
+    path: &[u16],
+    pointers: *const EXCEPTION_POINTERS,
+    full: bool,
+) -> Result<(), String> {
     let name: Vec<u16> = path.iter().copied().chain([0]).collect();
     // SAFETY: a NUL-terminated path; a failure returns INVALID_HANDLE_VALUE.
     let file = unsafe {
@@ -495,7 +504,8 @@ mod tests {
     #[test]
     fn a_dump_to_an_unwritable_path_fails() {
         let path: Vec<u16> = "C:\\no\\such\\folder\\x.dmp".encode_utf16().collect();
-        // SAFETY: no exception is passed; the call stops at the file.
-        assert!(unsafe { write_minidump(&path, core::ptr::null(), false) }.is_err());
+        let write = load_dump_writer().unwrap();
+        // SAFETY: the loaded export; no exception is passed and the call stops at the file.
+        assert!(unsafe { write_minidump(write, &path, core::ptr::null(), false) }.is_err());
     }
 }

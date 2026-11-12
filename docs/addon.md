@@ -223,11 +223,12 @@ Only the differences; everything else behaves as the original.
 | Patch writes are verified | a site that does not hold the expected bytes skips the whole group, logged with site, expected and found bytes (the original logs and writes anyway) |
 | config.reg and ai.reg | fixed: a file with a valid header and a broken body reads as empty, with an addon.log error (the original reads garbage or crashes); a section with no keys reads as empty (the original's lookup there crashes start-up) |
 | addon.log: opening | an addon.log that cannot be opened gets a message box, and the game goes on (the original runs silently without it) |
-| addon.log: when a line is written | fixed: each line is written at once (the original buffers, so a crash loses the last lines) |
+| addon.log: when a line is written | fixed: each line is written at once (the original buffers, so a crash loses the last lines); a busy log lock drops the line, so crash recovery and process exit cannot wait on a stopped thread |
 | Exit of a command | fixed: ends with the same exit code and no box (the original stops on an `R6025 - pure virtual function call` box) |
 | addon.log: what it records | also the eix build and commit, the Windows and Wine versions, the game.exe build, and the loaded modules (the original logs none of these) |
 | Crash handler: a filter set later | fixed: a plugin that replaces the crash handler (Universal Mod's um.dll) no longer disables it: eix's handler runs the others first, then its own. A crash within a quarter of a second of the plugin setting its filter reaches only the plugin's |
 | Crash handler: the record | addon.log gets the crash's code, address, access, registers and return addresses, each address with the patch group, fix or SpellAddon feature that put code there, and the loaded modules (the original writes only the dump) |
+| Crash handler: dump loading | dbghelp is loaded before other threads are suspended, so its load cannot wait on their loader lock |
 | Crash handler: the box | asks for a report at eix's issue tracker, naming addon.log and a successfully written dump (the original asks for the dump at its author's address) |
 | `Tracer` | not reproduced: the original's per-patch hit counter reports wrong names and traps every hit |
 | When built-in SpellAddon runs | applies when the sound system starts, where the original module loads; a separate `SpellAddon*.asi` is not loaded |

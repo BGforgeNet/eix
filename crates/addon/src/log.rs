@@ -2,7 +2,7 @@
 //! (`-` when none).
 //!
 //! Each line goes to the file in one write as it is logged, with nothing buffered in the process, so a crash or
-//! `ExitProcess` loses no line.
+//! `ExitProcess` loses no buffered line. A busy file lock drops the line, so a stopped thread cannot block logging.
 
 use std::fmt;
 use std::fs::{File, OpenOptions};
@@ -111,16 +111,18 @@ pub(crate) fn format_line(
     )
 }
 
-/// Logs one event, unless its level is below the threshold.
+/// Logs one event, unless its level is below the threshold or the file lock is busy.
 pub(crate) fn write(level: Level, subsystem: &str, message: &str, at: &str) {
     if level.rank() < threshold() {
         return;
     }
-    let line = format_line(eix_engine::win::local_time(), level, subsystem, message, at);
-    let mut guard = FILE
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut guard = match FILE.try_lock() {
+        Ok(guard) => guard,
+        Err(std::sync::TryLockError::Poisoned(error)) => error.into_inner(),
+        Err(std::sync::TryLockError::WouldBlock) => return,
+    };
     if let Some(file) = guard.as_mut() {
+        let line = format_line(eix_engine::win::local_time(), level, subsystem, message, at);
         // The log is the reporting channel itself; a failed write has nowhere else to go.
         let _ = file.write_all(format!("{line}\r\n").as_bytes());
     }
@@ -185,6 +187,18 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert!(lines[0].ends_with("\tINFO\tmain\tstarted\t-"));
         assert!(lines[1].ends_with("\tERROR\tplugins\tcannot load\tx.dll"));
+
+        let guard = FILE.lock().unwrap();
+        let (sent, received) = std::sync::mpsc::channel();
+        let writer = std::thread::spawn(move || {
+            info("main", "cleanup: the process is ending", "");
+            sent.send(()).unwrap();
+        });
+        let completed = received.recv_timeout(std::time::Duration::from_secs(2));
+        drop(guard);
+        writer.join().unwrap();
+        assert!(completed.is_ok(), "logging waited for the held file lock");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
