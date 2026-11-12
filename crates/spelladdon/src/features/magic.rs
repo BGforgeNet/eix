@@ -697,7 +697,7 @@ fn always_constructable(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
 }
 
 /// Where `spellsaimod` puts `IsOffensive`'s longer table: header slack.
-const OFFENSIVE_TABLE: Site = Site::new(0x40_0400);
+const OFFENSIVE_TABLE: Site = eix_sites::HEADER_OFFENSIVE_TABLE;
 /// `IsOffensive`'s table for 54 spell types: the game's 38 entries, then the module's own for 0x26-0x35; the rest
 /// of the 64 bytes is zero.
 const OFFENSIVE_54: [u8; 64] = {

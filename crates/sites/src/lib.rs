@@ -149,7 +149,7 @@ pub fn translating() -> bool {
 
 /// Whether `address` lies in game.exe's image, code or data, in any build (the sections start at one address).
 pub fn in_image(address: usize) -> bool {
-    (TEXT_SECTION.0..RSRC_SECTION.0).contains(&address)
+    (IMAGE_BASE.0..RSRC_SECTION.0).contains(&address)
 }
 
 /// The RU 1.06 address `ru` in the running build; an address outside the image is returned as it is.
@@ -203,6 +203,33 @@ mod tests {
         assert_eq!(shift(runs, 0x45_6440, false), 0x45_6440);
         assert_eq!(shift(runs, 0x7C_D000, false), 0x7C_D000);
         assert_eq!(shift(runs, 0x10_0000, false), 0x10_0000);
+    }
+
+    #[test]
+    fn header_slots_and_cast_resume_exist_in_both_builds() {
+        let slots = [
+            (HEADER_SLOW_MOVE_MUL, 4),
+            (HEADER_ACTIONS_MUL, 4),
+            (HEADER_ACTIONS_ADD, 4),
+            (HEADER_MOVE_MUL, 4),
+            (HEADER_ATTACK_MUL, 4),
+            (HEADER_OFFENSIVE_TABLE, 64),
+        ];
+        for build in [Build::Ru106, Build::En106] {
+            for (i, &(site, len)) in slots.iter().enumerate() {
+                let at = site.in_build(build);
+                assert_eq!(at, site.ru());
+                assert!((IMAGE_BASE.ru()..TEXT_SECTION.ru()).contains(&at));
+                for &(other, other_len) in &slots[..i] {
+                    let start = other.in_build(build);
+                    assert!(at + len <= start || start + other_len <= at);
+                }
+            }
+            assert_eq!(
+                C_UNIT_SERVER_BUILD_CAST_STEPS__104.in_build(build),
+                C_UNIT_SERVER_BUILD_CAST_STEPS__FF.in_build(build) + 5
+            );
+        }
     }
 
     #[test]

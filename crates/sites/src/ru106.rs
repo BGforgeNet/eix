@@ -6,6 +6,17 @@
 
 use crate::Site;
 
+/// The PE image base.
+pub const IMAGE_BASE: Site = Site::new(0x40_0000);
+/// Header slack used for SpellAddon's movement and action multipliers.
+pub const HEADER_SLOW_MOVE_MUL: Site = Site::new(0x40_02CC);
+pub const HEADER_ACTIONS_MUL: Site = Site::new(0x40_02D0);
+pub const HEADER_ACTIONS_ADD: Site = Site::new(0x40_02D4);
+pub const HEADER_MOVE_MUL: Site = Site::new(0x40_02D8);
+pub const HEADER_ATTACK_MUL: Site = Site::new(0x40_02DC);
+/// Header slack used for the extended offensive-spell table.
+pub const HEADER_OFFENSIVE_TABLE: Site = Site::new(0x40_0400);
+
 /// The start of `.text`.
 pub const TEXT_SECTION: Site = Site::new(0x40_1000);
 /// The start of `.rdata`, right after `.text`'s last page.
@@ -518,6 +529,7 @@ pub const C_UNIT_SERVER_BUILD_ATTACK_STEPS__24A: Site = Site::new(0x54_FBBA);
 pub const C_UNIT_SERVER_BUILD_CAST_STEPS__FB: Site = Site::new(0x55_071B);
 pub const C_UNIT_SERVER_BUILD_CAST_STEPS__FF: Site = Site::new(0x55_071F);
 pub const C_UNIT_SERVER_BUILD_CAST_STEPS__100: Site = Site::new(0x55_0720);
+pub const C_UNIT_SERVER_BUILD_CAST_STEPS__104: Site = Site::new(0x55_0724);
 pub const C_UNIT_SERVER_TICK_ITEM_SPELLS__60: Site = Site::new(0x55_2BF0);
 pub const C_UNIT_SERVER_TICK_ITEM_SPELLS__76: Site = Site::new(0x55_2C06);
 pub const C_UNIT_SERVER_TICK_ITEM_SPELLS__81: Site = Site::new(0x55_2C11);

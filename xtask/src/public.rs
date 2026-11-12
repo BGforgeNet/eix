@@ -51,7 +51,12 @@ pub(crate) fn line_hits(line: &str) -> Vec<String> {
         if WORDS.contains(&word) {
             hits.push(format!("the word {word:?}"));
         }
-        let hex = word.strip_prefix("0x").map(|h| h.replace('_', ""));
+        let hex = word.strip_prefix("0x").map(|h| {
+            h.chars()
+                .take_while(|c| c.is_ascii_hexdigit() || *c == '_')
+                .filter(|c| *c != '_')
+                .collect::<String>()
+        });
         if let Some(value) = hex.and_then(|h| u64::from_str_radix(&h, 16).ok())
             && module_address(value)
         {
@@ -148,6 +153,11 @@ mod tests {
             line_hits("Feature::new(\"a\", \"b\", 0x1004_F6E6)").len(),
             1
         );
+        for suffix in [
+            "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize",
+        ] {
+            assert_eq!(line_hits(&format!("0x1004_F6E6{suffix}")).len(), 1);
+        }
     }
 
     #[test]

@@ -21,7 +21,7 @@ use crate::{Level, Log};
 
 /// game.exe RU 1.06 from its headers to the end of `.data`, where the original's added code and patches lie; `.rsrc`
 /// is never written.
-pub(crate) const IMAGE: Range<usize> = 0x40_0000..eix_sites::RSRC_SECTION.ru();
+pub(crate) const IMAGE: Range<usize> = eix_sites::IMAGE_BASE.ru()..eix_sites::RSRC_SECTION.ru();
 
 /// Makes [`IMAGE`] readable, writable and executable for good, as the original's start does: its run-time code
 /// writes into game.exe's code (the speedrun timer's word, for one).

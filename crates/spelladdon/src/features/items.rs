@@ -632,14 +632,14 @@ fn lift_debuffs(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 }
 
 /// Header slack where `encumbrancemovespeed` keeps `encumbrancemovemul`.
-const MOVE_MUL: Site = Site::new(0x40_02D8);
+const MOVE_MUL: Site = eix_sites::HEADER_MOVE_MUL;
 /// Where it keeps `speedslowmovemul` with `speedslowremaster` = 2.
-const SLOW_MOVE_MUL: Site = Site::new(0x40_02CC);
+const SLOW_MOVE_MUL: Site = eix_sites::HEADER_SLOW_MOVE_MUL;
 /// Padding in `GameBuffer::ReadBytes` where it keeps `defaultspeedmul` and `minimumspeedmul`.
 const DEFAULT_SPEED_MUL: Site = eix_sites::GAME_BUFFER_READ_BYTES__64;
 const MINIMUM_SPEED_MUL: Site = eix_sites::GAME_BUFFER_READ_BYTES__68;
 /// Header slack where `encumbranceattackspeed` keeps `encumbranceattackmul`.
-const ATTACK_MUL: Site = Site::new(0x40_02DC);
+const ATTACK_MUL: Site = eix_sites::HEADER_ATTACK_MUL;
 
 /// The multipliers `encumbrancemovespeed` keeps in game.exe.
 #[derive(Debug, Clone, Copy)]

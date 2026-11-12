@@ -80,7 +80,7 @@ impl Game for FakeGame {
     }
     fn item_shape_entry(&self, item: u32) -> u32 {
         self.log(format!("item_shape_entry {item}"));
-        0x0040_0000
+        0x0900_0000
     }
     fn slot_item(&self, unit: u32, kind: SlotKind, slot: i32) -> u32 {
         self.log(format!("slot_item {unit} {kind:?} {slot}"));
@@ -794,7 +794,7 @@ fn game_functions_reach_the_game() {
     f.exec("Heal(1, 2, 3.5) RegenMp(4, 0.25) DistributeHp(5, 80)");
     let r: (i32, i32, f64, i32) = f
         .eval("return GetPerkIndex(20), GetClassId(21), GetItemsWeight(22), GetItemShapeEntry(23)");
-    assert_eq!(r, (3, 0x3d, 12.5, 0x0040_0000));
+    assert_eq!(r, (3, 0x3d, 12.5, 0x0900_0000));
     let r: (i32, i32, i32, i32, i32) =
         f.eval("return GetWeapon(30, 0), GetArmor(31, 6), GetQuick(32, 0), GetSpell(33, 7), GetWeapon(34, -1)");
     assert_eq!(r, (0x0900_0000, 0, 0x0900_0000, 0, 0));

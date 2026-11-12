@@ -24,6 +24,8 @@ use super::{BuildError, Labelled, Setup, bytes};
 
 /// The original `CUnit::ActionSpeed`, through its trampoline.
 static ACTION_SPEED: AtomicUsize = AtomicUsize::new(0);
+/// The translated continuation after the cast-speed instructions.
+static CAST_SPEED_RESUME: AtomicUsize = AtomicUsize::new(0);
 
 type ActionSpeed = unsafe extern "thiscall" fn(*mut Unit, *mut AnimationEntry) -> f32;
 
@@ -133,12 +135,17 @@ extern "C" fn cast_speed() {
         "pop edx",
         "push eax",
         "fstp dword ptr [esp + 0x24]",
-        "push 0x550724",
+        "push dword ptr [{resume}]",
         "ret",
+        resume = sym CAST_SPEED_RESUME,
     );
 }
 
 pub(super) fn build(_: &Setup) -> Result<Vec<Labelled>, BuildError> {
+    CAST_SPEED_RESUME.store(
+        eix_sites::C_UNIT_SERVER_BUILD_CAST_STEPS__104.here(),
+        Ordering::Relaxed,
+    );
     let (replace, trampoline) = hook::replace_function(
         eix_sites::C_UNIT_ACTION_SPEED,
         &[0x8B, 0x44, 0x24, 0x04, 0x8B, 0x40, 0x14],

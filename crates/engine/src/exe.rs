@@ -36,9 +36,12 @@ pub use eix_sites::Build;
 /// The build whose header fields `id` has. GOG's exe and the official 1.06 patch's differ only in a code byte, not
 /// in these fields.
 pub fn identify(id: &ExeId) -> Option<Build> {
-    match (id.base, id.entry_rva, id.size_of_image, id.time_date_stamp) {
-        (0x40_0000, 0x2E_C226, 0x3D_7000, 0x3ABF_0DB3) => Some(Build::Ru106),
-        (0x40_0000, 0x2E_C1E6, 0x3D_7000, 0x3ABB_4A08) => Some(Build::En106),
+    if id.base != eix_sites::IMAGE_BASE.ru() {
+        return None;
+    }
+    match (id.entry_rva, id.size_of_image, id.time_date_stamp) {
+        (0x2E_C226, 0x3D_7000, 0x3ABF_0DB3) => Some(Build::Ru106),
+        (0x2E_C1E6, 0x3D_7000, 0x3ABB_4A08) => Some(Build::En106),
         _ => None,
     }
 }
@@ -85,7 +88,7 @@ mod tests {
     #[test]
     fn knows_ru_106() {
         let id = ExeId {
-            base: 0x40_0000,
+            base: eix_sites::IMAGE_BASE.ru(),
             entry_rva: 0x2E_C226,
             size_of_image: 0x3D_7000,
             time_date_stamp: 0x3ABF_0DB3,

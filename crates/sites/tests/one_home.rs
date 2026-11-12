@@ -1,12 +1,12 @@
 //! Code names a game.exe address only through this crate: no hex literal inside game.exe's image appears in the
-//! extender crates' code. Comments and strings may cite addresses. `core` and the tools stay out: they hold no game
+//! extender crates' code. Comments and non-assembly strings may cite addresses. `core` and the tools stay out: they hold no game
 //! code, and their tests use addresses as plain sample values.
 
 use std::path::{Path, PathBuf};
 
-/// game.exe RU 1.06's image, from `.text` through `.data`.
+/// game.exe RU 1.06's image, from the PE header through `.data`.
 const IMAGE: std::ops::Range<u64> =
-    eix_sites::TEXT_SECTION.ru() as u64..eix_sites::RSRC_SECTION.ru() as u64;
+    eix_sites::IMAGE_BASE.ru() as u64..eix_sites::RSRC_SECTION.ru() as u64;
 
 /// The crates that stay out of the scan: this table, and `core` (see the top).
 const OUT: [&str; 2] = ["sites", "core"];
@@ -39,11 +39,12 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// The hex literals in `src`'s code, outside comments, strings and chars, as (line, text).
+/// The hex literals in code and assembly strings, outside comments and chars, as (line, text).
 fn hex_literals(src: &str) -> Vec<(usize, String)> {
     let b = src.as_bytes();
     let mut found = Vec::new();
     let mut i = 0;
+    let mut assembly = Vec::new();
     let line_of = |at: usize| src[..at].matches('\n').count() + 1;
     let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
     while i < b.len() {
@@ -76,11 +77,18 @@ fn hex_literals(src: &str) -> Vec<(usize, String)> {
             let end = src[body..]
                 .find(&close)
                 .unwrap_or_else(|| panic!("line {}: unterminated raw string", line_of(i)));
+            if assembly.last() == Some(&true) {
+                assembly_literals(&src[body..body + end], line_of(body), &mut found);
+            }
             i = body + end + close.len();
         } else if b[i] == b'"' {
             i += 1;
+            let body = i;
             while i < b.len() && b[i] != b'"' {
                 i += if b[i] == b'\\' { 2 } else { 1 };
+            }
+            if assembly.last() == Some(&true) {
+                assembly_literals(&src[body..i], line_of(body), &mut found);
             }
             i += 1;
         } else if b[i] == b'\'' {
@@ -92,6 +100,20 @@ fn hex_literals(src: &str) -> Vec<(usize, String)> {
                 _ => 1,
             };
             i += len;
+        } else if matches!(b[i], b'(' | b'[' | b'{') {
+            let prefix = src[..i].trim_end();
+            let is_asm = prefix.strip_suffix('!').is_some_and(|p| {
+                let name = p
+                    .trim_end()
+                    .rsplit(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                    .next();
+                matches!(name, Some("asm" | "naked_asm"))
+            });
+            assembly.push(is_asm || assembly.last() == Some(&true));
+            i += 1;
+        } else if matches!(b[i], b')' | b']' | b'}') {
+            assembly.pop();
+            i += 1;
         } else if rest.starts_with("0x") && (i == 0 || !word(b[i - 1])) {
             let len = rest.bytes().take_while(|&c| word(c)).count();
             found.push((line_of(i), rest[..len].to_owned()));
@@ -101,6 +123,28 @@ fn hex_literals(src: &str) -> Vec<(usize, String)> {
         }
     }
     found
+}
+
+fn assembly_literals(src: &str, first_line: usize, found: &mut Vec<(usize, String)>) {
+    let b = src.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if src[i..].starts_with("0x")
+            && (i == 0 || !(b[i - 1].is_ascii_alphanumeric() || b[i - 1] == b'_'))
+        {
+            let len = b[i..]
+                .iter()
+                .take_while(|c| c.is_ascii_alphanumeric() || **c == b'_')
+                .count();
+            found.push((
+                first_line + src[..i].matches('\n').count(),
+                src[i..i + len].to_owned(),
+            ));
+            i += len;
+        } else {
+            i += 1;
+        }
+    }
 }
 
 /// A literal's value, its `_` separators and any type suffix dropped.
@@ -161,5 +205,32 @@ fn the_scan_sees_code_and_skips_comments_and_strings() {
             (3, "0x0F".to_owned(), Some(0x0F)),
             (3, "0x0040_2000u32".to_owned(), Some(0x40_2000)),
         ]
+    );
+}
+
+#[test]
+fn the_scan_sees_assembly_strings() {
+    let src = r###"let text = "0x550724";
+        core::arch::asm!("call 0x550724");
+        core::arch::naked_asm! { r#"push 0x550724"#, "ret" }
+        asm! ["mov eax, 0x550724", options(nostack)];
+        let text = r#"0x550724"#;"###;
+    assert_eq!(
+        hex_literals(src),
+        [
+            (2, "0x550724".to_owned()),
+            (3, "0x550724".to_owned()),
+            (4, "0x550724".to_owned())
+        ]
+    );
+}
+
+#[test]
+fn the_guard_covers_header_slack() {
+    let literals = hex_literals("const SLOT: usize = 0x40_02D0;");
+    assert!(
+        literals
+            .iter()
+            .any(|(_, l)| value(l).is_some_and(|v| IMAGE.contains(&v)))
     );
 }

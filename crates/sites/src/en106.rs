@@ -6,7 +6,8 @@
 
 /// `(RU start, delta)`, ascending; the last row reaches the end of the image.
 pub(crate) const RUNS: &[(usize, isize)] = &[
-    (0x40_1000, 0),
+    // The PE header and its slack slots share their addresses with RU 1.06.
+    (0x40_0000, 0),
     (0x60_519D, -4),
     (0x60_5217, -58),
     (0x60_5DE0, -64),

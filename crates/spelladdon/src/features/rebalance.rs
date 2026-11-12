@@ -759,8 +759,8 @@ fn n_hits(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// The header slack that holds `actionsmul` and `actionsadd`.
-const ACTIONS_MUL: Site = Site::new(0x40_02D0);
-const ACTIONS_ADD: Site = Site::new(0x40_02D4);
+const ACTIONS_MUL: Site = eix_sites::HEADER_ACTIONS_MUL;
+const ACTIONS_ADD: Site = eix_sites::HEADER_ACTIONS_ADD;
 /// The stats refresh's `fmul [0x73BAD4]; fadd [0x73BAAC]` (0.2 and 10) point at the header slack.
 const ACTIONS_FORMULA: Bytes = (
     eix_sites::UNIT_STATS_RECOMPUTE__698,

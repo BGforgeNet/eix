@@ -85,7 +85,7 @@ mod tests {
     #[test]
     fn invalid_version_names_the_header_fields() {
         let id = ExeId {
-            base: 0x40_0000,
+            base: eix_sites::IMAGE_BASE.ru(),
             entry_rva: 0x2E_C1E6,
             size_of_image: 0x3D_7000,
             time_date_stamp: 0x3ABF_0DB3,
