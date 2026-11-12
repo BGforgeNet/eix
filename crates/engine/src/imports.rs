@@ -22,7 +22,8 @@ unsafe fn word(base: usize, offset: usize) -> u32 {
 }
 
 /// The import slot through which the loaded module `module` calls `function` of `dll` (`dll` compared without regard
-/// to ASCII case, `function` exactly), and the address the slot holds. `None` when the module imports no such function by name.
+/// to ASCII case, `function` exactly), and the address the slot holds. `None` when the module imports no such function
+/// by name or the matching descriptor has no lookup table.
 pub fn slot(module: &str, dll: &str, function: &CStr) -> Result<Option<(usize, usize)>, String> {
     let name = wide(module);
     // SAFETY: `name` is NUL-terminated.
@@ -31,6 +32,18 @@ pub fn slot(module: &str, dll: &str, function: &CStr) -> Result<Option<(usize, u
         return Err(format!("{module} is not loaded"));
     }
     let base = handle as usize;
+    // SAFETY: GetModuleHandleW returned a loaded module's mapped PE image.
+    unsafe { slot_in_image(base, module, dll, function) }
+}
+
+/// # Safety
+/// `base` is a readable PE32 image whose import descriptors, lookup tables and names lie within the mapped image.
+unsafe fn slot_in_image(
+    base: usize,
+    module: &str,
+    dll: &str,
+    function: &CStr,
+) -> Result<Option<(usize, usize)>, String> {
     // SAFETY: a loaded module's image starts with its DOS header, whose `e_lfanew` (offset 0x3C) points at the NT
     // headers inside the image; everything below is read through the headers' own offsets and sizes.
     let nt = unsafe { word(base, 0x3C) } as usize;
@@ -59,12 +72,14 @@ pub fn slot(module: &str, dll: &str, function: &CStr) -> Result<Option<(usize, u
         // SAFETY: a descriptor's name is a NUL-terminated string in the image.
         let imported = unsafe { CStr::from_ptr((base + name_rva) as *const core::ffi::c_char) };
         if imported.to_bytes().eq_ignore_ascii_case(dll.as_bytes()) {
-            // Bound images may lack the lookup table; the IAT then still holds the names before binding.
-            let table = if lookup == 0 { iat } else { lookup };
+            // The loaded image's IAT holds resolved addresses, so it cannot supply names without a lookup table.
+            if lookup == 0 {
+                return Ok(None);
+            }
             let mut i = 0;
             loop {
                 // SAFETY: the lookup table is an array of 32-bit entries ended by a zero.
-                let entry = unsafe { word(base, table + 4 * i) } as usize;
+                let entry = unsafe { word(base, lookup + 4 * i) } as usize;
                 if entry == 0 {
                     break;
                 }
@@ -90,6 +105,35 @@ pub fn slot(module: &str, dll: &str, function: &CStr) -> Result<Option<(usize, u
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_resolved_iat_is_not_a_name_lookup_table() {
+        let mut image = vec![0u8; 0x400];
+        for (offset, value) in [
+            (0x3C, 0x80u32),
+            (0x80, 0x4550),
+            (0x100, 0x140),
+            (0x14C, 0x180),
+            (0x150, 0x200),
+            (0x200, 0x300),
+            (0x240, 0x280),
+        ] {
+            image[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+        }
+        image[0x180..0x189].copy_from_slice(b"test.dll\0");
+        image[0x282..0x284].copy_from_slice(b"f\0");
+        // The resolved address happens to look like a name RVA; it still is not one.
+        image[0x302..0x304].copy_from_slice(b"f\0");
+        let base = image.as_ptr() as usize;
+        // SAFETY: the synthetic image contains every header, descriptor, table and string the parser reads.
+        let missing = unsafe { slot_in_image(base, "test", "test.dll", c"f") };
+        assert_eq!(missing, Ok(None));
+
+        image[0x140..0x144].copy_from_slice(&0x240u32.to_le_bytes());
+        // SAFETY: the added lookup table and its name lie within the same live image.
+        let found = unsafe { slot_in_image(base, "test", "TEST.dll", c"f") };
+        assert_eq!(found, Ok(Some((base + 0x200, 0x300))));
+    }
 
     #[test]
     fn finds_the_test_binary_s_import_of_kernel32() {
