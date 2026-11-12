@@ -269,8 +269,8 @@ impl Registry {
     /// Reads a file.
     ///
     /// # Errors
-    /// A [`ParseError`] naming the offset and what was expected there. A well-formed file never reads a byte
-    /// twice, so the bytes the reader copies are bounded by the file size; overlapping data is an error.
+    /// A [`ParseError`] naming the offset and what was expected there. Table slots, names, strings and arrays share
+    /// a byte budget equal to the file size; this bounds their total size but does not detect every overlap.
     pub fn parse(data: &[u8]) -> Result<Registry, ParseError> {
         Parser {
             data,
