@@ -381,7 +381,7 @@ unsafe extern "thiscall" fn light(
                     "VertexLighting",
                 );
             }
-            // SAFETY: ORIGINAL holds the method `install` replaced, of this type.
+            // SAFETY: ORIGINAL holds the method `loaded` replaced, of this type.
             let original: Method = unsafe { hook::as_fn_at(ORIGINAL.load(Ordering::SeqCst)) };
             // SAFETY: the game's arguments.
             unsafe {
