@@ -9,7 +9,7 @@ Reference pages: [eix site](https://bgforgenet.github.io/eix/).
 
 <!-- ANCHOR: compat -->
 - Mods and plugins work the same way: same `config.reg`, `ai.reg` and `spelladdon.ini`.
-- Game: `game.exe` 1.06, Russian (EI starter's and GOG's) or English and German (GOG's, one file).
+- Game: `game.exe` 1.06, EI starter's or GOG's, any language.
 <!-- ANCHOR_END: compat -->
 
 <!-- ANCHOR: install -->
