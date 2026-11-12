@@ -35,8 +35,9 @@ Parameters have no general range validation. Limits stated below describe their 
 Features apply in a fixed order, independent of INI order. Where two features change the same code, the later one
 builds on the earlier, or the earlier is skipped with a warning when the later replaces all it does; the tables call
 out those interactions. A conflicting or unexpected game patch causes the affected feature to be skipped and
-logged. If writing the merged patches fails, no feature applies. See the [addon options](addon.md) for the other
-built-in settings.
+logged. Alerts and private-font loading run at their feature's place while the patches are built, before the merged
+patches are written. If that write fails, no patches apply; alerts already shown and fonts already loaded remain.
+See the [addon options](addon.md) for the other built-in settings.
 
 ## Combat - `[gameplay]`
 

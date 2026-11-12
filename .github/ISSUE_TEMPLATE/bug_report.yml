@@ -27,6 +27,6 @@ body:
       description: >-
         Attach, from the starter's folder: addon.log (the eix build, the system, the loaded modules, every patch group,
         fix and feature, and a crash's record); errors.log, if it is not empty; after a crash, the dump the crash box
-        names (Dumps\ei-<date>-<n>.dmp). Also the mod's config.reg and ai.reg, and spelladdon.ini if SpellAddon is on.
+        names (Dumps\ei-<date>-<n>.dmp). Also the mod's config.reg, ai.reg and eix.ini, and spelladdon.ini if SpellAddon is on.
     validations:
       required: true

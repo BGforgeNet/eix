@@ -2,7 +2,7 @@
 
 ## Build
 
-Install podman, then:
+Install podman and Rust's cargo on the host (the toolchain is pinned in `rust-toolchain.toml`), then:
 
 ```sh
 cargo xtask container
@@ -41,7 +41,8 @@ Two pages are generated, and each has one data file that holds every signature a
   the book into `target/book`. The build image carries mdBook, pinned in `build/install-mdbook.sh`.
 - Tests compare the data files with the code: every function and callback that addon.dll registers appears in
   `docs/scripting.yml` or `docs/eix.lua` with the same name. Run the test that compares the game's own
-  entries with the keyword table of `game.exe` with `EIX_GAME_DIR` set, as for the other game tests:
+  entries with the keyword table of `game.exe` with `EIX_GAME_DIR` set to the game folder as a host path
+  (such as `/path/to/game`, not Wine's `Z:\...`); this test runs on the host:
   `cargo test -p eix-docs -- --ignored`.
 - Build the book by hand with `mdbook build` and open `target/book/index.html`.
 - Publishing: `.github/workflows/pages.yml` builds the book and deploys it to GitHub Pages after the CI gate succeeds on

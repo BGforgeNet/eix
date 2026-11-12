@@ -138,8 +138,10 @@ shows the use.
 - The file comes from the mod's folder (`Mods\<mod>`), else the game folder. `<file>` is a plain file name: a name
   with `\`, `/` or `:` reads the game's variable.
 - Each file is read once, at the first variable that names it: a change applies at the next game start.
-- A missing file, section or key, or a value that is not a number, reads 0; addon.log notes each such name once. The
-  decimal point is `.` or `,`; names ignore case. The key is the rest of the name, dots included.
+- A missing file, section or key, or a value that is not a number, reads 0. addon.log notes a missing file once by
+  its file name, without a line for each key in it; in a file that exists, it notes each missing section or key or
+  nonnumeric value once by the variable's name. The decimal point is `.` or `,`; names ignore case. The key is the
+  rest of the name, dots included.
 - Nothing is stored: saves hold no INI values, and multiplayer clients are sent none. Each machine reads its own
   file.
 - Without eix the game reads 0 for such a name, as for any variable never set.
