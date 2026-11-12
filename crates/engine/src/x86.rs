@@ -17,7 +17,8 @@
 //!   re-targets.
 //!
 //! 32-bit code has no instruction-pointer-relative addressing, so every other supported form runs unchanged at any
-//! address. Short branches (`jcc rel8`, `jmp rel8`, `loop`, `jecxz`) and everything else are refused.
+//! address. `decode` refuses short branches (`jcc rel8`, `jmp rel8`, `loop`, `jecxz`); `decode_in_place` accepts them.
+//! Everything else is refused by both.
 
 use core::fmt;
 
