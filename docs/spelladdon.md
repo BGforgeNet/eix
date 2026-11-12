@@ -25,7 +25,8 @@ The tables give **active values**. Other values make no change unless marked ski
 and left out, and every other feature still applies. Switches retain a signed byte: use the listed values within
 -128..127; larger values wrap and warn. `1+` below means 1..127. Byte parameters retain the low byte (0..255), and
 other values warn; 32-bit parameters retain 32 bits. Floating-point parameters accept decimal text with a sign and
-an exponent; use a decimal point. `runconst`, `runconstex`, `pow` and `expforint` read only their first 21
+an exponent; leading zeros in the exponent do not change its value. Use a decimal point.
+`runconst`, `runconstex`, `pow` and `expforint` read only their first 21
 characters, take a leading `-`, ignore any other character that is not a digit, point or comma, and also accept a
 decimal comma (the original ignores the sign too). Other numeric text holds at most 31 bytes; font text holds at
 most 47 bytes.

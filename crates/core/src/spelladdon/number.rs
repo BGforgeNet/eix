@@ -46,9 +46,15 @@ pub fn atof(s: &[u8]) -> f64 {
         }
         let digits = s[j..].iter().take_while(|c| c.is_ascii_digit()).count();
         if digits > 0 {
-            // Past this many digits the value is 0 or infinite either way; the cut keeps the text short.
-            let kept = &s[j..j + digits.min(12)];
-            exponent.extend(kept.iter().map(|&c| char::from(c)));
+            // Past twelve digits after leading zeros the value is 0 or infinite either way.
+            exponent.push('0');
+            exponent.extend(
+                s[j..j + digits]
+                    .iter()
+                    .skip_while(|&&c| c == b'0')
+                    .take(12)
+                    .map(|&c| char::from(c)),
+            );
             text.push_str(&exponent);
         }
     }
@@ -142,6 +148,16 @@ mod tests {
         assert_eq!(atof(b"1.5\0" as &[u8]), 1.5);
         assert_eq!(atof(b"4.5\x009"), 4.5);
         assert_eq!(atof(b"119999999999999900.0") as f32, 1.2e17);
+    }
+
+    #[test]
+    fn atof_skips_leading_zeros_before_limiting_exponent_digits() {
+        assert_eq!(atof(b"1e0000000000001"), 10.0);
+        assert_eq!(atof(b"1e+0000000000001"), 10.0);
+        assert_eq!(atof(b"1D-0000000000001"), 0.1);
+        assert_eq!(atof(b"2e0000000000000"), 2.0);
+        assert_eq!(atof(b"1e0000000000001234567890123"), f64::INFINITY);
+        assert_eq!(atof(b"1e-0000000000001234567890123"), 0.0);
     }
 
     #[test]
