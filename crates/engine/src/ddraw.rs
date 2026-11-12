@@ -42,9 +42,14 @@ struct SurfaceDesc2 {
 }
 
 const _: () = {
+    assert!(offset_of!(SurfaceDesc2, size) == 0x0);
+    assert!(offset_of!(SurfaceDesc2, flags) == 0x4);
     assert!(offset_of!(SurfaceDesc2, height) == 0x8);
     assert!(offset_of!(SurfaceDesc2, width) == 0xC);
+    assert!(offset_of!(SurfaceDesc2, _unknown10) == 0x10);
+    assert!(offset_of!(SurfaceDesc2, _pixel_format_head) == 0x48);
     assert!(offset_of!(SurfaceDesc2, rgb_bit_count) == 0x54);
+    assert!(offset_of!(SurfaceDesc2, _unknown58) == 0x58);
     assert!(size_of::<SurfaceDesc2>() == 0x7C);
 };
 

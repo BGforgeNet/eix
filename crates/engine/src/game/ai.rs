@@ -47,9 +47,12 @@ pub struct RegionMap {
 }
 
 const _: () = {
+    assert!(offset_of!(SearchGrid<u8>, rows) == 0x0);
     assert!(offset_of!(SearchGrid<u8>, width) == 0x4);
     assert!(offset_of!(SearchGrid<u8>, height) == 0x8);
+    assert!(offset_of!(SearchGrid<u8>, _unknown_c) == 0xC);
     assert!(size_of::<SearchGrid<u8>>() == 0x10);
+    assert!(offset_of!(RegionMap, _unknown0) == 0x0);
     assert!(offset_of!(RegionMap, edges) == 0x120);
     assert!(offset_of!(RegionMap, cells) == 0x1A0);
 };

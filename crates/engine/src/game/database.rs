@@ -50,6 +50,7 @@ pub struct SkillDatabase {
 }
 
 const _: () = {
+    assert!(offset_of!(SkillDatabase, _unknown0) == 0x0);
     assert!(offset_of!(SkillDatabase, perks) == 0xC);
 };
 

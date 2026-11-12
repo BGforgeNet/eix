@@ -23,6 +23,10 @@ pub const FILE_STREAM_BYTES: usize = 0x28;
 #[derive(Debug)]
 pub struct StreamMemory<const N: usize>([u8; N]);
 
+const _: () = {
+    assert!(core::mem::offset_of!(StreamMemory<1>, 0) == 0x0);
+};
+
 impl<const N: usize> StreamMemory<N> {
     /// Zeroed memory for one stream.
     pub const fn new() -> Self {

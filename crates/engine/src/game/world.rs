@@ -34,9 +34,12 @@ pub struct World {
 }
 
 const _: () = {
+    assert!(offset_of!(World, base) == 0x0);
     assert!(offset_of!(World, time_base) == 0x1C);
     assert!(offset_of!(World, time_per_tick) == 0x20);
+    assert!(offset_of!(World, _unknown24) == 0x24);
     assert!(offset_of!(World, tick) == 0x64);
+    assert!(offset_of!(World, _unknown68) == 0x68);
     assert!(offset_of!(World, paused) == 0x6C);
 };
 
@@ -57,6 +60,7 @@ pub struct PlayerManager {
 }
 
 const _: () = {
+    assert!(offset_of!(PlayerManager, _unknown0) == 0x0);
     assert!(offset_of!(PlayerManager, player_count) == 0x2C);
 };
 
@@ -164,6 +168,10 @@ pub const SECTOR_MAP: Global<SectorMap> = Global::at(eix_sites::DATA_7B01F4);
 pub struct SectorMap {
     _opaque: [u8; 0],
 }
+
+const _: () = {
+    assert!(offset_of!(SectorMap, _opaque) == 0x0);
+};
 
 impl SectorMap {
     /// Appends the objects within `radius` of `point` to `list`: `CSectorMap::FindUnitsInRadius` 0x5C0BD0 (thiscall,
@@ -472,6 +480,7 @@ pub struct ObjectMap {
 }
 
 const _: () = {
+    assert!(offset_of!(ObjectMap, _unknown0) == 0x0);
     assert!(offset_of!(ObjectMap, buckets) == 0x4);
     assert!(offset_of!(ObjectMap, buckets_end) == 0x8);
 };

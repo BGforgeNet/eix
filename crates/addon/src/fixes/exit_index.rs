@@ -35,6 +35,7 @@ struct ExitArray {
 }
 
 const _: () = {
+    assert!(core::mem::offset_of!(ExitArray, _unknown0) == 0x0);
     assert!(core::mem::offset_of!(ExitArray, data) == 0x4);
     assert!(core::mem::offset_of!(ExitArray, count) == 0x8);
 };

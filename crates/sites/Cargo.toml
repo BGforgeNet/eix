@@ -6,5 +6,8 @@ publish.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[dev-dependencies]
+syn = { version = "=3.0.9", features = ["full", "visit"] }
+
 [lints]
 workspace = true

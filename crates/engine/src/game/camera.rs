@@ -38,10 +38,15 @@ pub struct Camera {
 
 const _: () = {
     assert!(offset_of!(Camera, transform) == 0x0);
+    assert!(offset_of!(Camera, _unknown54) == 0x54);
     assert!(offset_of!(Camera, zoom_target) == 0xD0);
+    assert!(offset_of!(Camera, _unknown_d4) == 0xD4);
     assert!(offset_of!(Camera, focus) == 0xE0);
+    assert!(offset_of!(Camera, _unknown_ec) == 0xEC);
     assert!(offset_of!(Camera, distance) == 0xF0);
+    assert!(offset_of!(Camera, _unknown_f4) == 0xF4);
     assert!(offset_of!(Camera, pitch) == 0x104);
+    assert!(offset_of!(Camera, _unknown108) == 0x108);
     assert!(offset_of!(Camera, near) == 0x2E0);
     assert!(offset_of!(Camera, far) == 0x2E4);
     assert!(offset_of!(Camera, field_of_view) == 0x2E8);

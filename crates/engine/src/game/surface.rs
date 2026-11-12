@@ -35,9 +35,12 @@ pub struct TextureDevice {
 }
 
 const _: () = {
+    assert!(offset_of!(TextureDevice, _unknown0) == 0x0);
     assert!(offset_of!(TextureDevice, ddraw) == 0xC);
+    assert!(offset_of!(TextureDevice, _unknown10) == 0x10);
     assert!(offset_of!(TextureDevice, primary) == 0x14);
     assert!(offset_of!(TextureDevice, render_target) == 0x18);
+    assert!(offset_of!(TextureDevice, _unknown1c) == 0x1C);
     assert!(offset_of!(TextureDevice, flags) == 0x20);
 };
 
@@ -83,6 +86,9 @@ pub struct DxSurface {
 }
 
 const _: () = {
+    assert!(offset_of!(DxSurface, _vtable) == 0x0);
+    assert!(offset_of!(DxSurface, _references) == 0x4);
+    assert!(offset_of!(DxSurface, result) == 0x8);
     assert!(offset_of!(DxSurface, device) == 0xC);
     assert!(offset_of!(DxSurface, surface) == 0x10);
     assert!(offset_of!(DxSurface, width) == 0x14);

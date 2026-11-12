@@ -33,9 +33,13 @@ pub struct Spell {
 
 const _: () = {
     assert!(offset_of!(Spell, base) == 0x0);
+    assert!(offset_of!(Spell, _unknown1c) == 0x1C);
     assert!(offset_of!(Spell, damage) == 0x24);
+    assert!(offset_of!(Spell, _unknown28) == 0x28);
     assert!(offset_of!(Spell, mana_cost) == 0x40);
+    assert!(offset_of!(Spell, _unknown44) == 0x44);
     assert!(offset_of!(Spell, cast_time) == 0x4C);
+    assert!(offset_of!(Spell, _unknown50) == 0x50);
     assert!(offset_of!(Spell, modifiers) == 0x54);
     assert!(size_of::<Spell>() == 0x5C);
 };
@@ -92,12 +96,19 @@ pub struct SpellRecord {
 }
 
 const _: () = {
+    assert!(offset_of!(SpellRecord, _unknown0) == 0x0);
     assert!(offset_of!(SpellRecord, school) == 0x14);
+    assert!(offset_of!(SpellRecord, _unknown18) == 0x18);
     assert!(offset_of!(SpellRecord, slots) == 0x1C);
+    assert!(offset_of!(SpellRecord, _unknown20) == 0x20);
     assert!(offset_of!(SpellRecord, damage) == 0x2C);
+    assert!(offset_of!(SpellRecord, _unknown30) == 0x30);
     assert!(offset_of!(SpellRecord, cast_time) == 0x3C);
+    assert!(offset_of!(SpellRecord, _unknown40) == 0x40);
     assert!(offset_of!(SpellRecord, icon) == 0x60);
+    assert!(offset_of!(SpellRecord, _unknown64) == 0x64);
     assert!(offset_of!(SpellRecord, shows_damage) == 0x7B);
+    assert!(offset_of!(SpellRecord, _unknown7c) == 0x7C);
     assert!(size_of::<SpellRecord>() == 0x84);
 };
 
@@ -117,7 +128,9 @@ pub struct ModifierRecord {
 }
 
 const _: () = {
+    assert!(offset_of!(ModifierRecord, _unknown0) == 0x0);
     assert!(offset_of!(ModifierRecord, code) == 0x4);
+    assert!(offset_of!(ModifierRecord, _unknown6) == 0x6);
     assert!(offset_of!(ModifierRecord, strength) == 0x14);
     assert!(offset_of!(ModifierRecord, skill) == 0x18);
 };
@@ -132,5 +145,6 @@ pub struct SpellContainer {
 }
 
 const _: () = {
+    assert!(offset_of!(SpellContainer, _unknown0) == 0x0);
     assert!(offset_of!(SpellContainer, cast_time) == 0x7C);
 };

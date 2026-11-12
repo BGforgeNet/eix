@@ -29,6 +29,7 @@ pub struct PackedVitals {
 }
 
 const _: () = {
+    assert!(offset_of!(PackedVitals, _unknown0) == 0x0);
     assert!(offset_of!(PackedVitals, hit_points) == 0x2);
     assert!(offset_of!(PackedVitals, max_hit_points) == 0x4);
     assert!(offset_of!(PackedVitals, mana) == 0x6);
@@ -73,13 +74,18 @@ pub struct MapObject {
 
 const _: () = {
     assert!(offset_of!(MapObject, transform) == 0x0);
+    assert!(offset_of!(MapObject, _unknown54) == 0x54);
     assert!(offset_of!(MapObject, scale) == 0xC4);
+    assert!(offset_of!(MapObject, _unknownd0) == 0xD0);
     assert!(offset_of!(MapObject, companion) == 0x170);
     assert!(offset_of!(MapObject, update_countdown) == 0x174);
     assert!(offset_of!(MapObject, animation_speed) == 0x178);
     assert!(offset_of!(MapObject, packed_vitals) == 0x17C);
+    assert!(offset_of!(MapObject, _unknown186) == 0x186);
     assert!(offset_of!(MapObject, effects) == 0x194);
+    assert!(offset_of!(MapObject, _unknown1a8) == 0x1A8);
     assert!(offset_of!(MapObject, base_scale) == 0x1AC);
+    assert!(offset_of!(MapObject, _unknown1b8) == 0x1B8);
     assert!(size_of::<MapObject>() == 0x238);
 };
 
@@ -108,10 +114,12 @@ pub struct MapEffect {
 
 const _: () = {
     assert!(offset_of!(MapEffect, kind) == 0x0);
+    assert!(offset_of!(MapEffect, _unknown1) == 0x1);
     assert!(offset_of!(MapEffect, ticks) == 0x4);
     assert!(offset_of!(MapEffect, value) == 0x8);
     assert!(offset_of!(MapEffect, strength) == 0xC);
     assert!(offset_of!(MapEffect, ending) == 0x10);
+    assert!(offset_of!(MapEffect, _unknown11) == 0x11);
     assert!(size_of::<MapEffect>() == 0x14);
 };
 
@@ -161,6 +169,8 @@ pub struct MapObjectServer {
 }
 
 const _: () = {
+    assert!(offset_of!(MapObjectServer, base) == 0x0);
+    assert!(offset_of!(MapObjectServer, _unknown1c) == 0x1C);
     assert!(offset_of!(MapObjectServer, vitals) == 0x20);
 };
 
@@ -203,9 +213,11 @@ const _: () = {
 };
 
 const _: () = {
+    assert!(offset_of!(UnitVitals, _unknown0) == 0x0);
     assert!(offset_of!(UnitVitals, regen_ticks) == 0x4);
     assert!(offset_of!(UnitVitals, hit_points) == 0x8);
     assert!(offset_of!(UnitVitals, max_hit_points) == 0xC);
+    assert!(offset_of!(UnitVitals, _unknown10) == 0x10);
     assert!(offset_of!(UnitVitals, mana) == 0x14);
     assert!(offset_of!(UnitVitals, max_mana) == 0x18);
     assert!(offset_of!(UnitVitals, mana_regen) == 0x1C);
@@ -268,21 +280,27 @@ pub struct Unit {
 const _: () = {
     assert!(offset_of!(Unit, map_object) == 0x0);
     assert!(offset_of!(Unit, script_name) == 0x238);
+    assert!(offset_of!(Unit, _unknown23c) == 0x23C);
     assert!(offset_of!(Unit, controller) == 0x240);
     assert!(offset_of!(Unit, hostile) == 0x244);
     assert!(offset_of!(Unit, hostile_limit) == 0x248);
     assert!(offset_of!(Unit, player) == 0x24C);
     assert!(offset_of!(Unit, side) == 0x250);
+    assert!(offset_of!(Unit, _unknown254) == 0x254);
     assert!(offset_of!(Unit, motion_mode) == 0x25C);
+    assert!(offset_of!(Unit, _unknown260) == 0x260);
     assert!(offset_of!(Unit, active_weapon) == 0x26C);
     assert!(offset_of!(Unit, pending_weapon) == 0x270);
     assert!(offset_of!(Unit, dead) == 0x274);
+    assert!(offset_of!(Unit, _unknown278) == 0x278);
     assert!(offset_of!(Unit, params) == 0x330);
+    assert!(offset_of!(Unit, _unknown438) == 0x438);
     assert!(offset_of!(Unit, weapons) == 0x440);
     assert!(offset_of!(Unit, quick_items) == 0x450);
     assert!(offset_of!(Unit, spells) == 0x460);
     assert!(offset_of!(Unit, armor) == 0x480);
     assert!(offset_of!(Unit, carried) == 0x49C);
+    assert!(offset_of!(Unit, _unknown4b0) == 0x4B0);
     assert!(size_of::<Unit>() == 0x4DC);
 };
 
@@ -398,14 +416,17 @@ const _: () = {
     assert!(offset_of!(UnitStats, speed) == 0x28);
     assert!(offset_of!(UnitStats, rate_base) == 0x2C);
     assert!(offset_of!(UnitStats, rate) == 0x30);
+    assert!(offset_of!(UnitStats, _unknown34) == 0x34);
     assert!(offset_of!(UnitStats, load) == 0x50);
     assert!(offset_of!(UnitStats, capacity) == 0x54);
+    assert!(offset_of!(UnitStats, _unknown58) == 0x58);
     assert!(offset_of!(UnitStats, combat) == 0x70);
     assert!(offset_of!(UnitStats, damage) == 0x84);
     assert!(offset_of!(UnitStats, damage_spread) == 0x88);
     assert!(offset_of!(UnitStats, natural_attack_interval) == 0x8C);
     assert!(offset_of!(UnitStats, damage_weights) == 0x90);
     assert!(offset_of!(UnitStats, natural_weapon) == 0xAC);
+    assert!(offset_of!(UnitStats, _unknownb0) == 0xB0);
     assert!(offset_of!(UnitStats, slots) == 0x110);
     assert!(offset_of!(UnitStats, attributes) == 0x6C8);
     assert!(offset_of!(UnitStats, skills) == 0x6CB);
@@ -447,13 +468,17 @@ pub struct UnitStatLayer {
 }
 
 const _: () = {
+    assert!(offset_of!(UnitStatLayer, _unknown0) == 0x0);
     assert!(offset_of!(UnitStatLayer, absorb) == 0x4);
+    assert!(offset_of!(UnitStatLayer, _unknown20) == 0x20);
     assert!(size_of::<UnitStatLayer>() == 0x48);
+    assert!(offset_of!(UnitStatSlot, _unknown0) == 0x0);
     assert!(offset_of!(UnitStatSlot, layers) == 0x8);
     assert!(offset_of!(UnitStatSlot, kind) == 0xE0);
     assert!(offset_of!(UnitStatSlot, current) == 0xE4);
     assert!(offset_of!(UnitStatSlot, maximum) == 0xE8);
     assert!(offset_of!(UnitStatSlot, share) == 0xEC);
+    assert!(offset_of!(UnitStatSlot, _unknownf0) == 0xF0);
     assert!(size_of::<UnitStatSlot>() == 0xF4);
 };
 
@@ -473,7 +498,9 @@ pub struct UnitParams {
 }
 
 const _: () = {
+    assert!(offset_of!(UnitParams, _unknown0) == 0x0);
     assert!(offset_of!(UnitParams, combat) == 0x18);
+    assert!(offset_of!(UnitParams, _unknown1d) == 0x1D);
     assert!(offset_of!(UnitParams, skill_levels) == 0xE3);
     assert!(offset_of!(UnitParams, flags) == 0x107);
     assert!(size_of::<UnitParams>() == 0x108);
@@ -701,6 +728,7 @@ pub struct UnitController {
 }
 
 const _: () = {
+    assert!(offset_of!(UnitController, base) == 0x0);
     assert!(offset_of!(UnitController, unit) == 0x1C);
 };
 
@@ -725,10 +753,15 @@ pub struct UnitServer {
 }
 
 const _: () = {
+    assert!(offset_of!(UnitServer, base) == 0x0);
     assert!(offset_of!(UnitServer, unit) == 0x1C);
+    assert!(offset_of!(UnitServer, _unknown20) == 0x20);
     assert!(offset_of!(UnitServer, action) == 0x190);
+    assert!(offset_of!(UnitServer, _unknown1b4) == 0x1B4);
     assert!(offset_of!(UnitServer, stats) == 0x1E0);
+    assert!(offset_of!(UnitServer, _unknown8e4) == 0x8E4);
     assert!(offset_of!(UnitServer, brain) == 0x980);
+    assert!(offset_of!(UnitServer, _unknownb10) == 0xB10);
     assert!(size_of::<UnitServer>() == 0xB20);
 };
 
@@ -771,11 +804,18 @@ pub struct SeenNode {
 }
 
 const _: () = {
+    assert!(offset_of!(AiBrain, _unknown0) == 0x0);
     assert!(offset_of!(AiBrain, alarm_slot) == 0x36);
+    assert!(offset_of!(AiBrain, _unknown37) == 0x37);
     assert!(offset_of!(AiBrain, alarm_records) == 0x90);
+    assert!(offset_of!(AiBrain, _unknowna4) == 0xA4);
     assert!(offset_of!(AiBrain, memory) == 0xD0);
+    assert!(offset_of!(AiBrain, _unknown118) == 0x118);
     assert!(size_of::<AiBrain>() == 0x190);
+    assert!(offset_of!(AiMemory, _unknown0) == 0x0);
     assert!(offset_of!(AiMemory, visible) == 0x44);
+    assert!(offset_of!(SeenNode, next) == 0x0);
+    assert!(offset_of!(SeenNode, prev) == 0x4);
     assert!(offset_of!(SeenNode, unit) == 0x8);
 };
 
@@ -847,7 +887,9 @@ pub struct UnitPrototype {
 const _: () = {
     assert!(offset_of!(UnitPrototype, name) == 0x0);
     assert!(offset_of!(UnitPrototype, model) == 0x4);
+    assert!(offset_of!(UnitPrototype, _unknown8) == 0x8);
     assert!(offset_of!(UnitPrototype, protection_scale) == 0x58);
+    assert!(offset_of!(UnitPrototype, _unknown5c) == 0x5C);
     assert!(offset_of!(UnitPrototype, combat) == 0x64);
 };
 
@@ -937,8 +979,10 @@ pub struct UnitAction {
 }
 
 const _: () = {
+    assert!(offset_of!(UnitAction, kind) == 0x0);
     assert!(offset_of!(UnitAction, source) == 0x4);
     assert!(offset_of!(UnitAction, target) == 0x8);
+    assert!(offset_of!(UnitAction, _unknown0c) == 0xC);
     assert!(size_of::<UnitAction>() == 0x24);
 };
 
@@ -989,7 +1033,9 @@ pub struct AnimationEntry {
 }
 
 const _: () = {
+    assert!(offset_of!(AnimationEntry, _unknown0) == 0x0);
     assert!(offset_of!(AnimationEntry, key) == 0x14);
+    assert!(offset_of!(AnimationEntry, _unknown18) == 0x18);
     assert!(offset_of!(AnimationEntry, frame_count) == 0x20);
 };
 
@@ -1011,6 +1057,7 @@ pub struct OrderPlan {
 }
 
 const _: () = {
+    assert!(offset_of!(OrderPlan, _unknown0) == 0x0);
     assert!(offset_of!(OrderPlan, cast_kind) == 0x34);
 };
 
@@ -1025,6 +1072,7 @@ pub struct ActionItem {
 }
 
 const _: () = {
+    assert!(offset_of!(ActionItem, _unknown0) == 0x0);
     assert!(offset_of!(ActionItem, value) == 0x4C);
 };
 

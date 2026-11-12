@@ -22,6 +22,10 @@ use crate::setup::{c_string_until_nul, path};
 #[repr(C, align(8))]
 struct ScriptMemory([u8; 0x250]);
 
+const _: () = {
+    assert!(core::mem::offset_of!(ScriptMemory, 0) == 0x0);
+};
+
 /// The script text files compile into: made on the first text file, kept for the rest of the command.
 struct TextScript(Option<Box<ScriptMemory>>);
 

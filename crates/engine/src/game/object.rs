@@ -18,6 +18,13 @@ pub struct Vector3 {
     pub z: f32,
 }
 
+const _: () = {
+    assert!(offset_of!(Vector3, x) == 0x0);
+    assert!(offset_of!(Vector3, y) == 0x4);
+    assert!(offset_of!(Vector3, z) == 0x8);
+    assert!(size_of::<Vector3>() == 0xC);
+};
+
 /// A rotation, `w` first: `CTransformObject::ConstructBase` 0x453400 stores 1.0 at the first word of each rotation.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -33,7 +40,10 @@ pub struct Quaternion {
 }
 
 const _: () = {
-    assert!(size_of::<Vector3>() == 0xC);
+    assert!(offset_of!(Quaternion, w) == 0x0);
+    assert!(offset_of!(Quaternion, x) == 0x4);
+    assert!(offset_of!(Quaternion, y) == 0x8);
+    assert!(offset_of!(Quaternion, z) == 0xC);
     assert!(size_of::<Quaternion>() == 0x10);
 };
 
@@ -53,7 +63,9 @@ pub struct EngineObjectVtable {
 }
 
 const _: () = {
+    assert!(offset_of!(EngineObjectVtable, _slots0) == 0x0);
     assert!(offset_of!(EngineObjectVtable, release) == 0x10);
+    assert!(offset_of!(EngineObjectVtable, _slots5) == 0x14);
     assert!(offset_of!(EngineObjectVtable, class_name) == 0x2C);
     assert!(offset_of!(EngineObjectVtable, class_id) == 0x30);
 };
@@ -182,6 +194,7 @@ pub struct TransformObject {
 }
 
 const _: () = {
+    assert!(offset_of!(TransformObject, base) == 0x0);
     assert!(offset_of!(TransformObject, position) == 0x1C);
     assert!(offset_of!(TransformObject, world_position) == 0x28);
     assert!(offset_of!(TransformObject, rotation) == 0x34);

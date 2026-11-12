@@ -38,8 +38,12 @@ pub struct Point {
 }
 
 const _: () = {
+    assert!(offset_of!(Rect, left) == 0x0);
+    assert!(offset_of!(Rect, top) == 0x4);
+    assert!(offset_of!(Rect, right) == 0x8);
     assert!(offset_of!(Rect, bottom) == 0xC);
     assert!(size_of::<Rect>() == 0x10);
+    assert!(offset_of!(Point, x) == 0x0);
     assert!(offset_of!(Point, y) == 0x4);
 };
 
@@ -66,9 +70,11 @@ pub struct UiRegion {
 }
 
 const _: () = {
+    assert!(offset_of!(UiRegion, _unknown0) == 0x0);
     assert!(offset_of!(UiRegion, points) == 0x4);
     assert!(offset_of!(UiRegion, points_end) == 0x8);
     assert!(offset_of!(UiRegion, points_capacity) == 0xC);
+    assert!(offset_of!(UiRegion, _unknown10) == 0x10);
     assert!(offset_of!(UiRegion, bounds) == 0x14);
     assert!(offset_of!(UiRegion, rect_only) == 0x24);
     assert!(offset_of!(UiRegion, enabled) == 0x25);
@@ -90,7 +96,9 @@ pub struct UiMesh {
 }
 
 const _: () = {
+    assert!(offset_of!(UiMesh, _unknown0) == 0x0);
     assert!(offset_of!(UiMesh, place) == 0x1C);
+    assert!(offset_of!(UiMesh, _unknown28) == 0x28);
     assert!(offset_of!(UiMesh, visible) == 0x220);
     assert!(offset_of!(UiMesh, tint) == 0x224);
 };
@@ -155,8 +163,11 @@ pub struct UiWindow {
 }
 
 const _: () = {
+    assert!(offset_of!(UiWindow, _unknown0) == 0x0);
     assert!(offset_of!(UiWindow, interface) == 0x98);
+    assert!(offset_of!(UiWindow, _unknown9c) == 0x9C);
     assert!(offset_of!(UiWindow, rect) == 0xD8);
+    assert!(offset_of!(UiWindow, _unknowne8) == 0xE8);
     assert!(offset_of!(UiWindow, sprites) == 0x108);
     assert!(offset_of!(UiWindow, sprite_count) == 0x10C);
 };
@@ -229,9 +240,14 @@ pub struct BattleScreen {
     pub unit_panel: *mut HudUnitPanel,
 }
 
-const _: () = assert!(offset_of!(BattleScreen, unit_panel) == 0x1A8);
+const _: () = {
+    assert!(offset_of!(BattleScreen, _unknown0) == 0x0);
+    assert!(offset_of!(BattleScreen, unit_panel) == 0x1A8);
+};
 
 const _: () = {
+    assert!(offset_of!(HudUnitPanel, window) == 0x0);
+    assert!(offset_of!(HudUnitPanel, _unknown110) == 0x110);
     assert!(offset_of!(HudUnitPanel, sliding) == 0x16C);
     assert!(offset_of!(HudUnitPanel, offset) == 0x170);
     assert!(offset_of!(HudUnitPanel, travel) == 0x174);
@@ -256,8 +272,11 @@ pub struct HelpWindow {
 }
 
 const _: () = {
+    assert!(offset_of!(HelpWindow, _unknown0) == 0x0);
     assert!(offset_of!(HelpWindow, message) == 0x164);
+    assert!(offset_of!(HelpWindow, _unknown165) == 0x165);
     assert!(offset_of!(HelpWindow, text) == 0x168);
+    assert!(offset_of!(HelpWindow, _unknown16c) == 0x16C);
     assert!(offset_of!(HelpWindow, page) == 0x184);
 };
 
@@ -271,7 +290,10 @@ pub struct BriefingScreen {
     pub topic: GameString,
 }
 
-const _: () = assert!(offset_of!(BriefingScreen, topic) == 0x184);
+const _: () = {
+    assert!(offset_of!(BriefingScreen, _unknown0) == 0x0);
+    assert!(offset_of!(BriefingScreen, topic) == 0x184);
+};
 
 /// The 2D layout's constants in game.exe's `.rdata`, read by `CUiMesh::PlaceBody` 0x5E6FA0 and the shape builders:
 /// layout x and y to view units are `(v * LAYOUT_TO_VIEW - centre) * VIEW_SCALE * depth`.
@@ -300,6 +322,7 @@ pub struct Interface {
 }
 
 const _: () = {
+    assert!(offset_of!(Interface, _unknown0) == 0x0);
     assert!(offset_of!(Interface, console) == 0x14);
 };
 
@@ -328,8 +351,10 @@ pub struct Surface {
 }
 
 const _: () = {
+    assert!(offset_of!(Surface, _vtable) == 0x0);
     assert!(offset_of!(Surface, interface) == 0x4);
     assert!(offset_of!(Surface, dc) == 0x8);
+    assert!(offset_of!(Surface, _flags) == 0xC);
     assert!(offset_of!(Surface, holder) == 0x10);
 };
 
@@ -645,7 +670,10 @@ pub struct UiContainer {
     pub children: GameArray<*mut c_void>,
 }
 
-const _: () = assert!(offset_of!(UiContainer, children) == 0x144);
+const _: () = {
+    assert!(offset_of!(UiContainer, _unknown0) == 0x0);
+    assert!(offset_of!(UiContainer, children) == 0x144);
+};
 
 impl UiContainer {
     /// Appends `child` to the children, which the container then draws, updates and hands input to in their order,
@@ -682,7 +710,9 @@ pub struct UiScrollbar {
 }
 
 const _: () = {
+    assert!(offset_of!(UiScrollbar, _unknown0) == 0x0);
     assert!(offset_of!(UiScrollbar, maximum) == 0x148);
+    assert!(offset_of!(UiScrollbar, _unknown14c) == 0x14C);
     assert!(offset_of!(UiScrollbar, position) == 0x150);
 };
 

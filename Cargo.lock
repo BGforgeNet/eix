@@ -139,6 +139,9 @@ dependencies = [
 [[package]]
 name = "eix-sites"
 version = "0.1.0"
+dependencies = [
+ "syn",
+]
 
 [[package]]
 name = "eix-spelladdon"

@@ -25,8 +25,11 @@ pub struct HashTable<N> {
 }
 
 const _: () = {
+    assert!(offset_of!(HashTable<u8>, _unknown0) == 0x0);
     assert!(offset_of!(HashTable<u8>, buckets) == 0x4);
     assert!(offset_of!(HashTable<u8>, buckets_end) == 0x8);
+    assert!(offset_of!(HashTable<u8>, _unknownc) == 0xC);
+    assert!(offset_of!(HashTable<u8>, _node) == 0x14);
     assert!(size_of::<HashTable<u8>>() == 0x14);
 };
 

@@ -135,9 +135,16 @@ pub struct PtrListNode {
 }
 
 const _: () = {
+    assert!(offset_of!(PtrList, vtable) == 0x0);
     assert!(offset_of!(PtrList, head) == 0x4);
+    assert!(offset_of!(PtrList, tail) == 0x8);
     assert!(offset_of!(PtrList, count) == 0xC);
+    assert!(offset_of!(PtrList, free) == 0x10);
+    assert!(offset_of!(PtrList, blocks) == 0x14);
+    assert!(offset_of!(PtrList, block_size) == 0x18);
     assert!(size_of::<PtrList>() == 0x1C);
+    assert!(offset_of!(PtrListNode, next) == 0x0);
+    assert!(offset_of!(PtrListNode, prev) == 0x4);
     assert!(offset_of!(PtrListNode, data) == 0x8);
 };
 
@@ -404,6 +411,11 @@ mod tests {
             data: StringData,
             chars: [u8; 8],
         }
+
+        const _: () = {
+            assert!(offset_of!(Block, data) == 0x0);
+            assert!(offset_of!(Block, chars) == 0xC);
+        };
         let mut block = Block {
             data: StringData {
                 refs: 1,

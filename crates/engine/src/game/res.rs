@@ -22,7 +22,10 @@ pub struct MappedResource {
     _unknown00: [u8; 0x58],
 }
 
-const _: () = assert!(size_of::<MappedResource>() == 0x58);
+const _: () = {
+    assert!(core::mem::offset_of!(MappedResource, _unknown00) == 0x0);
+    assert!(size_of::<MappedResource>() == 0x58);
+};
 
 impl MappedResource {
     /// Zeroed storage for one archive, which [`construct`] then makes an archive of.
@@ -178,7 +181,11 @@ pub struct PathRange {
     pub end: *const u8,
 }
 
-const _: () = assert!(size_of::<PathRange>() == 8);
+const _: () = {
+    assert!(core::mem::offset_of!(PathRange, begin) == 0x0);
+    assert!(core::mem::offset_of!(PathRange, end) == 0x4);
+    assert!(size_of::<PathRange>() == 8);
+};
 
 /// `LinkFigureLoader::AddResource` 0x4F6D30: thiscall `(const PathRange*)`, `ret 4`; opens an extra figure archive for
 /// the linked figures.

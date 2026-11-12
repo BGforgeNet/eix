@@ -19,6 +19,10 @@ pub struct CommandMap {
     _opaque: [u8; 0xC],
 }
 
+const _: () = {
+    assert!(offset_of!(CommandMap, _opaque) == 0x0);
+};
+
 /// The commands always available: [`execute`] looks a line up here after [`CHEAT_COMMANDS`] (0x5DC7CA).
 pub const PUBLIC_COMMANDS: Global<CommandMap> = Global::at(eix_sites::DATA_7C7B28);
 /// The commands after the cheat word: [`execute`] looks a line up here first (0x5DC65A) and registers the game's
@@ -31,6 +35,10 @@ pub const CHEAT_COMMANDS: Global<CommandMap> = Global::at(eix_sites::DATA_7C7B38
 pub struct Ostream {
     _opaque: [u8; 8],
 }
+
+const _: () = {
+    assert!(offset_of!(Ostream, _opaque) == 0x0);
+};
 
 /// The console's output stream: its static initialiser constructs it on the console's stream buffer 0x7C5868 with
 /// filter 0 (0x5DC5E0).
@@ -145,11 +153,15 @@ pub struct ConsoleWindow {
 }
 
 const _: () = {
+    assert!(offset_of!(ConsoleWindow, _unknown0) == 0x0);
     assert!(offset_of!(ConsoleWindow, history) == 0xC);
+    assert!(offset_of!(ConsoleWindow, _unknown20) == 0x20);
     assert!(offset_of!(ConsoleWindow, input) == 0x24);
     assert!(offset_of!(ConsoleWindow, caret) == 0x28);
     assert!(offset_of!(ConsoleWindow, anchor) == 0x2C);
+    assert!(offset_of!(ConsoleWindow, _unknown30) == 0x30);
     assert!(offset_of!(ConsoleWindow, lines) == 0x58);
+    assert!(offset_of!(ConsoleWindow, _unknown6c) == 0x6C);
     assert!(offset_of!(ConsoleWindow, ctrl) == 0x78);
     assert!(offset_of!(ConsoleWindow, shift) == 0x79);
     assert!(offset_of!(ConsoleWindow, shown) == 0x7A);

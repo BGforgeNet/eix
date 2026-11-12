@@ -51,7 +51,10 @@ pub struct ScriptObjectRef {
     pub object: *mut EngineObject,
 }
 
-const _: () = assert!(size_of::<ScriptObjectRef>() == 4);
+const _: () = {
+    assert!(offset_of!(ScriptObjectRef, object) == 0x0);
+    assert!(size_of::<ScriptObjectRef>() == 4);
+};
 
 /// A script group: an MFC array of object references (`CArray<ScriptObjectRef>::SetSize` 0x4C2050).
 pub type ScriptGroup = GameArray<ScriptObjectRef>;
@@ -118,6 +121,7 @@ const _: () = {
     assert!(offset_of!(ScriptCommand, string_args) == 0x18);
     assert!(offset_of!(ScriptCommand, object_args) == 0x2C);
     assert!(offset_of!(ScriptCommand, group_args) == 0x40);
+    assert!(offset_of!(ScriptCommand, _unknown54) == 0x54);
     assert!(size_of::<ScriptCommand>() == 0x94);
 };
 
@@ -138,7 +142,9 @@ pub struct Script {
 }
 
 const _: () = {
+    assert!(offset_of!(Script, _unknown0) == 0x0);
     assert!(offset_of!(Script, globals) == 0xA0);
+    assert!(offset_of!(Script, _unknown140) == 0x140);
     assert!(offset_of!(Script, error_text) == 0x1EC);
     assert!(offset_of!(Script, error_code) == 0x1F0);
     assert!(offset_of!(Script, error_line) == 0x1F4);

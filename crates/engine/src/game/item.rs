@@ -31,10 +31,13 @@ pub struct WeaponRecord {
 }
 
 const _: () = {
+    assert!(offset_of!(WeaponRecord, _unknown0) == 0x0);
     assert!(offset_of!(WeaponRecord, attack_interval) == 0x6C);
+    assert!(offset_of!(WeaponRecord, _unknown70) == 0x70);
     assert!(offset_of!(WeaponRecord, attack_bonus) == 0x84);
     assert!(offset_of!(WeaponRecord, defence_bonus) == 0x88);
     assert!(offset_of!(WeaponRecord, reach) == 0x8C);
+    assert!(offset_of!(WeaponRecord, _unknown90) == 0x90);
     assert!(offset_of!(WeaponRecord, damage_types) == 0x98);
 };
 
@@ -70,6 +73,7 @@ pub struct Item {
 
 const _: () = {
     assert!(offset_of!(Item, base) == 0x0);
+    assert!(offset_of!(Item, _unknown1c) == 0x1C);
     assert!(offset_of!(Item, condition) == 0x20);
     assert!(offset_of!(Item, max_condition) == 0x24);
     assert!(offset_of!(Item, charge) == 0x28);
@@ -77,7 +81,9 @@ const _: () = {
     assert!(offset_of!(Item, charge_rate) == 0x30);
     assert!(offset_of!(Item, weight) == 0x34);
     assert!(offset_of!(Item, price) == 0x38);
+    assert!(offset_of!(Item, _unknown3c) == 0x3C);
     assert!(offset_of!(Item, spell) == 0x44);
+    assert!(offset_of!(Item, _unknown48) == 0x48);
     assert!(size_of::<Item>() == 0x4C);
 };
 
@@ -128,8 +134,11 @@ pub struct ItemWeapon {
 }
 
 const _: () = {
+    assert!(offset_of!(ItemWeapon, item) == 0x0);
+    assert!(offset_of!(ItemWeapon, _unknown4c) == 0x4C);
     assert!(offset_of!(ItemWeapon, damage) == 0x50);
     assert!(offset_of!(ItemWeapon, damage_spread) == 0x54);
+    assert!(offset_of!(ItemWeapon, _unknown58) == 0x58);
     assert!(size_of::<ItemWeapon>() == 0x5C);
 };
 
@@ -148,7 +157,9 @@ pub struct ItemArmor {
 }
 
 const _: () = {
+    assert!(offset_of!(ItemArmor, item) == 0x0);
     assert!(offset_of!(ItemArmor, absorb) == 0x4C);
     assert!(offset_of!(ItemArmor, absorb2) == 0x68);
+    assert!(offset_of!(ItemArmor, _unknown84) == 0x84);
     assert!(size_of::<ItemArmor>() == 0x8C);
 };

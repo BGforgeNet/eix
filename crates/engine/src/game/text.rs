@@ -27,6 +27,7 @@ pub struct TextManager {
 }
 
 const _: () = {
+    assert!(offset_of!(TextManager, _unknown0) == 0x0);
     assert!(offset_of!(TextManager, cursor) == 0x20);
     assert!(offset_of!(TextManager, text) == 0x24);
     assert!(offset_of!(TextManager, length) == 0x28);

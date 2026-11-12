@@ -44,12 +44,17 @@ pub struct Player {
 }
 
 const _: () = {
+    assert!(offset_of!(Player, _unknown0) == 0x0);
     assert!(offset_of!(Player, server) == 0x20);
     assert!(offset_of!(Player, number) == 0x24);
+    assert!(offset_of!(Player, _unknown28) == 0x28);
     assert!(offset_of!(Player, units) == 0x40);
+    assert!(offset_of!(Player, _unknown54) == 0x54);
     assert!(offset_of!(Player, party) == 0xA0);
     assert!(offset_of!(Player, party_count) == 0xA4);
+    assert!(offset_of!(Player, _unknowna8) == 0xA8);
     assert!(offset_of!(Player, variables) == 0xC4);
+    assert!(offset_of!(Player, _unknownd8) == 0xD8);
     assert!(offset_of!(Player, god_mode) == 0x108);
 };
 
@@ -64,6 +69,7 @@ pub struct PlayerClient {
 }
 
 const _: () = {
+    assert!(offset_of!(PlayerClient, base) == 0x0);
     assert!(offset_of!(PlayerClient, player) == 0x1C);
 };
 
@@ -100,6 +106,9 @@ pub struct ItemList {
 }
 
 const _: () = {
+    assert!(offset_of!(ItemList, items) == 0x0);
+    assert!(offset_of!(ItemList, count) == 0x4);
+    assert!(offset_of!(ItemList, _unknown8) == 0x8);
     assert!(size_of::<ItemList>() == 0x10);
 };
 
@@ -125,12 +134,15 @@ pub struct PartyRecord {
 }
 
 const _: () = {
+    assert!(offset_of!(PartyRecord, _unknown0) == 0x0);
     assert!(offset_of!(PartyRecord, unit_id) == 0x1C);
     assert!(offset_of!(PartyRecord, stats) == 0x20);
+    assert!(offset_of!(PartyRecord, _unknown724) == 0x724);
     assert!(offset_of!(PartyRecord, weapons) == 0x730);
     assert!(offset_of!(PartyRecord, quick_items) == 0x740);
     assert!(offset_of!(PartyRecord, armor) == 0x750);
     assert!(offset_of!(PartyRecord, spells) == 0x760);
+    assert!(offset_of!(PartyRecord, _unknown770) == 0x770);
     assert!(size_of::<PartyRecord>() == 0x784);
 };
 
@@ -203,6 +215,8 @@ pub struct PlayerIterator {
 }
 
 const _: () = {
+    assert!(offset_of!(PlayerIterator, list) == 0x0);
+    assert!(offset_of!(PlayerIterator, node) == 0x4);
     assert!(size_of::<PlayerIterator>() == 8);
 };
 
@@ -377,6 +391,10 @@ pub const CLEAR: Site = eix_sites::C_STR_FLOAT_CLEAR;
 pub struct PlayerServer {
     _opaque: [u8; 0],
 }
+
+const _: () = {
+    assert!(offset_of!(PlayerServer, _opaque) == 0x0);
+};
 
 impl PlayerServer {
     /// Sets the player's variable `name` and sends it: `CPlayerServer::SetVariable` 0x66EE10 (thiscall, the name and

@@ -1206,6 +1206,11 @@ mod tests {
             regs: Context,
             words: [u32; 6],
         }
+
+        const _: () = {
+            assert!(core::mem::offset_of!(Frame, regs) == 0x0);
+            assert!(core::mem::offset_of!(Frame, words) == 0x28);
+        };
         // SAFETY: the frame consists only of integer registers and stack words.
         let mut frame: Frame = unsafe { core::mem::zeroed() };
         frame.regs.ebx = u32::MAX;

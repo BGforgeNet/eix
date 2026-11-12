@@ -21,6 +21,8 @@ pub struct MobSpec {
 }
 
 const _: () = {
+    assert!(offset_of!(MobSpec, vtable) == 0x0);
+    assert!(offset_of!(MobSpec, _unknown4) == 0x4);
     assert!(offset_of!(MobSpec, parent) == 0x14);
     assert!(offset_of!(MobSpec, id) == 0x18);
 };
@@ -35,6 +37,7 @@ pub struct MobSpecVtable {
 }
 
 const _: () = {
+    assert!(offset_of!(MobSpecVtable, _slots0) == 0x0);
     assert!(offset_of!(MobSpecVtable, delete) == 0x28);
 };
 

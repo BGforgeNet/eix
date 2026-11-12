@@ -154,8 +154,12 @@ pub struct FpuSave {
 
 const _: () = {
     assert!(core::mem::offset_of!(FpuSave, control) == 0);
+    assert!(core::mem::offset_of!(FpuSave, _reserved2) == 0x2);
     assert!(core::mem::offset_of!(FpuSave, status) == 4);
+    assert!(core::mem::offset_of!(FpuSave, _reserved6) == 0x6);
     assert!(core::mem::offset_of!(FpuSave, tags) == 8);
+    assert!(core::mem::offset_of!(FpuSave, _reserved10) == 0xA);
+    assert!(core::mem::offset_of!(FpuSave, _pointers) == 0xC);
     assert!(core::mem::offset_of!(FpuSave, regs) == 28);
     assert!(size_of::<FpuSave>() == 108);
 };

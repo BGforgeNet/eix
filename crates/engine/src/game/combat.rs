@@ -22,6 +22,7 @@ pub struct AttackParams {
 }
 
 const _: () = {
+    assert!(offset_of!(AttackParams, _unknown0) == 0x0);
     assert!(offset_of!(AttackParams, attack_spread) == 0x14);
     assert!(offset_of!(AttackParams, attack) == 0x18);
     assert!(offset_of!(AttackParams, defence) == 0x1C);
