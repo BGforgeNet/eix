@@ -673,7 +673,7 @@ unsafe fn build_table() -> Result<(Vec<ScriptKeyword>, Vec<Option<Handler>>), St
 pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
     report::init(&setup.options);
     let _ = MOD_DIR.set(setup.mod_dir.clone());
-    // SAFETY: groups are built before WinMain, in RU 1.06 (checked before the WinMain hook).
+    // SAFETY: groups are built before WinMain, in a supported build (checked before the WinMain hook).
     let (table, handlers) = unsafe { build_table() }?;
     let table: &'static [ScriptKeyword] = Box::leak(table.into_boxed_slice());
     let address = table.as_ptr() as usize;
