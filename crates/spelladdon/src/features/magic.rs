@@ -327,14 +327,14 @@ pub(crate) fn teleport_boost(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, B
 }
 
 /// `mov ecx, [ebp-0x14]; mov eax, [esi+0xC]` at `CSpellEffect::UpdateLasting`+0xDDF, after Possession registers its
-/// target with the script group; the original registers the caster too.
+/// caster with the script group; the original registers the target too.
 const POSSESSION_REGISTER: Site = eix_sites::C_SPELL_EFFECT_UPDATE_LASTING__DDF;
 const POSSESSION_REGISTER_BYTES: [u8; 6] = [0x8B, 0x4D, 0xEC, 0x8B, 0x46, 0x0C];
 /// `ScriptGroup::Insert(unit)` and `ScriptGroup::InsertAll(list)`, both `ret 4`.
 const SCRIPT_GROUP_INSERT: Site = eix_sites::SCRIPT_GROUP_INSERT;
 const SCRIPT_GROUP_INSERT_ALL: Site = eix_sites::SCRIPT_GROUP_INSERT_ALL;
 type ScriptGroupInsert = unsafe extern "thiscall" fn(group: u32, item: u32);
-/// Possession's other fixes: the unit read is the effect's target `[ebx+0x20]`, and the two lists it adds swap
+/// Possession's other fixes: the unit read is the effect's caster `[ebx+0x20]`, and the two lists it adds swap
 /// (0xA90 <-> 0xAAC).
 const POSSESSION_TARGET: [Bytes; 3] = [
     (
@@ -354,18 +354,18 @@ const POSSESSION_TARGET: [Bytes; 3] = [
     ),
 ];
 
-/// The handler of `possessionpatch`: as the game did for the caster before the patch, the caster `[ebx+0x1C]`, then
+/// The handler of `possessionpatch`: as the game did for the target before the patch, the target `[ebx+0x1C]`, then
 /// its lists +0xAAC and +0xA90 go into the script group (`[[ebp-0x14]+0x20] + 0x50F8`, also stored over the
-/// function's argument `[ebp+8]`); ESI and EDI are the caster and its `+0x240` afterwards, as the original leaves them.
+/// function's argument `[ebp+8]`); ESI and EDI are the target and its `+0x240` afterwards, as the original leaves them.
 extern "C" fn possession_register(_: usize, ctx: &mut Context) {
     // SAFETY: the frame of `UpdateLasting` at the site: `[ebp-0x14]` is the world.
     let world = unsafe { read::<u32>(ctx.ebp - 0x14) };
-    // SAFETY: EBX is the effect; its caster is a live unit.
-    let caster = unsafe { read::<u32>(ctx.ebx + 0x1C) };
+    // SAFETY: EBX is the effect; its target is a live unit.
+    let target = unsafe { read::<u32>(ctx.ebx + 0x1C) };
     // SAFETY: the world's `+0x20` object, as above.
     let group = unsafe { read::<u32>(world + 0x20) }.wrapping_add(0x50F8);
-    // SAFETY: the caster, as above.
-    let unit_part = unsafe { read::<u32>(caster + 0x240) };
+    // SAFETY: the target, as above.
+    let unit_part = unsafe { read::<u32>(target + 0x240) };
     // SAFETY: the function's first argument slot, which the original reuses as a local.
     unsafe { write::<u32>(ctx.ebp + 8, group) };
     // SAFETY: both are `void __thiscall (u32)` with `ret 4`.
@@ -373,12 +373,12 @@ extern "C" fn possession_register(_: usize, ctx: &mut Context) {
     // SAFETY: as above.
     let insert_all: ScriptGroupInsert = unsafe { hook::as_fn(SCRIPT_GROUP_INSERT_ALL) };
     // SAFETY: the game's own calls with the game's objects, on its thread.
-    unsafe { insert(group, caster) };
+    unsafe { insert(group, target) };
     // SAFETY: as above.
     unsafe { insert_all(group, unit_part + 0xAAC) };
     // SAFETY: as above.
     unsafe { insert_all(group, unit_part + 0xA90) };
-    ctx.esi = caster;
+    ctx.esi = target;
     ctx.edi = unit_part;
     // SAFETY: as above.
     ctx.ecx = unsafe { read::<u32>(ctx.ebp - 0x14) };
@@ -947,7 +947,7 @@ const VITALS: u32 = 0x170;
 const MANA: u32 = 0x34;
 
 /// The handler of `linkremaster` 1: every 32nd tick the mana of the two linked units moves by the effect's strength
-/// (`[ebx+0x58]`) from the one fuller in proportion to its maximum (ECX, the effect's other unit, and the caster
+/// (`[ebx+0x58]`) from the one fuller in proportion to its maximum (ECX, the caster, and the target
 /// `[ebx+0x1C]`) to the other, and both are set to the shared proportion once a step would pass it.
 extern "C" fn link_mana(_: usize, ctx: &mut Context) {
     // SAFETY: EBX is the Link effect.
@@ -957,10 +957,10 @@ extern "C" fn link_mana(_: usize, ctx: &mut Context) {
     }
     // SAFETY: ECX is a live unit, as the original takes it.
     let a = unsafe { read::<u32>(ctx.ecx + VITALS) } + MANA;
-    // SAFETY: the effect's caster.
-    let caster = unsafe { read::<u32>(ctx.ebx + 0x1C) };
+    // SAFETY: the effect's target.
+    let target = unsafe { read::<u32>(ctx.ebx + 0x1C) };
     // SAFETY: as above.
-    let b = unsafe { read::<u32>(caster + VITALS) } + MANA;
+    let b = unsafe { read::<u32>(target + VITALS) } + MANA;
     let get = |at: u32| {
         // SAFETY: a mana value or maximum of the two vitals.
         f64::from(unsafe { read::<f32>(at) })
