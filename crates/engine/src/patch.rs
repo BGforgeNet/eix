@@ -8,9 +8,10 @@ use alloc::borrow::Cow;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::ffi::c_void;
 use core::fmt;
 
-use windows_sys::Win32::System::Diagnostics::Debug::FlushInstructionCache;
+use windows_sys::Win32::System::Diagnostics::Debug::{FlushInstructionCache, OutputDebugStringW};
 use windows_sys::Win32::System::Memory::{
     PAGE_EXECUTE_READWRITE, PAGE_PROTECTION_FLAGS, VirtualProtect,
 };
@@ -200,14 +201,39 @@ pub fn is_code(site: Site, kind: Kind) -> bool {
 /// # Safety
 /// As for [`write()`], for `site` itself.
 unsafe fn write_at(site: Site, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
+    // SAFETY: the caller guarantees the range; the closure calls VirtualProtect with the writer's arguments.
+    unsafe {
+        write_at_using(
+            site,
+            expected,
+            new,
+            |ptr, len, protect, old| VirtualProtect(ptr, len, protect, old),
+            protection_warning,
+        )
+    }
+}
+
+/// # Safety
+/// As for [`write_at`]; `protect` must set the range's protection and return its old protection like VirtualProtect.
+unsafe fn write_at_using(
+    site: Site,
+    expected: &[u8],
+    new: &[u8],
+    mut protect: impl FnMut(
+        *const c_void,
+        usize,
+        PAGE_PROTECTION_FLAGS,
+        *mut PAGE_PROTECTION_FLAGS,
+    ) -> i32,
+    warn: impl FnOnce(Site, &str),
+) -> Result<(), PatchError> {
     let len = new.len();
     let ptr = site.ptr::<u8>();
     // Protection is per page: two writes to different sites on one page must not interleave, or one restores
     // read-only protection while the other is still writing.
     PROTECT.with(|()| {
         let mut old: PAGE_PROTECTION_FLAGS = 0;
-        // SAFETY: the caller guarantees the range is mapped; `old` receives the previous protection.
-        let ok = unsafe { VirtualProtect(ptr.cast(), len, PAGE_EXECUTE_READWRITE, &mut old) };
+        let ok = protect(ptr.cast(), len, PAGE_EXECUTE_READWRITE, &raw mut old);
         if ok == 0 {
             return Err(PatchError::Protect {
                 site,
@@ -229,8 +255,9 @@ unsafe fn write_at(site: Site, expected: &[u8], new: &[u8]) -> Result<(), PatchE
         };
         let mut ignored: PAGE_PROTECTION_FLAGS = 0;
         // Restoring the protection only narrows access again; the patch stands either way.
-        // SAFETY: same range; `old` is the protection it had.
-        unsafe { VirtualProtect(ptr.cast(), len, old, &mut ignored) };
+        if protect(ptr.cast(), len, old, &raw mut ignored) == 0 {
+            warn(site, &crate::win::os_error("VirtualProtect restore"));
+        }
         // SAFETY: returns a pseudo-handle to our own process; no preconditions.
         let process = unsafe { GetCurrentProcess() };
         // SAFETY: flushing a range of our own process is always allowed.
@@ -240,6 +267,28 @@ unsafe fn write_at(site: Site, expected: &[u8], new: &[u8]) -> Result<(), PatchE
 }
 
 static PROTECT: SpinLock<()> = SpinLock::new(());
+
+static WARNING: SpinLock<fn(Site, &str)> = SpinLock::new(debug_warning);
+
+/// Sets where a failed page-protection restore is reported. The patch remains in place. Before a handler is set,
+/// warnings go to the Windows debugger.
+/// The handler must not call the patch writer: it runs while the page-protection lock is held.
+pub fn set_warning_handler(handler: fn(Site, &str)) {
+    WARNING.with(|current| *current = handler);
+}
+
+fn protection_warning(site: Site, error: &str) {
+    let handler = WARNING.with(|current| *current);
+    handler(site, error);
+}
+
+fn debug_warning(site: Site, error: &str) {
+    let text = crate::win::wide(&format!(
+        "patch at {site:#x}: cannot restore page protection: {error}"
+    ));
+    // SAFETY: the text is NUL-terminated and lives through the call.
+    unsafe { OutputDebugStringW(text.as_ptr()) };
+}
 
 /// An RU 1.06 site and the bytes expected and written there, for the running build: the site translated, the
 /// expected bytes those found when they are the RU bytes translated, the written bytes translated.
@@ -371,6 +420,38 @@ fn rel32(opcode: u8, from: Site, to: usize) -> [u8; 5] {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_restore_failure_is_reported_without_undoing_the_write() {
+        let mut buf = [1u8];
+        let site = Site::of(buf.as_mut_ptr() as usize);
+        let mut calls = 0;
+        let mut warning = None;
+        // SAFETY: the buffer belongs to this test and is writable; the substitute changes no page protection.
+        let result = unsafe {
+            write_at_using(
+                site,
+                &[1],
+                &[2],
+                |_, _, _, old| {
+                    calls += 1;
+                    // SAFETY: the writer passes its local protection word.
+                    old.write(PAGE_EXECUTE_READWRITE);
+                    i32::from(calls == 1)
+                },
+                |at, error| warning = Some((at, error.to_owned())),
+            )
+        };
+        assert_eq!(result, Ok(()));
+        assert_eq!(buf, [2]);
+        assert_eq!(warning.as_ref().map(|(at, _)| *at), Some(site));
+        assert!(
+            warning
+                .unwrap()
+                .1
+                .starts_with("VirtualProtect restore: OS error ")
+        );
+    }
 
     #[test]
     fn jmp_forward_and_back() {

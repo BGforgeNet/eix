@@ -54,15 +54,14 @@ unsafe fn player_zero() -> Option<*mut Player> {
 }
 
 /// Writes `player`'s party to the file `file`: the party into a memory stream, then the stream into a
-/// file stream as a save record. Nothing is checked: a file that does not open is written nowhere or faults, as in
-/// the original.
+/// file stream as a save record. Returns false when the file name is invalid or the file does not open.
 ///
 /// # Safety
 /// `player` must be a live player of a supported game.exe.
-unsafe fn write_party(player: *mut Player, file: &[u8]) {
+unsafe fn write_party(player: *mut Player, file: &[u8]) -> bool {
     let Ok(file) = CString::new(file) else {
         log::warn("crash", "a party file name holds a NUL", "");
-        return;
+        return false;
     };
     let mut memory = StreamMemory::<MEMORY_STREAM_BYTES>::new();
     let memory = memory.as_mut_ptr();
@@ -76,13 +75,21 @@ unsafe fn write_party(player: *mut Player, file: &[u8]) {
     // SAFETY: memory for the stream.
     unsafe { stream::construct_file_stream(out) };
     // SAFETY: the constructed file stream; `file` is NUL-terminated.
-    unsafe { stream::open_file_stream_for_writing(out, &file) };
-    // SAFETY: the global holds the save version; both streams are constructed.
-    let version = unsafe { SAVE_VERSION.read() };
-    // SAFETY: as above.
-    unsafe { stream::save_file_write(out, PARTY_FILE_KIND, version, memory) };
-    // SAFETY: the constructed file stream.
-    unsafe { stream::close_file(out) };
+    let opened = unsafe { stream::open_file_stream_for_writing(out, &file) };
+    if opened {
+        // SAFETY: the global holds the save version; both streams are constructed and the output file is open.
+        let version = unsafe { SAVE_VERSION.read() };
+        // SAFETY: as above.
+        unsafe { stream::save_file_write(out, PARTY_FILE_KIND, version, memory) };
+        // SAFETY: the constructed file stream has an open file.
+        unsafe { stream::close_file(out) };
+    } else {
+        log::warn(
+            "crash",
+            "cannot write the party file",
+            &path(file.to_bytes()).display().to_string(),
+        );
+    }
     // SAFETY: as above; the file stream is not used afterwards.
     unsafe { stream::destruct_file_stream(out) };
     // SAFETY: as above.
@@ -91,6 +98,7 @@ unsafe fn write_party(player: *mut Player, file: &[u8]) {
     unsafe { stream::destruct_memory_stream(memory) };
     // SAFETY: as above.
     unsafe { stream::destroy_in_place(memory) };
+    opened
 }
 
 /// The game's current hero file name as bytes (empty when the global is null).
@@ -112,7 +120,7 @@ unsafe fn hero_file() -> Vec<u8> {
 ///
 /// # Safety
 /// `player` must be the live player 0 of a supported game.exe.
-unsafe fn write_files(player: *mut Player, folder: &[u8]) {
+unsafe fn write_files(player: *mut Player, folder: &[u8]) -> bool {
     let world = SERVER_WORLD.as_ptr();
     // The calls are the original's, in its order; the hero file's name is read again for the second file.
     // SAFETY: the caller guarantees the live player and the build, on the crashing thread.
@@ -120,7 +128,7 @@ unsafe fn write_files(player: *mut Player, folder: &[u8]) {
     // SAFETY: as above.
     let first = unsafe { hero_file() };
     // SAFETY: as above.
-    unsafe { write_party(player, &names::party_files(folder, &first)[0]) };
+    let first_written = unsafe { write_party(player, &names::party_files(folder, &first)[0]) };
     // SAFETY: as above.
     unsafe { World::clear_player_items(world, player) };
     // SAFETY: as above.
@@ -130,13 +138,15 @@ unsafe fn write_files(player: *mut Player, folder: &[u8]) {
     // SAFETY: as above.
     let second = unsafe { hero_file() };
     // SAFETY: as above.
-    unsafe { write_party(player, &names::party_files(folder, &second)[1]) };
+    let second_written = unsafe { write_party(player, &names::party_files(folder, &second)[1]) };
     // SAFETY: as above.
     unsafe { World::clear_player_items(world, player) };
+    first_written && second_written
 }
 
 /// Backs the party up as the crash filter does; the backup folder (ending in `\`), or empty when nothing was backed
-/// up: the setting is off, the game has no live server or no player 0, or a folder cannot be made.
+/// up: the setting is off, the game has no live server or no player 0, a folder cannot be made, or a party file
+/// cannot be written.
 pub(crate) fn run() -> Vec<u8> {
     let Some(mod_dir) = MOD_DIR.get() else {
         return Vec::new();
@@ -177,7 +187,14 @@ pub(crate) fn run() -> Vec<u8> {
         return Vec::new();
     }
     // SAFETY: `player_zero` found the live player 0 above.
-    unsafe { write_files(player, &folder) };
+    if !unsafe { write_files(player, &folder) } {
+        log::warn(
+            "crash",
+            "party backup incomplete",
+            &path(&folder).display().to_string(),
+        );
+        return Vec::new();
+    }
     log::info(
         "crash",
         "saves backed up",

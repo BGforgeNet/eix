@@ -69,6 +69,13 @@ pub(crate) fn open(path: &Path) -> std::io::Result<()> {
     *FILE
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(file);
+    eix_engine::patch::set_warning_handler(|site, error| {
+        warn(
+            "patch",
+            &format!("cannot restore page protection: {error}"),
+            &format!("{site:#x}"),
+        );
+    });
     Ok(())
 }
 

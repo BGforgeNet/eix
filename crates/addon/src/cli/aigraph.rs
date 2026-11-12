@@ -89,16 +89,9 @@ fn build_and_save(mob: &CStr) -> i32 {
     let code = match std::path::absolute(path(&mob_path)) {
         Ok(full) if !mob_path.is_empty() => {
             let graph_path = graph_file(&ansi(full.as_os_str()));
-            write_graph(graph, &graph_path);
-            print(
-                &[
-                    &b"AI Graph successfully generated and saved to "[..],
-                    &graph_path,
-                    b"\n",
-                ]
-                .concat(),
-            );
-            0
+            let (text, code) = save_result(&graph_path, write_graph(graph, &graph_path));
+            print(&text);
+            code
         }
         Ok(_) | Err(_) => {
             print(&[&b"Failed get full path of "[..], &mob_path, b"\n"].concat());
@@ -116,20 +109,33 @@ fn build_and_save(mob: &CStr) -> i32 {
 
 /// Writes the graph stream to `file` through a game file stream; a
 /// file that does not open is written nowhere, as in the original.
-fn write_graph(graph: *mut std::ffi::c_void, file: &[u8]) {
+fn write_graph(graph: *mut std::ffi::c_void, file: &[u8]) -> bool {
     let name = c_string_until_nul(file);
     let mut memory = StreamMemory::<FILE_STREAM_BYTES>::new();
     let out = memory.as_mut_ptr();
     // SAFETY: memory for a file stream, on the game's thread.
     unsafe { stream::construct_file_stream(out) };
     // SAFETY: the constructed file stream; `name` is NUL-terminated.
-    unsafe { stream::open_file_stream_for_writing(out, &name) };
-    // SAFETY: both streams are constructed.
-    unsafe { stream::copy_from(out, graph) };
+    let opened = unsafe { stream::open_file_stream_for_writing(out, &name) };
+    if opened {
+        // SAFETY: both streams are constructed and the output file is open.
+        unsafe { stream::copy_from(out, graph) };
+    }
     // SAFETY: the constructed file stream.
     unsafe { stream::destruct_file_stream(out) };
     // SAFETY: as above; the stream is not used afterwards.
     unsafe { stream::destroy_in_place(out) };
+    opened
+}
+
+/// The message and exit code after attempting to save the graph.
+fn save_result(file: &[u8], saved: bool) -> (Vec<u8>, i32) {
+    let lead: &[u8] = if saved {
+        b"AI Graph successfully generated and saved to "
+    } else {
+        b"Failed to save AI Graph to "
+    };
+    ([lead, file, b"\n"].concat(), i32::from(!saved))
 }
 
 /// Runs `aigraph` with `args`; the exit code.
@@ -155,4 +161,24 @@ pub(super) fn run(args: &[Vec<u8>], runner: &[u8], mod_dir: &[u8]) -> i32 {
         return 1;
     }
     build_and_save(&mob)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_failed_graph_write_reports_failure_and_a_nonzero_exit() {
+        assert_eq!(
+            save_result(b"maps\\zone.grp", false),
+            (b"Failed to save AI Graph to maps\\zone.grp\n".to_vec(), 1)
+        );
+        assert_eq!(
+            save_result(b"maps\\zone.grp", true),
+            (
+                b"AI Graph successfully generated and saved to maps\\zone.grp\n".to_vec(),
+                0
+            )
+        );
+    }
 }

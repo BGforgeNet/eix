@@ -60,7 +60,7 @@ pub fn box_line(folder: &str) -> String {
 pub const ISSUES: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/issues");
 
 /// The crash box's text: the exception, then `backup_line` ([`box_line`], empty for none), then where to report it
-/// and the files to attach: `log`, and `dump` unless it is empty (no dump name was free).
+/// and the files to attach: `log`, and `dump` unless it is empty (no dump was written).
 ///
 /// Diverges on purpose: the original asks for the dump at its author's address, which is not where eix's crashes are
 /// fixed.

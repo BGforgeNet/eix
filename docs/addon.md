@@ -36,7 +36,7 @@ group and logs why.
 | `ObjectsDrawRadius` | 100 | Object draw radius; 100 leaves the game's value | same |
 | `LandscapeDrawRadius` | 100 | Terrain draw radius; 100 leaves the game's value | same |
 | `AntiCrash` (FixCreateItem, DisableExitOnCrashReport) | 1 | Report invalid item creation and fatal game errors without the game's forced exit; mod `[Addon] AntiCrash` overrides when present | same |
-| `AutoRecover` | 1 | Back up the hosting player's party on a crash; 0 disables | fixed: with all 1000 backup names taken, nothing is backed up (the original writes into the drive's root) |
+| `AutoRecover` | 1 | Back up the hosting player's party on a crash; 0 disables | fixed: with all 1000 backup names taken, nothing is backed up (the original writes into the drive's root); a failed party-file open is warned about and the box claims no completed backup |
 | `FullDump` | 0 | Nonzero includes the process's full memory in crash dumps | same |
 | `LogLevel`, `ConsoleLogLevel` | 1, 3 | Minimum log/console severity: 0 debug, 1 information, 2 warning, 3 error, 4 off | same |
 | `Rate` (SetDefaultRate) | 5000 | Only 2500 enables the group, which writes 2500, the value the game already holds; no visible effect on RU 1.06 | same |
@@ -197,6 +197,8 @@ Run these from the game folder (CommandLine; `aigraph` also GraphGenPatches):
 Place `--moddir <name>` before the command to select a mod under the starter's `Mods` folder.
 Without an `mpr` argument, the map name is derived from the mob name, dropping `-lmp`.
 Script-check exit codes: 0 success, 2 unreadable file, 3 nothing checked, 4 script error or failed batch.
+AI-graph exit codes: 0 saved or usage shown, 1 invalid mode, zone-load, path or output-file failure, 3 missing input
+file.
 
 ## Game script interface
 
@@ -226,7 +228,7 @@ Only the differences; everything else behaves as the original.
 | addon.log: what it records | also the eix build and commit, the Windows and Wine versions, the game.exe build, and the loaded modules (the original logs none of these) |
 | Crash handler: a filter set later | fixed: a plugin that replaces the crash handler (Universal Mod's um.dll) no longer disables it: eix's handler runs the others first, then its own. A crash within a quarter of a second of the plugin setting its filter reaches only the plugin's |
 | Crash handler: the record | addon.log gets the crash's code, address, access, registers and return addresses, each address with the patch group, fix or SpellAddon feature that put code there, and the loaded modules (the original writes only the dump) |
-| Crash handler: the box | asks for a report at eix's issue tracker, naming addon.log and the dump (the original asks for the dump at its author's address) |
+| Crash handler: the box | asks for a report at eix's issue tracker, naming addon.log and a successfully written dump (the original asks for the dump at its author's address) |
 | `Tracer` | not reproduced: the original's per-patch hit counter reports wrong names and traps every hit |
 | When built-in SpellAddon runs | applies when the sound system starts, where the original module loads; a separate `SpellAddon*.asi` is not loaded |
 | spelladdon.ini choice | fixed: the mod folder's file, else the game folder's, else SpellAddon is off (the original reads `AddonPath`'s file unchecked, and with some registry setups a garbage path, so every key takes its default) |

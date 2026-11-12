@@ -80,6 +80,29 @@ fn place_owned_at(address: usize, owned: usize) -> Place {
     }
 }
 
+/// Writes a new dump and returns its attachment path only when the write succeeds.
+fn write_dump(dump: &Path, write: impl FnOnce(&[u16]) -> Result<(), String>) -> String {
+    if dump.as_os_str().is_empty() || dump.exists() {
+        return String::new();
+    }
+    let wide: Vec<u16> = dump.as_os_str().encode_wide().collect();
+    match write(&wide) {
+        Ok(()) => {
+            let path = dump.display().to_string();
+            log::info("crash", "minidump written", &path);
+            path
+        }
+        Err(e) => {
+            log::error(
+                "crash",
+                &format!("the minidump was not written: {e}"),
+                &dump.display().to_string(),
+            );
+            String::new()
+        }
+    }
+}
+
 fn handle(c: &Crash) {
     // Written while the other threads still run: a stopped thread could hold addon.log's lock.
     let returns: Vec<Place> = c
@@ -112,17 +135,7 @@ fn handle(c: &Crash) {
     c.stop_other_threads();
     let (log_path, dump, full) = FILES.get().cloned().unwrap_or_default();
     // The original writes no dump over a file of that name.
-    if !dump.as_os_str().is_empty() && !dump.exists() {
-        let wide: Vec<u16> = dump.as_os_str().encode_wide().collect();
-        match c.write_minidump(&wide, full) {
-            Ok(()) => log::info("crash", "minidump written", &dump.display().to_string()),
-            Err(e) => log::error(
-                "crash",
-                &format!("the minidump was not written: {e}"),
-                &dump.display().to_string(),
-            ),
-        }
-    }
+    let dump = write_dump(&dump, |wide| c.write_minidump(wide, full));
     // After the dump and before the box, as the original.
     let backup = box_line(&narrow(&from_ansi(&auto_recover::run())));
     error_box(
@@ -132,7 +145,7 @@ fn handle(c: &Crash) {
             c.address,
             &backup,
             &log_path.display().to_string(),
-            &dump.display().to_string(),
+            &dump,
         ),
     );
     exit_process(c.code)
@@ -185,5 +198,14 @@ mod tests {
     #[test]
     fn dump_names_are_the_originals() {
         assert_eq!(dump_name(1, 11, 2026, 0), "ei-01.11.2026-0.dmp");
+    }
+
+    #[test]
+    fn a_failed_dump_is_not_named_as_an_attachment() {
+        let dump = std::env::temp_dir().join(format!("eix-missing-{}.dmp", std::process::id()));
+        let attachment = write_dump(&dump, |_| Err("write refused".to_owned()));
+        assert_eq!(attachment, "");
+        let attachment = write_dump(&dump, |_| Ok(()));
+        assert_eq!(attachment, dump.display().to_string());
     }
 }
