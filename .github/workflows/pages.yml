@@ -1,7 +1,7 @@
 name: Pages
 
 on:
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] deploy is restricted to successful pushes from this repository
     workflows: [CI]
     types: [completed]
     branches: [main]
@@ -30,9 +30,9 @@ jobs:
       - name: Install mdBook
         run: |
           build/install-mdbook.sh "$RUNNER_TEMP/bin"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: Build the book
-        run: mdbook build
+        run: |
+          "$RUNNER_TEMP/bin/mdbook" build
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: target/book
