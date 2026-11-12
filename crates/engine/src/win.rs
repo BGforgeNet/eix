@@ -27,7 +27,7 @@ use windows_sys::Win32::System::DataExchange::{
 };
 use windows_sys::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
 use windows_sys::Win32::System::Memory::{
-    GMEM_MOVEABLE, GMEM_ZEROINIT, GlobalAlloc, GlobalLock, GlobalUnlock,
+    GMEM_MOVEABLE, GMEM_ZEROINIT, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
 };
 use windows_sys::Win32::System::SystemInformation::GetLocalTime;
 use windows_sys::Win32::System::Threading::{
@@ -312,11 +312,44 @@ pub fn set_clipboard_text(text: &[u16]) -> bool {
     }
     // SAFETY: the clipboard is open.
     unsafe { EmptyClipboard() };
-    // SAFETY: the clipboard is open; it owns the block from here on.
-    let set = !unsafe { SetClipboardData(UNICODE_TEXT, block) }.is_null();
+    let publish = |block| {
+        // SAFETY: the clipboard is open; the block is a live, unlocked moveable allocation.
+        unsafe { SetClipboardData(UNICODE_TEXT, block) }
+    };
+    // SAFETY: the block is ours; `publish` transfers ownership only on success.
+    let set = unsafe { publish_clipboard_block(block, publish) };
     // SAFETY: opened above.
     unsafe { CloseClipboard() };
     set
+}
+
+/// # Safety
+/// `block` is an owned, unlocked GlobalAlloc block; `publish` takes ownership only when it returns non-null.
+unsafe fn publish_clipboard_block(
+    block: *mut c_void,
+    publish: impl FnOnce(*mut c_void) -> *mut c_void,
+) -> bool {
+    let set = !publish(block).is_null();
+    if !set {
+        // SAFETY: the publisher refused ownership; the block is still ours and unlocked.
+        unsafe { GlobalFree(block) };
+    }
+    set
+}
+
+/// # Safety
+/// `at` is aligned for UTF-16 and readable for `bytes` bytes while this call lasts.
+unsafe fn clipboard_units(at: *const u16, bytes: usize) -> Vec<u16> {
+    let mut out = Vec::new();
+    for i in 0..bytes / size_of::<u16>() {
+        // SAFETY: only whole UTF-16 units within the readable block are visited.
+        let c = unsafe { *at.wrapping_add(i) };
+        if c == 0 {
+            break;
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// The clipboard's Unicode text (no NUL), empty when there is none or it cannot be had.
@@ -329,19 +362,13 @@ pub fn clipboard_text() -> Vec<u16> {
     // SAFETY: the clipboard is open.
     let data = unsafe { GetClipboardData(UNICODE_TEXT) };
     if !data.is_null() {
-        // SAFETY: the clipboard's Unicode text is a moveable block holding a NUL-terminated string.
+        // SAFETY: the clipboard's Unicode text is a live moveable block.
         let at = unsafe { GlobalLock(data) }.cast::<u16>();
         if !at.is_null() {
-            let mut i = 0;
-            loop {
-                // SAFETY: within the NUL-terminated string.
-                let c = unsafe { *at.wrapping_add(i) };
-                if c == 0 {
-                    break;
-                }
-                out.push(c);
-                i += 1;
-            }
+            // SAFETY: the clipboard owns this live global block.
+            let bytes = unsafe { GlobalSize(data) };
+            // SAFETY: the locked block is aligned for UTF-16 and readable for its GlobalSize.
+            out = unsafe { clipboard_units(at, bytes) };
             // SAFETY: locked above.
             unsafe { GlobalUnlock(data) };
         }
@@ -488,6 +515,55 @@ pub unsafe fn disable_thread_library_calls(module: *mut c_void) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clipboard_text_stops_at_the_block_boundary() {
+        let storage = [65, 66, 0];
+        for (bytes, expected) in [
+            (0, &[][..]),
+            (1, &[][..]),
+            (2, &[65][..]),
+            (3, &[65][..]),
+            (4, &[65, 66][..]),
+            (6, &[65, 66][..]),
+        ] {
+            // SAFETY: storage is readable and NUL-terminated; bytes names the accessible prefix.
+            let text = unsafe { clipboard_units(storage.as_ptr(), bytes) };
+            assert_eq!(text, expected, "{bytes} bytes");
+        }
+        let terminated = [65, 0, 66];
+        // SAFETY: all three units are readable.
+        assert_eq!(unsafe { clipboard_units(terminated.as_ptr(), 6) }, [65]);
+    }
+
+    #[test]
+    fn refused_clipboard_blocks_are_freed() {
+        // SAFETY: a fresh moveable allocation.
+        let block = unsafe { GlobalAlloc(GMEM_MOVEABLE, 4) };
+        assert!(!block.is_null());
+        // SAFETY: the publisher refuses the block and takes no ownership.
+        let set = unsafe { publish_clipboard_block(block, |_| core::ptr::null_mut()) };
+        // SAFETY: GlobalSize returns zero for an invalid global handle.
+        let left = unsafe { GlobalSize(block) };
+        if left != 0 {
+            // SAFETY: a refused block still owned here, if it was not freed.
+            unsafe { GlobalFree(block) };
+        }
+        assert!(!set);
+        assert_eq!(left, 0);
+
+        // SAFETY: a fresh moveable allocation.
+        let block = unsafe { GlobalAlloc(GMEM_MOVEABLE, 4) };
+        assert!(!block.is_null());
+        // SAFETY: this publisher accepts ownership and leaves the block live until freed below.
+        let set = unsafe { publish_clipboard_block(block, |owned| owned) };
+        // SAFETY: GlobalSize returns zero if the handle was wrongly freed.
+        let left = unsafe { GlobalSize(block) };
+        // SAFETY: ownership passed to this test's publisher; GlobalFree also accepts an invalid handle.
+        unsafe { GlobalFree(block) };
+        assert!(set);
+        assert!(left >= 4);
+    }
 
     #[test]
     fn round_trips_wide_strings() {
