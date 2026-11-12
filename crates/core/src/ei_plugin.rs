@@ -152,8 +152,6 @@ mod tests {
 
     #[test]
     fn the_checksum_table_matches_the_addons() {
-        // Values from an independent model of the checksum, which gives SUPPORTED_CHECKSUM over the shipped
-        // EI_Plugin.asi.
         assert_eq!(TABLE[0], 0xD202_EF8D);
         assert_eq!(TABLE[1], 0xA505_DF1B);
         assert_eq!(checksum(b"", 0), 0);

@@ -56,7 +56,7 @@ mod tests {
         let figure = 0x284usize.next_multiple_of(16);
         assert_eq!(figure, 656);
         assert!(0x298 + 4 <= padded(figure));
-        // Pointer arrays of 1 KB and more: reported overruns of 130 and more, seen through a 160-byte guard.
+        // Pointer arrays of 1 KB and more can overrun by 130 bytes or more.
         for size in (1024..=8192).step_by(16) {
             assert!(padding(size) >= 160, "{size}");
         }

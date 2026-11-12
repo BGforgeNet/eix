@@ -616,10 +616,9 @@ mod tests {
         out
     }
 
-    /// Vertices whose colour differs at 24 and 53 bits (a channel lands on a rounding tie at one of them), found by a
-    /// search over random inputs: the directional light's direction, colour and alpha, the normal, the position, one
-    /// point light's position, fall-off and colour, the ambient light, and the colour at 24 and at 53 bits. The
-    /// floors are -1.
+    /// Vertices whose colour differs at 24 and 53 bits because a channel lands on a rounding tie at one of them.
+    /// Each entry holds the directional light's direction, colour and alpha, the normal, the position, one point
+    /// light's position, fall-off and colour, the ambient light, and the colour at 24 and at 53 bits; floors are -1.
     const TIES: [Tie; 6] = [
         (
             [-0.832502, 0.37378204, 0.22801006],
@@ -838,8 +837,7 @@ mod tests {
         // SAFETY: the method's address in the loaded library, of this type.
         let original: Method = unsafe { hook::as_fn_at(module + METHOD) };
         let ours: Method = light;
-        // The precisions give different colours only where a channel lands on a rounding tie, about one vertex in
-        // 140 000 of the random scenes: these show that each precision's path is the one that matches.
+        // The precisions give different colours where a channel lands on a rounding tie.
         for (i, t) in TIES.iter().enumerate() {
             let mut s = tie_scene(t);
             for (precision, want) in [(0, t.9), (2, t.10)] {
