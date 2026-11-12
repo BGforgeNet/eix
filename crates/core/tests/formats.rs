@@ -210,7 +210,7 @@ fn every_value_type_round_trips() {
     };
     let bytes = reg.to_bytes().expect("writes");
     assert_eq!(Registry::parse(&bytes).as_ref(), Ok(&reg));
-    // A keyless section is a missing key, where the original's lookup divides by its slot count 0 (loader.md).
+    // A keyless section is a missing key, where the original's lookup divides by its slot count 0.
     assert_eq!(
         Registry::parse(&bytes).expect("parses").get("empty", "x"),
         None
