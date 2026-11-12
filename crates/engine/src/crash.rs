@@ -16,6 +16,7 @@ use windows_sys::Win32::Foundation::{CloseHandle, GENERIC_WRITE, HANDLE, INVALID
 use windows_sys::Win32::Storage::FileSystem::{CREATE_ALWAYS, CreateFileW, FILE_ATTRIBUTE_NORMAL};
 use windows_sys::Win32::System::Diagnostics::Debug::{
     EXCEPTION_POINTERS, LPTOP_LEVEL_EXCEPTION_FILTER, MINIDUMP_EXCEPTION_INFORMATION,
+    MINIDUMP_TYPE, MiniDumpWithFullMemory, MiniDumpWithIndirectlyReferencedMemory,
     SetUnhandledExceptionFilter,
 };
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
@@ -32,7 +33,7 @@ use windows_sys::Win32::System::Threading::{
     THREAD_SUSPEND_RESUME,
 };
 
-use crate::win::{os_error, wide};
+use crate::win::os_error;
 
 /// An unhandled exception, as the handler sees it.
 #[derive(Debug)]
@@ -405,22 +406,16 @@ type MiniDumpWriteDump = unsafe extern "system" fn(
     HANDLE,
     u32,
     HANDLE,
-    u32,
+    MINIDUMP_TYPE,
     *const MINIDUMP_EXCEPTION_INFORMATION,
     *const c_void,
     *const c_void,
 ) -> i32;
 
-/// `MiniDumpWithFullMemory`.
-const FULL_MEMORY: u32 = 0x2;
-/// `MiniDumpWithIndirectlyReferencedMemory`.
-const INDIRECT_MEMORY: u32 = 0x40;
-
 /// Resolves the dump writer while other threads can still release the loader lock; the DLL stays loaded.
 fn load_dump_writer() -> Result<MiniDumpWriteDump, String> {
-    let dbghelp = wide("dbghelp.dll");
     // SAFETY: a NUL-terminated name.
-    let module = unsafe { LoadLibraryW(dbghelp.as_ptr()) };
+    let module = unsafe { LoadLibraryW(windows_sys::w!("dbghelp.dll")) };
     if module.is_null() {
         return Err(os_error("cannot load dbghelp.dll"));
     }
@@ -464,7 +459,11 @@ unsafe fn write_minidump(
         ExceptionPointers: pointers.cast_mut(),
         ClientPointers: 0,
     };
-    let kind = if full { FULL_MEMORY } else { INDIRECT_MEMORY };
+    let kind = if full {
+        MiniDumpWithFullMemory
+    } else {
+        MiniDumpWithIndirectlyReferencedMemory
+    };
     // SAFETY: no preconditions.
     let process = unsafe { GetCurrentProcess() };
     // SAFETY: no preconditions.

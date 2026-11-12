@@ -16,7 +16,7 @@ use windows_sys::Win32::System::LibraryLoader::{
     GetModuleFileNameW, GetModuleHandleExW, GetModuleHandleW, GetProcAddress, LoadLibraryW,
 };
 
-use crate::win::{narrow, os_error, wide};
+use crate::win::{narrow, os_error};
 
 /// A loaded DLL. It is never freed: the exports resolved from it stay valid for the process's life.
 #[derive(Debug)]
@@ -31,9 +31,8 @@ impl Dll {
     /// kernel32.dll's directory is the system directory of the process's own bitness (SysWOW64 for a 32-bit
     /// process on 64-bit Windows), so no file system redirection is involved.
     pub fn system(name: &str) -> Result<Self, String> {
-        let kernel32 = wide("kernel32.dll");
-        // SAFETY: `kernel32` is NUL-terminated.
-        let module = unsafe { GetModuleHandleW(kernel32.as_ptr()) };
+        // SAFETY: a NUL-terminated name.
+        let module = unsafe { GetModuleHandleW(windows_sys::w!("kernel32.dll")) };
         if module.is_null() {
             return Err(os_error("kernel32.dll is not loaded"));
         }
