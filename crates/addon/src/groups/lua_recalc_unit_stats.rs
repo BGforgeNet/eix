@@ -292,7 +292,8 @@ unsafe fn raise_byte(
         return false;
     }
     let step = amount.to_le_bytes()[0];
-    // The index is not checked, as in the original.
+    // GiveSkill is game.exe's only caller of RaiseSkill and RaiseAttribute. It matches each name and passes a
+    // constant index: skills 0..7, or attribute 0 for science; an unknown name calls neither function.
     let at = stats
         .cast::<u8>()
         .wrapping_add(bytes)
