@@ -14,7 +14,6 @@
     reason = "hooks the stat packing and reads the stats and packed bytes it writes"
 )]
 
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use eix_core::encumbrance::{Settings, encumbrance, rescaled};
@@ -23,6 +22,7 @@ use eix_engine::hook::{self, Context, FpuContext, Mode};
 use eix_engine::x87::Ext;
 use eix_sites::Site;
 
+use crate::encumbrance_rules::{SETTINGS, drain_multiplier};
 use crate::game::BeforeWinMain;
 use crate::groups::{self, BuildError, Labelled, Tally, apply_built};
 use crate::log;
@@ -46,7 +46,6 @@ const DRAIN_BYTES: [u8; 9] = [0xD9, 0x57, 0x14, 0xD8, 0x1D, 0x58, 0xB8, 0x73, 0x
 /// The first byte of `Recompute`'s `fld [ebx+0x24]`, the instruction SpellAddon's `encumbrancemovespeed` hooks.
 const RECOMPUTE_SPEED_FIRST: u8 = 0xD9;
 
-static SETTINGS: OnceLock<Settings> = OnceLock::new();
 /// Whether the first pack looked at SpellAddon's speed hook yet.
 static CHECKED: AtomicBool = AtomicBool::new(false);
 
@@ -92,13 +91,6 @@ extern "C" fn pack(_: usize, ctx: &mut Context) {
     unsafe { base_at.write(base) };
     // SAFETY: as above.
     unsafe { run_at.write(run) };
-}
-
-/// What a running unit's drain is multiplied by at `load` of `capacity`: 1 while `[Encumbrance]` is off.
-pub(crate) fn drain_multiplier(load: f32, capacity: f32) -> f64 {
-    SETTINGS
-        .get()
-        .map_or(1.0, |s| s.drain_multiplier(encumbrance(load, capacity)))
 }
 
 extern "C" fn drain(_: usize, ctx: &mut FpuContext) {
@@ -235,10 +227,5 @@ mod tests {
             drain.expected(),
             [0xD9, 0x57, 0x14, 0xD8, 0x1D, 0x58, 0xB8, 0x73, 0x00]
         );
-    }
-
-    #[test]
-    fn no_multiplier_until_installed() {
-        assert_eq!(drain_multiplier(500.0, 312.0), 1.0);
     }
 }

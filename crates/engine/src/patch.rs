@@ -22,6 +22,8 @@ use eix_sites::Site;
 use crate::lock::SpinLock;
 use crate::translate;
 
+pub use crate::translate::Kind;
+
 /// Why a patch was not written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PatchError {
@@ -88,19 +90,6 @@ fn hex(bytes: &[u8]) -> String {
         .map(|b| format!("{b:02X}"))
         .collect::<Vec<_>>()
         .join(" ")
-}
-
-/// What bytes written at a site are, for another build: the bytes there translate as their kind says.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    /// What the site's section holds: code in `.text`, data elsewhere (a data site's 4-byte address translates).
-    Section,
-    /// Code wherever it lies: a branch the original put into `.data` is rebased as code.
-    Code,
-    /// Data wherever it lies: a pointer in a jump table of `.text` translates as an address.
-    Data,
-    /// Bytes that hold no address (text, a constant), the same in every build: nothing in them translates.
-    Plain,
 }
 
 /// Replaces `expected` at `site` with `new`, only if `expected` is what is there.

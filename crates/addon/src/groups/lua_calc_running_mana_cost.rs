@@ -35,7 +35,7 @@ extern "C" fn handler(_: usize, ctx: &mut Context) {
     // script, which may change them.
     // SAFETY: as above.
     let s = unsafe { &(*server).stats };
-    let m = crate::encumbrance::drain_multiplier(s.load, s.capacity);
+    let m = crate::encumbrance_rules::drain_multiplier(s.load, s.capacity);
     if m != 1.0 {
         // SAFETY: as above.
         let after = unsafe { (*vitals).mana };

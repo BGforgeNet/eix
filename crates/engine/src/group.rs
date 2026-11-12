@@ -1,14 +1,87 @@
 //! Patch groups: named sets of site writes, applied all or nothing.
 #![expect(unsafe_code, reason = "checking and writing game memory")]
 
+use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt;
 
 use eix_sites::Site;
 
-use crate::hook::HookError;
 use crate::patch::{self, Kind, PatchError};
+use crate::x86::CodeError;
+
+/// Why a hook could not be prepared or a patch group installed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HookError {
+    /// A jump needs 5 bytes; the site has fewer.
+    TooShort {
+        /// The site.
+        site: Site,
+        /// Its length.
+        len: usize,
+    },
+    /// A call redirection's site is not a `call rel32`.
+    NotCall {
+        /// The site.
+        site: Site,
+        /// Its first byte.
+        found: u8,
+    },
+    /// The replaced instructions cannot be copied.
+    Code {
+        /// The site.
+        site: Site,
+        /// What stops the copy.
+        error: CodeError,
+    },
+    /// The instructions a hook covers do not start with the bytes it writes over.
+    NotCovering {
+        /// The site.
+        site: Site,
+    },
+    /// No executable memory for the stub.
+    Memory(String),
+    /// A site write failed.
+    Patch(PatchError),
+}
+
+impl fmt::Display for HookError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::TooShort { site, len } => {
+                write!(f, "hook at {site:#x}: {len} bytes, a jump needs 5")
+            }
+            Self::NotCall { site, found } => {
+                write!(
+                    f,
+                    "hook at {site:#x}: expected a call (E8), found {found:02X}"
+                )
+            }
+            Self::Code { site, error } => write!(f, "hook at {site:#x}: {error}"),
+            Self::NotCovering { site } => write!(
+                f,
+                "hook at {site:#x}: the covered instructions do not start with the written bytes"
+            ),
+            Self::Memory(e) => write!(f, "no memory for a hook stub: {e}"),
+            Self::Patch(e) => e.fmt(f),
+        }
+    }
+}
+
+impl core::error::Error for HookError {}
+
+impl From<String> for HookError {
+    fn from(e: String) -> Self {
+        Self::Memory(e)
+    }
+}
+
+impl From<PatchError> for HookError {
+    fn from(e: PatchError) -> Self {
+        Self::Patch(e)
+    }
+}
 
 /// One write to game memory: the bytes a site must hold and what replaces them.
 #[derive(Debug, Clone, PartialEq, Eq)]

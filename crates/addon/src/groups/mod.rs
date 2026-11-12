@@ -370,15 +370,6 @@ pub(crate) struct Tally {
     pub(crate) failed: usize,
 }
 
-/// Logs a site write as `site`, its label, `0x<address>+<length>`.
-pub(crate) fn log_site(label: &str, write: &SiteWrite) {
-    log::info(
-        "site",
-        label,
-        &format!("0x{:08X}+{}", write.site(), write.size()),
-    );
-}
-
 thread_local! {
     /// The writes of the groups applied so far, by site, in table order.
     static APPLIED: std::cell::RefCell<Vec<(Site, Vec<u8>)>> = const { std::cell::RefCell::new(Vec::new()) };
@@ -429,7 +420,7 @@ pub(crate) fn apply_built(
         }
     };
     for l in &labelled {
-        log_site(&l.label, &l.write);
+        log::log_site(&l.label, &l.write);
     }
     let written: Vec<(Site, Vec<u8>)> = labelled
         .iter()

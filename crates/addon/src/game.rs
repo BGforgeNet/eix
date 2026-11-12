@@ -112,7 +112,7 @@ pub(crate) fn hook_win_main() -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     WIN_MAIN.store(old.here(), Ordering::SeqCst);
-    crate::groups::log_site("HookWinMain", &write);
+    crate::log::log_site("HookWinMain", &write);
     // SAFETY: the call site is game.exe's (the build was checked) and has not run yet: `Apply` runs before the
     // entry point goes on, on the only thread.
     let report = unsafe { group::apply("HookWinMain", true, || Ok(vec![write])) };

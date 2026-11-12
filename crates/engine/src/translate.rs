@@ -8,8 +8,20 @@ use alloc::vec::Vec;
 
 use eix_sites::{Site, in_image};
 
-use crate::patch::Kind;
 use crate::x86;
+
+/// What bytes written at a site are, for another build: the bytes there translate as their kind says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// What the site's section holds: code in `.text`, data elsewhere (a data site's 4-byte address translates).
+    Section,
+    /// Code wherever it lies: a branch the original put into `.data` is rebased as code.
+    Code,
+    /// Data wherever it lies: a pointer in a jump table of `.text` translates as an address.
+    Data,
+    /// Bytes that hold no address (text, a constant), the same in every build: nothing in them translates.
+    Plain,
+}
 
 fn word(bytes: &[u8], at: usize) -> Option<u32> {
     let field: [u8; 4] = bytes.get(at..at + 4)?.try_into().ok()?;

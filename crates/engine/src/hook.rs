@@ -11,18 +11,18 @@
     reason = "naked entry stubs that save and restore the game's registers"
 )]
 
-use alloc::string::String;
 use alloc::vec::Vec;
-use core::fmt;
 use core::mem::offset_of;
 
 use eix_sites::Site;
 
 use crate::exec;
 use crate::group::SiteWrite;
-use crate::patch::{self, PatchError};
-use crate::x86::{self, CodeError};
+use crate::patch;
+use crate::x86;
 use crate::x87::FpuSave;
+
+pub use crate::group::HookError;
 
 /// The game's registers at a context hook, as the stub saved them: PUSHAD's frame, then PUSHFD's, then the resume
 /// address. A handler may change any field but `esp`; execution goes on at `resume` with the registers restored.
@@ -165,78 +165,6 @@ pub enum Mode {
     /// While they run, the chosen resume address sits in the stub, not on the stack, so the hook must not run on two
     /// threads at once, nor re-enter itself through the replaced instructions with a different resume address.
     After,
-}
-
-/// Why a hook could not be prepared or a patch group installed.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum HookError {
-    /// A jump needs 5 bytes; the site has fewer.
-    TooShort {
-        /// The site.
-        site: Site,
-        /// Its length.
-        len: usize,
-    },
-    /// A call redirection's site is not a `call rel32`.
-    NotCall {
-        /// The site.
-        site: Site,
-        /// Its first byte.
-        found: u8,
-    },
-    /// The replaced instructions cannot be copied.
-    Code {
-        /// The site.
-        site: Site,
-        /// What stops the copy.
-        error: CodeError,
-    },
-    /// The instructions a hook covers do not start with the bytes it writes over.
-    NotCovering {
-        /// The site.
-        site: Site,
-    },
-    /// No executable memory for the stub.
-    Memory(String),
-    /// A site write failed.
-    Patch(PatchError),
-}
-
-impl fmt::Display for HookError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::TooShort { site, len } => {
-                write!(f, "hook at {site:#x}: {len} bytes, a jump needs 5")
-            }
-            Self::NotCall { site, found } => {
-                write!(
-                    f,
-                    "hook at {site:#x}: expected a call (E8), found {found:02X}"
-                )
-            }
-            Self::Code { site, error } => write!(f, "hook at {site:#x}: {error}"),
-            Self::NotCovering { site } => write!(
-                f,
-                "hook at {site:#x}: the covered instructions do not start with the written bytes"
-            ),
-            Self::Memory(e) => write!(f, "no memory for a hook stub: {e}"),
-            Self::Patch(e) => e.fmt(f),
-        }
-    }
-}
-
-impl core::error::Error for HookError {}
-
-impl From<String> for HookError {
-    fn from(e: String) -> Self {
-        Self::Memory(e)
-    }
-}
-
-impl From<PatchError> for HookError {
-    fn from(e: PatchError) -> Self {
-        Self::Patch(e)
-    }
 }
 
 fn check_len(site: Site, original: &[u8]) -> Result<(), HookError> {
@@ -801,6 +729,8 @@ mod tests {
 
     use super::*;
     use crate::group::{self, Outcome};
+    use crate::patch::PatchError;
+    use crate::x86::CodeError;
     use crate::x87::Ext;
 
     /// A function's address.

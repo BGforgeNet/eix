@@ -17,6 +17,7 @@ mod auto_recover;
 mod cli;
 mod crash;
 mod encumbrance;
+mod encumbrance_rules;
 mod environment;
 mod fixes;
 mod flac_music;

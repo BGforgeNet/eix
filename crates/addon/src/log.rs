@@ -11,6 +11,17 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicI32, Ordering};
 
+use eix_engine::group::SiteWrite;
+
+/// Logs a site write as `site`, its label, `0x<address>+<length>`.
+pub(crate) fn log_site(label: &str, write: &SiteWrite) {
+    info(
+        "site",
+        label,
+        &format!("0x{:08X}+{}", write.site(), write.size()),
+    );
+}
+
 /// How serious an event is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Level {
