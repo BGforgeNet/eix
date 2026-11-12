@@ -21,6 +21,7 @@ use super::{BuildError, Labelled, Setup};
 const NEXT_RECORD: Site = eix_sites::READ_MOB_CHUNKS__2B8;
 
 /// IDs in the file being read, before its records enter the world; reset at the reader's entry and return.
+/// The caller's stack-local table can reuse its address across files, so pointer changes cannot delimit loads.
 static FILE_IDS: Mutex<FileIds> = Mutex::new(FileIds::new());
 
 struct FileIds {
