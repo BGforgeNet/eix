@@ -1,9 +1,10 @@
 # Build and test image: the pinned Rust toolchain (rust-toolchain.toml), the mingw-w64 linker for
 # i686-pc-windows-gnu, Wine to run the Windows test binaries, and the tools of the gate and the release package.
-# Debian sid at the digest EItweaks' build image pins. Packages are not pinned: sid replaces versions faster than pins
-# would survive.
+# Debian sid at a pinned digest, with packages from the dated snapshot in build/debian.sources, raised deliberately.
+# Per-package pins do not survive sid's version replacement.
 
 FROM docker.io/library/debian:sid-slim@sha256:10e9e0d7aa4ed47205c7053f117199e6b06a9b17ac3eeb7f7bb1a818b963a803
+COPY build/debian.sources /etc/apt/sources.list.d/debian.sources
 # hadolint ignore=DL3008
 RUN dpkg --add-architecture i386 \
     && apt-get update -qq \

@@ -1,0 +1,6 @@
+Types: deb
+URIs: http://snapshot.debian.org/archive/debian/20261111T023651Z/
+Suites: sid
+Components: main
+Signed-By: /usr/share/keyrings/debian-archive-keyring.pgp
+Check-Valid-Until: no

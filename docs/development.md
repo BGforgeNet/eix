@@ -12,6 +12,8 @@ cargo xtask container
   ones under Wine), release build, docs, dependency checks, workflow checks, and the public-text check
   (`cargo xtask public`).
 - It also checks the generated reference pages (see [Documentation site](#documentation-site)) and builds the site.
+- Debian packages come from the dated snapshot in `build/debian.sources`; advance its date deliberately to update
+  them. The base image is pinned by digest in `build/Containerfile`.
 - Output: `target/container/i686-pc-windows-gnu/release/{dinput,addon}.dll`.
 - Release package: `cargo xtask container dist` writes `target/container/dist/eix-<version>.zip` (the DLLs,
   `dist/spelladdon.ini`, `dist/eix.ini`, the README, the licence, the changelog, the third-party notices and
@@ -52,7 +54,8 @@ Two pages are generated, and each has one data file that holds every signature a
 ## Continuous integration
 
 - `.github/workflows/ci.yml`: the gate (`cargo xtask container`) on every push to `main` and every pull request. The
-  build image is cached under a hash of `build/` and `rust-toolchain.toml`, and stored by pushes to `main` only;
+  build image is cached under a hash of `build/` (including the Debian snapshot date) and `rust-toolchain.toml`, and
+  stored by pushes to `main` only;
   `EIX_IMAGE_KEY` makes xtask use a loaded image carrying that key instead of building one.
 - `.github/workflows/pages.yml`: the documentation site, as above.
 - `.github/workflows/release.yml`: on a `v*` tag, the gate, the package, and a draft GitHub release.
