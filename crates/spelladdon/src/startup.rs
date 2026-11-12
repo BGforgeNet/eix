@@ -130,6 +130,7 @@ fn ini_file(mod_dir: &[u8], log: Log) -> Option<Vec<u8>> {
 /// Runs SpellAddon: from the hook on the sound system's start, on the game's main thread, after addon.dll's writes
 /// (`addon` looks them up).
 pub(crate) fn run(mod_dir: &[u8], log: Log, addon: Earlier) {
+    crate::features::common::runtime_log(log);
     if let Err(e) = apply::block_separate_spelladdon(log) {
         log(
             Level::Error,

@@ -782,6 +782,21 @@ const ZONE_EXITS: Site = eix_sites::C_WORLD_SERVER_SET_ZONE_EXITS__50;
 const ZONE_EXITS_BYTES: [u8; 6] = [0x89, 0x74, 0x24, 0x10, 0x3B, 0xC6];
 const ZONE_EXITS_BACK: Site = eix_sites::C_WORLD_SERVER_SET_ZONE_EXITS__56;
 
+fn exit_count(mode: usize, own: i32, variable: i32) -> i32 {
+    let count = if mode == 1 {
+        i64::from(own) - i64::from(variable)
+    } else {
+        i64::from(variable)
+    };
+    if count > i64::from(own) {
+        common::warn_once(
+            "hiddenzonesexits",
+            &format!("exit count {count} exceeds the zone's count {own}; capped"),
+        );
+    }
+    count.min(i64::from(own)) as i32
+}
+
 /// The handler of `hiddenzonesexits`; `arg` is 1 to subtract the variable, 2 to replace the count by it.
 extern "C" fn zone_exits(arg: usize, ctx: &mut Context) {
     if let Some(player) = common::player_zero() {
@@ -793,7 +808,7 @@ extern "C" fn zone_exits(arg: usize, ctx: &mut Context) {
         let v = v.unwrap_or(0.0);
         // The original stores the lookup's ST0 with `fistp`, under the game's rounding.
         let n = Ext::new(f64::from(v)).fistp() as u32;
-        ctx.eax = if arg == 1 { ctx.eax.wrapping_sub(n) } else { n };
+        ctx.eax = exit_count(arg, ctx.eax as i32, n as i32) as u32;
         // SAFETY: EBP is the zone record `SetZoneExits` reads its count from at +8.
         unsafe { common::write(ctx.ebp + 8, ctx.eax) };
     }
@@ -1199,6 +1214,17 @@ fn experimental_fixes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn exit_counts_keep_nonpositive_values_and_never_exceed_the_table() {
+        assert_eq!(exit_count(1, 3, -2), 3);
+        assert_eq!(exit_count(2, 3, 9), 3);
+        assert_eq!(exit_count(1, 3, 7), -4);
+        assert_eq!(exit_count(2, 3, -7), -7);
+        assert_eq!(exit_count(2, 3, 0), 0);
+        assert_eq!(exit_count(1, 3, 2), 1);
+        assert_eq!(exit_count(1, 3, i32::MIN), 3);
+    }
+
     #[test]
     fn each_load_has_its_own_iteration_budget() {
         #[repr(C)]

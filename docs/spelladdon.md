@@ -125,7 +125,7 @@ entry strips items. Set `QuIs` to the active quest-item count when using `camp=4
 | `npcsmana` | 1: charge NPCs mana on cast completion. 2: require enough mana before casting. 3: both. 4: make both exemptions depend on AI class 16 instead of player ownership. | same |
 | `splashdamageonair` | 1: area spells can hit flying units. 2: only Invoke Lightning gains this ability, including AI targeting. | same |
 | `newspells` | 1-3: extend spell dispatch, enable Ensorcell (42), Inspiration (43), script spells (44-48), and the Fireball-based spell 49. 1 also marks spell 49's caster; 1/2 load the autorun mob. 3 adds lasting-effect cases and Ensorcell's damage type. See script variables below. New spell records/scripts must come from the mod. | fixed: the original's crashes left out: Charm on a spawned wolf, the effect types that crash the effect loop, Charm and Healing with a broken stack; `legendaryspellsystem` and `changefont` keep their data |
-| `lastspellsdamagetype` | 1: use `astralbeam`, `destroyray`, `lightningbeam`, `firearrow` as damage-type IDs. | same |
+| `lastspellsdamagetype` | 1: use `astralbeam`, `destroyray`, `lightningbeam`, `firearrow` as damage-type IDs. | fixed: damage types whose byte displacement leaves the damage record are refused with a warning |
 | `[speed] spellsaimod` | 1: extend the AI offensive/friendly spell table to 54 types. | also accepts `[gameplay] spellsaimod` when absent (the original ignores it) |
 | `[speed] spellsarealwaysconstructable` | 1: bypass level checks when assembling spells or giving them to heroes. | also accepts `[gameplay] spellsarealwaysconstructable` when absent (the original ignores it) |
 | `offensivespells` | 1: mark Stench and Shrink as friendly in missile hostility checks. | same |
@@ -230,7 +230,7 @@ between multiplayer peers. `bigmapspatch` and `cleveranimationsspeedup` change n
 | `newallodsacks` | 1: add environment flags for zones named `jigran`, `neloya`, `eyn`, `bebesh`, `kvatokh`, `nokks`, `umoir`, `yazes`, `yiul`. | same |
 | `newcounters` | 1: narrow the regeneration counter to one byte. | same |
 | `nogameoveronleadersdeath` | 1: the leader's death does not end the game; revival must be supplied by scripts. | same |
-| `hiddenzonesexits` | 1: subtract player 0's `Exits` from exit count. 2+: replace exit count with `Exits`; absent/zero means no exits. | same |
+| `hiddenzonesexits` | 1: subtract player 0's `Exits` from exit count. 2+: replace exit count with `Exits`; absent/zero means no exits. | fixed: counts above the zone's own count are capped with a warning; zero and negative counts still mean no exits |
 | `segmentsonexitenter` | 1: cap zone-transition segments at `maxsegments`, add `addsegments`, and use `exitenteractivityradius` for activity radius. | same |
 | `bigmapspatch` | 1: change network position scaling for larger maps; all peers need compatible encoding. | same |
 | `ultrafixes` | 1: skip network objects without the companion needed to send them. | same |

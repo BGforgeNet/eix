@@ -696,7 +696,7 @@ extern "C" fn hp_by_index(_: usize, ctx: &mut FpuContext) {
     let regs = &mut ctx.regs;
     // SAFETY: ESI is the function call `SSCCmd::CalcFloat` evaluates.
     let index = float_arg(unsafe { command(regs.esi) }, 0).map_or(-1, whole);
-    let offset = index.wrapping_mul(4);
+    let offset = field_offset(index);
     if !(0..COMPANION_VITALS).contains(&offset) {
         regs.resume = eix_sites::SSC_CMD_CALC_FLOAT__B50;
         return;
@@ -751,7 +751,7 @@ extern "C" fn stat_by_index(_: usize, ctx: &mut FpuContext) {
     };
     // SAFETY: ESI is the function call `SSCCmd::CalcFloat` evaluates.
     let index = float_arg(unsafe { command(regs.esi) }, 0).map_or(-1, whole);
-    let offset = index.wrapping_mul(4);
+    let offset = field_offset(index);
     if controller == 0 || !(0..size_of::<UnitStats>() as i32).contains(&offset) {
         regs.resume = eix_sites::SSC_CMD_CALC_FLOAT__B50;
         return;
@@ -831,7 +831,7 @@ extern "C" fn player_word(_: usize, ctx: &mut FpuContext) {
     // SAFETY: ESI is the function call `SSCCmd::CalcFloat` evaluates.
     let cmd = unsafe { command(regs.esi) };
     let unit = unit_arg(cmd, 0);
-    let offset = float_arg(cmd, 0).map_or(-1, whole).wrapping_mul(4);
+    let offset = field_offset(float_arg(cmd, 0).map_or(-1, whole));
     if unit == 0 || !(0..=(size_of::<Unit>() as i32 - 4)).contains(&offset) {
         regs.resume = ZERO;
         return;
@@ -897,7 +897,7 @@ extern "C" fn set_player_word(_: usize, ctx: &mut FpuContext) {
         return;
     }
     regs.resume = DONE;
-    let offset = whole(field).wrapping_mul(4);
+    let offset = field_offset(whole(field));
     if (0..=(size_of::<Unit>() as i32 - 4)).contains(&offset) {
         // SAFETY: EDI is the `CUnit` the case's class check passed.
         unsafe { Obj::new(regs.edi, size_of::<Unit>() as u32) }.set(offset as u32, whole(value));
@@ -906,6 +906,16 @@ extern "C" fn set_player_word(_: usize, ctx: &mut FpuContext) {
 
 /// The fields `SetPlayer` leaves to the game: from the first, up to the second.
 const SET_PLAYER_GAME: [f32; 2] = [132.0, 149.0];
+
+fn field_offset(index: i32) -> i32 {
+    index.checked_mul(4).unwrap_or_else(|| {
+        common::warn_once(
+            "script field index",
+            &format!("field index {index} overflows its byte offset; ignored"),
+        );
+        -1
+    })
+}
 
 /// `setplayertrans` = 1: `SetPlayer(unit, value, field)` ([`set_player_word`]), the signature `"off"`.
 fn set_player_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
@@ -1754,6 +1764,14 @@ const LOAD_ERRORS: [(Site, &[u8]); 8] = [
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn huge_field_indices_cannot_alias_the_first_word() {
+        assert!(field_offset(1 << 30) < 0);
+        assert!(field_offset(i32::MIN) < 0);
+        assert_eq!(field_offset(12), 48);
+        assert!(field_offset(-1) < 0);
+    }
+
     use super::super::testing::{Original, assert_original, no_log, plain, values};
     use super::*;
 

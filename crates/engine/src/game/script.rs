@@ -340,9 +340,9 @@ unsafe fn reserve<T>(array: *mut GameArray<T>, size: i32) -> Option<(*mut T, usi
 /// A constructed game array, on the game's thread.
 pub unsafe fn resize_floats(array: *mut GameArray<f32>, size: i32) {
     // SAFETY: passed on; zeroed bytes are 0.0.
-    unsafe { reserve(array, size) };
+    let grew = unsafe { reserve(array, size) }.is_some();
     // SAFETY: the caller guarantees the array.
-    unsafe { (*array).len = size.max(0) };
+    finish_resize(unsafe { &mut *array }, size, grew);
 }
 
 /// Sets the length of a pointer array to `size`; new elements are null.
@@ -351,9 +351,9 @@ pub unsafe fn resize_floats(array: *mut GameArray<f32>, size: i32) {
 /// As for [`resize_floats`].
 pub unsafe fn resize_pointers<T>(array: *mut GameArray<*mut T>, size: i32) {
     // SAFETY: passed on; zeroed bytes are null pointers.
-    unsafe { reserve(array, size) };
+    let grew = unsafe { reserve(array, size) }.is_some();
     // SAFETY: the caller guarantees the array.
-    unsafe { (*array).len = size.max(0) };
+    finish_resize(unsafe { &mut *array }, size, grew);
 }
 
 /// Sets the length of a string array to `size`: dropped strings are destroyed, new ones are empty.
@@ -371,12 +371,49 @@ pub unsafe fn resize_strings(array: *mut GameArray<GameString>, size: i32) {
         unsafe { mfc::destroy(at) };
     }
     // SAFETY: passed on.
-    if let Some((tail, new)) = unsafe { reserve(array, size) } {
+    let growth = unsafe { reserve(array, size) };
+    if let Some((tail, new)) = growth {
         for i in 0..new {
             // SAFETY: the new slots are writable and hold no string.
             unsafe { mfc::construct_empty(tail.wrapping_add(i)) };
         }
     }
     // SAFETY: the caller guarantees the array.
-    unsafe { (*array).len = size };
+    finish_resize(unsafe { &mut *array }, size, growth.is_some());
+}
+
+fn finish_resize<T>(array: &mut GameArray<T>, size: i32, grew: bool) {
+    let size = size.max(0);
+    if grew || size <= array.len {
+        array.len = size;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn failed_growth_keeps_the_allocated_length() {
+        let mut data = [1.0f32, 2.0, 9.0];
+        let mut array = GameArray {
+            vtable: core::ptr::null(),
+            data: data.as_mut_ptr(),
+            len: 2,
+            capacity: 3,
+            grow_by: 0,
+        };
+        // A failed reserve leaves the old block and counts intact.
+        finish_resize(&mut array, 4, false);
+        assert_eq!(array.len, 2);
+        assert_eq!(array.capacity, 3);
+        assert_eq!(data, [1.0, 2.0, 9.0]);
+        // SAFETY: the array holds two elements and has capacity for three; no allocation is needed.
+        unsafe { resize_floats(&raw mut array, 3) };
+        assert_eq!(array.len, 3);
+        assert_eq!(data, [1.0, 2.0, 0.0]);
+        // SAFETY: a nonzero shrink keeps the same valid allocation.
+        unsafe { resize_floats(&raw mut array, 1) };
+        assert_eq!(array.len, 1);
+    }
 }

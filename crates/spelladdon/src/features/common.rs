@@ -11,6 +11,7 @@
 
 use core::ffi::CStr;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use eix_engine::exec;
 use eix_engine::game::mfc::{self, GameString};
@@ -22,6 +23,27 @@ use eix_engine::patch;
 use eix_sites::Site;
 
 use super::{BuildError, Ctx};
+use crate::{Level, Log};
+
+static RUNTIME_LOG: OnceLock<Log> = OnceLock::new();
+static REFUSED: Mutex<Vec<&'static str>> = Mutex::new(Vec::new());
+
+/// Supplies the log used by handlers on the game's thread.
+pub(crate) fn runtime_log(log: Log) {
+    let _ = RUNTIME_LOG.set(log);
+}
+
+/// Reports the first refused value for a key, without repeating it on each script tick.
+pub(crate) fn warn_once(key: &'static str, message: &str) {
+    if let Some(log) = RUNTIME_LOG.get()
+        && let Ok(mut refused) = REFUSED.lock()
+        && !refused.contains(&key)
+    {
+        refused.push(key);
+        drop(refused);
+        log(Level::Warn, "spelladdon", message, key);
+    }
+}
 
 /// One fixed write: the site, game.exe's bytes there, and what replaces them.
 // Tables of these stay `const` beside their feature rather than in a data file: the compiler checks them, and the

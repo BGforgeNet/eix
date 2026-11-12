@@ -16,7 +16,7 @@ use crate::Log;
 
 pub(crate) mod ai;
 pub(crate) mod combat;
-mod common;
+pub(crate) mod common;
 pub(crate) mod items;
 pub(crate) mod magic;
 pub(crate) mod multiplayer;

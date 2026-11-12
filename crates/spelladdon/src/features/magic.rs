@@ -465,7 +465,15 @@ static DAMAGE_TAILS: [AtomicUsize; 2] = [AtomicUsize::new(0), AtomicUsize::new(0
 
 /// The damage type's displacement for a key: its low byte times 4, as a signed 8-bit displacement.
 fn damage_slot(ctx: &Ctx<'_>, key: &str) -> Result<u8, BuildError> {
-    Ok(ctx.values.byte("gameplay", key)?.wrapping_mul(4))
+    let value = ctx.values.byte("gameplay", key)?;
+    let slot = value.wrapping_mul(4);
+    // DamageInfo has seven weights, weapon/roll/amount/multiplier, location, hit kind, backstab and called shot.
+    if slot > 0x3C - 4 {
+        return Err(BuildError(format!(
+            "damage type {value} leaves the damage record; using the game's damage type"
+        )));
+    }
+    Ok(slot)
 }
 
 /// The handler of `lastspellsdamagetype` at either site (`arg` 0 lightning, 1 fire): the damage goes into the slot of
@@ -474,7 +482,7 @@ extern "C" fn damage_type(arg: usize, ctx: &mut Context) {
     let slots = DAMAGE_SLOTS.load(Ordering::Relaxed).to_le_bytes();
     let own = if arg == 0 { ASTRAL_BEAM } else { DESTROY_RAY };
     let slot = slots[2 * arg + usize::from(ctx.edi == own)] as i8;
-    // SAFETY: EDX is the damage record `GetDamage` fills; the displacement is the original's own.
+    // SAFETY: EDX is the damage record `GetDamage` fills; the build checked the displacement stays in it.
     unsafe { write::<u32>(ctx.edx.wrapping_add_signed(i32::from(slot)), ctx.ecx) };
     ctx.resume = Site::of(DAMAGE_TAILS[arg].load(Ordering::Relaxed));
 }
@@ -485,12 +493,17 @@ fn last_spells_damage_type(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, B
     if value != 1 {
         return Ok(Vec::new());
     }
-    let slots = [
-        damage_slot(ctx, "lightningbeam")?,
-        damage_slot(ctx, "astralbeam")?,
-        damage_slot(ctx, "firearrow")?,
-        damage_slot(ctx, "destroyray")?,
-    ];
+    let mut slots = [0x14, 0x14, 0x0C, 0x0C];
+    for (slot, key) in
+        slots
+            .iter_mut()
+            .zip(["lightningbeam", "astralbeam", "firearrow", "destroyray"])
+    {
+        match damage_slot(ctx, key) {
+            Ok(value) => *slot = value,
+            Err(error) => (ctx.log)(crate::Level::Warn, "spelladdon", &error.to_string(), key),
+        }
+    }
     DAMAGE_SLOTS.store(u32::from_le_bytes(slots), Ordering::Relaxed);
     for (tail, site) in DAMAGE_TAILS
         .iter()
@@ -1941,6 +1954,21 @@ fn new_spells(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn damage_displacements_stay_in_the_record_and_keep_aliases() {
+        for (input, expected) in [
+            ("0", Some(0)),
+            ("14", Some(56)),
+            ("15", None),
+            ("64", Some(0)),
+            ("255", None),
+        ] {
+            let values = values(&[("gameplay", "lightningbeam", input)]);
+            let ctx = Ctx::new(&values, no_log);
+            assert_eq!(damage_slot(&ctx, "lightningbeam").ok(), expected, "{input}");
+        }
+    }
+
     use super::super::testing::{Original, assert_original, no_log, plain, values};
     use super::*;
 
