@@ -1344,10 +1344,9 @@ const ACTION_60: Site = eix_sites::BATTLE_SCREEN_KEY_DOWN__1068;
 const ACTION_61: Site = eix_sites::BATTLE_SCREEN_KEY_DOWN__106C;
 const ACTION_PADDING: usize = 0x9090_9090;
 
-/// What `camp` 2 and 5 to 12 add with `newoptions` >= 1: action 60's case ([`camp_action`]), the camp button at the end
-/// of `CHudActionColumn::SetUnit` ([`camp_button`], its epilogue moved down as the original's, the early way's `je`
-/// with it) and its click in `ActionColumnMouseUpVerify` ([`camp_click`], its tail moved likewise, three branches with
-/// it).
+/// With `camp >= 2` and `newoptions == 1`, add action 60 ([`camp_action`]), the camp button in
+/// `CHudActionColumn::SetUnit` ([`camp_button`]) and its click in `ActionColumnMouseUpVerify` ([`camp_click`]).
+/// The button and click code move the functions' tails and retarget the branches into them.
 fn camp_controls(strip: usize) -> Result<Vec<SiteWrite>, BuildError> {
     const SET_UNIT_END_WAS: [u8; 35] = [
         0x5D, 0x5B, 0x8B, 0x4C, 0x24, 0x2C, 0x5F, 0x5E, 0x64, 0x89, 0x0D, 0x00, 0x00, 0x00, 0x00,
