@@ -144,7 +144,7 @@ impl F64x4 {
         let lo = unsafe { _mm_cvtpd_ps(self.0) };
         // SAFETY: as in `F32x4::splat`.
         let hi = unsafe { _mm_cvtpd_ps(self.1) };
-        // Each conversion fills the low two lanes; the high two of `hi` go above `lo`'s.
+        // Each conversion fills the low two lanes; the low two of `hi` go above the low two of `lo`.
         // SAFETY: as in `F32x4::splat`.
         F32x4(unsafe { _mm_movelh_ps(lo, hi) })
     }
