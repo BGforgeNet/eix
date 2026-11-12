@@ -9,7 +9,7 @@ repository.workspace = true
 [dependencies]
 serde = { version = "=1.0.229", features = ["derive"] }
 # Pure Rust and maintained; serde_yaml is deprecated and its forks have not released for a year or more.
-serde-saphyr = { version = "=2.0.0", default-features = false, features = ["deserialize"] }
+serde-saphyr = { version = "=2.1.1", default-features = false, features = ["deserialize"] }
 
 [dev-dependencies]
 eix-sites = { path = "../sites" }
