@@ -218,6 +218,53 @@ mod tests {
         selected(engine_fixes).map(|&(name, _, _)| name).collect()
     }
 
+    fn documented_names(header: &str) -> Result<Vec<&'static str>, &'static str> {
+        let page = include_str!("../../../../docs/engine.md");
+        let (_, table) = page.split_once(header).ok_or("engine.md lacks the table")?;
+        let mut names: Vec<_> = table
+            .trim_start()
+            .lines()
+            .skip(1)
+            .take_while(|line| line.starts_with('|'))
+            .map(|line| {
+                line.split('|')
+                    .nth(1)
+                    .map(str::trim)
+                    .ok_or("a row lacks a name")
+            })
+            .collect::<Result<_, _>>()?;
+        names.sort_unstable();
+        Ok(names)
+    }
+
+    #[test]
+    fn every_registered_fix_is_documented() -> Result<(), &'static str> {
+        let mut registered: Vec<_> = FIXES
+            .iter()
+            .filter(|(_, switch, _)| switch.is_none())
+            .map(|&(name, _, _)| name)
+            .collect();
+        registered.sort_unstable();
+        assert_eq!(registered, documented_names("| Fix | Before | After |")?);
+        Ok(())
+    }
+
+    #[test]
+    fn every_registered_game_option_is_documented() -> Result<(), &'static str> {
+        let mut registered: Vec<_> = FIXES
+            .iter()
+            .filter(|(_, switch, _)| switch.is_some())
+            .flat_map(|&(name, _, _)| match name {
+                // These two settings share the WindowFocus hook.
+                "WindowFocus" => vec!["KeepRunningOnFocusLoss", "ClipCursorToWindow"],
+                _ => vec![name],
+            })
+            .collect();
+        registered.sort_unstable();
+        assert_eq!(registered, documented_names("| Option | Before | After |")?);
+        Ok(())
+    }
+
     #[test]
     fn engine_fixes_0_leaves_only_the_mod_settings() {
         assert_eq!(names(0), ["ShowTutorialDefault"]);
