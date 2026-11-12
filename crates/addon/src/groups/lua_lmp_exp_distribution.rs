@@ -38,7 +38,8 @@ extern "C" fn handler(_: usize, ctx: &mut Context) {
     if !ctx.set_stack_at((ctx.ebp as usize).wrapping_add(8), share.to_bits()) {
         log::error("lua", "the share is off the stack", "0x00591327");
     }
-    // SAFETY: EAX is the award record the dropped `fstp DWORD PTR [eax+0xc]` writes, on the game's thread.
+    // SAFETY: EAX is the award record on the game's thread; this replaces the value stored by `fstp [eax+0xc]`
+    // before the handler runs.
     unsafe { ptr::<f32>(ctx.eax.wrapping_add(0xC)).write(share) };
 }
 
