@@ -611,10 +611,9 @@ fn game_float(site: Site) -> f32 {
 }
 
 /// Where a unit server keeps strength, dexterity and intelligence.
-const STRENGTH: u32 = (offset_of!(UnitServer, stats) + offset_of!(UnitStats, strength)) as u32;
-const DEXTERITY: u32 = (offset_of!(UnitServer, stats) + offset_of!(UnitStats, dexterity)) as u32;
-const INTELLIGENCE: u32 =
-    (offset_of!(UnitServer, stats) + offset_of!(UnitStats, intelligence)) as u32;
+const STRENGTH: u32 = offset_of!(UnitServer, stats.strength) as u32;
+const DEXTERITY: u32 = offset_of!(UnitServer, stats.dexterity) as u32;
+const INTELLIGENCE: u32 = offset_of!(UnitServer, stats.intelligence) as u32;
 /// A unit's controller.
 const CONTROLLER: u32 = offset_of!(Unit, controller) as u32;
 
