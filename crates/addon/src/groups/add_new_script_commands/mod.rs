@@ -439,7 +439,8 @@ extern "C" fn keep_source(_: usize, ctx: &mut Context) {
 extern "C" fn script_error(_: usize, ctx: &mut Context) {
     let line = ctx.eax as i32;
     // SAFETY: ECX points at ScriptError's formatted message, a NUL-terminated buffer on its stack.
-    let message = unsafe { CStr::from_ptr(ctx.ecx as *const _) }.to_string_lossy();
+    let message =
+        eix_engine::win::ansi_text(unsafe { CStr::from_ptr(ctx.ecx as *const _) }.to_bytes());
     let lines = SOURCE_LINES
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);

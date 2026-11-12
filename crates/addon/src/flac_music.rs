@@ -271,7 +271,11 @@ extern "thiscall" fn open_file(this: *mut c_void, file: *const c_char, size: *mu
         // SAFETY: as above.
         return unsafe { original(this, file, size) };
     };
-    log::info("flac", "plays", &found.to_string_lossy());
+    log::info(
+        "flac",
+        "plays",
+        &eix_engine::win::ansi_text(found.as_bytes()),
+    );
     let Ok(mut kept) = PATH.lock() else {
         // SAFETY: as above.
         return unsafe { original(this, file, size) };

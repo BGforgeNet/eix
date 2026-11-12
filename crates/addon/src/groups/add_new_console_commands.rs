@@ -95,26 +95,24 @@ fn debug_usage(log_level: i32, console_level: i32) -> String {
 }
 
 /// What `addon debug <type> [level]` answers; `set` takes a new level for a type (`true` for the log).
-fn debug(args: &[Vec<u8>], mut set: impl FnMut(bool, i32), levels: (i32, i32)) -> Option<String> {
+/// The console's text is ANSI, so an argument echoed back keeps its own bytes.
+fn debug(args: &[Vec<u8>], mut set: impl FnMut(bool, i32), levels: (i32, i32)) -> Option<Vec<u8>> {
     let kind: &[u8] = args.first().map_or(b"", Vec::as_slice);
     let level = args.get(1).map_or(-1, |a| atoi(a));
     match kind {
-        b"" | b"help" => Some(debug_usage(levels.0, levels.1)),
+        b"" | b"help" => Some(debug_usage(levels.0, levels.1).into_bytes()),
         b"console" | b"log" => {
             let log = kind == b"log";
             if level >= 0 {
                 set(log, level.min(4));
                 None
             } else if log {
-                Some(format!("Current addon log level: {}", levels.0))
+                Some(format!("Current addon log level: {}", levels.0).into_bytes())
             } else {
-                Some(format!("Current console log level: {}", levels.1))
+                Some(format!("Current console log level: {}", levels.1).into_bytes())
             }
         }
-        other => Some(format!(
-            "Unknown debug type: {}",
-            eix_engine::win::ansi_text(other)
-        )),
+        other => Some([&b"Unknown debug type: "[..], other].concat()),
     }
 }
 
@@ -148,7 +146,7 @@ fn addon_text(
             );
             Some([head.as_bytes(), current].concat())
         }
-        Some(b"debug") => debug(&args[1..], set, levels).map(String::into_bytes),
+        Some(b"debug") => debug(&args[1..], set, levels),
         Some(other) => Some([&b"Unknown command: "[..], other].concat()),
     }
 }
@@ -451,6 +449,14 @@ mod tests {
             text(&["debug", "x"], b"").0.as_deref(),
             Some("Unknown debug type: x")
         );
+        // A non-ASCII argument goes back to the ANSI console as the bytes typed.
+        let out = addon_text(
+            &[b"debug".to_vec(), vec![0xC0, 0xE1]],
+            b"",
+            |_, _| {},
+            (1, 3),
+        );
+        assert_eq!(out.as_deref(), Some(&b"Unknown debug type: \xC0\xE1"[..]));
         let usage = text(&["debug"], b"").0.unwrap_or_default();
         assert!(usage.contains("addon log file (current: 1)"));
         assert!(usage.contains("messages to console (current: 3)"));
