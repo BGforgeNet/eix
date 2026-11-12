@@ -150,7 +150,7 @@ const INFO_LINES_BYTES: [u8; 164] = [
     0x00, 0x8B, 0x55, 0xEC, 0x83, 0xC4, 0x0C, 0x8D, 0x4D, 0xE8, 0x51, 0x8B, 0x4D, 0xE0, 0x52, 0xE8,
     0x92, 0x8C, 0xE9, 0xFF,
 ];
-/// `CString::Format`, `CUiWindow::DrawText` and `CTextList::Add`, which the rewritten lines call.
+/// `CString::Format`, `CUiWindow::DrawText` and `CTextManager::GetString`, which the rewritten lines call.
 const CSTRING_FORMAT: Site = eix_sites::C_STRING_FORMAT;
 const DRAW_TEXT: Site = eix_sites::C_UI_SURFACE_DRAW_TEXT_IN;
 const TEXT_LIST_ADD: Site = eix_sites::C_TEXT_MANAGER_GET_STRING;
