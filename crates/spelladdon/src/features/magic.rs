@@ -1442,8 +1442,8 @@ pub(crate) fn effect_redraws(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>,
         )?);
         writes.push(SiteWrite::bytes(site.offset(5), &was[5..], &[0xEB, jump])?);
     }
-    let code = if ctx.inventory {
-        vec![0x90; RECORD_CODE_LEN]
+    if ctx.inventory {
+        ctx.range(RECORD_CODE, RECORD_CODE_LEN);
     } else {
         // SAFETY: game.exe's code is mapped and readable; feature preparation does not write it.
         let code = unsafe { patch::read(RECORD_CODE, RECORD_CODE_LEN) };
@@ -1452,14 +1452,9 @@ pub(crate) fn effect_redraws(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>,
                 "the code at {RECORD_CODE:#x} is not game.exe RU 1.06's"
             )));
         }
-        code
-    };
-    let moved = if ctx.inventory {
-        code.clone()
-    } else {
-        shift_up(&code, RECORD_SHIFT, &RECORD_CODE_CALLS)?
-    };
-    writes.push(SiteWrite::bytes(RECORD_CODE, &code, &moved)?);
+        let moved = shift_up(&code, RECORD_SHIFT, &RECORD_CODE_CALLS)?;
+        writes.push(SiteWrite::bytes(RECORD_CODE, &code, &moved)?);
+    }
     Ok(writes)
 }
 

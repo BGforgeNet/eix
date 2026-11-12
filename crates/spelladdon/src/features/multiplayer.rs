@@ -457,7 +457,7 @@ pub(crate) fn timer_vars(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
         return Ok(Vec::new());
     }
     let mut writes = fixed(&TIMER_CALLS)?;
-    writes.extend(ctx.runtime_write::<u16>(TIMER_WORD));
+    ctx.runtime_write::<u16>(TIMER_WORD);
     writes.push(SiteWrite::bytes(
         eix_sites::LOAD_MISSION__18,
         &[0x8B, 0x0D, 0x84, 0xF7, 0x7A, 0x00],

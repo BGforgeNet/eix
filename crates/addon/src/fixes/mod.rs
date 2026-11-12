@@ -397,7 +397,13 @@ mod tests {
             .map(|l| (format!("fix {}", l.label), l.write));
         let mut wrong = BTreeSet::new();
         let mut tails = 0;
-        for (label, w) in fixes.chain(spelladdon::writes()) {
+        let spelladdon = spelladdon::writes()
+            .into_iter()
+            .filter_map(|(name, w)| match w {
+                spelladdon::Write::Patch(write) => Some((name, write)),
+                spelladdon::Write::Range { .. } => None,
+            });
+        for (label, w) in fixes.chain(spelladdon) {
             let new = w.new_bytes();
             if !patch::is_code(w.site(), w.kind()) || decoded(new) == new.len() {
                 continue;
@@ -485,7 +491,7 @@ mod tests {
         let (base, game) = mapped(&file);
         let slots = import_slots(base, &game);
         let at = |site: Site, len: usize| site.ru() - base..site.ru() - base + len;
-        let (mut checked, mut skipped, mut failures) = (0, 0, Vec::new());
+        let (mut checked, mut skipped, mut ranges, mut failures) = (0, 0, 0, Vec::new());
         let mut fixed = game.clone();
         for w in every_write() {
             let (site, expected) = (w.write.site(), w.write.expected());
@@ -507,6 +513,10 @@ mod tests {
         }
         // SpellAddon applies after the fixes: a feature finds the game's bytes or a fix's.
         for (name, w) in spelladdon::writes() {
+            let spelladdon::Write::Patch(w) = w else {
+                ranges += 1;
+                continue;
+            };
             let range = at(w.site(), w.size());
             checked += 1;
             if game[range.clone()] != *w.expected() && fixed[range.clone()] != *w.expected() {
@@ -518,7 +528,9 @@ mod tests {
                 ));
             }
         }
-        eprintln!("{checked} writes checked, {skipped} import-slot writes skipped");
+        eprintln!(
+            "{checked} writes checked, {skipped} import-slot writes skipped, {ranges} range-only entries"
+        );
         assert!(
             failures.is_empty(),
             "{} of {checked} writes:\n{}",

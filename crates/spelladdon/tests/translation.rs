@@ -11,6 +11,9 @@ fn camp_click_calls_keep_their_targets_in_en106() {
     let mut en = [0; 29];
     let mut covered = [false; 29];
     for (name, write) in writes {
+        let spelladdon::Write::Patch(write) = write else {
+            continue;
+        };
         if name != "[gameplay] camp=2 (additional sites)"
             || !(start.ru()..start.ru() + ru.len()).contains(&write.site().ru())
         {

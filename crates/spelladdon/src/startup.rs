@@ -9,6 +9,7 @@ use eix_engine::group::{Outcome, SiteWrite};
 use eix_engine::win::{from_ansi, narrow, to_ansi};
 use eix_sites::Site;
 
+use crate::Write;
 use crate::apply::{self, Merge};
 use crate::features::{Action, Ctx};
 use crate::registry::{self, FEATURES};
@@ -88,11 +89,11 @@ impl Profile for AdditionalSites {
 
 /// Fixed image write ranges from all signed flag values and the profiles that add sites or extend a write.
 /// Feature builds supply the ranges and the descriptions of run-time globals.
-pub(crate) fn writes() -> Vec<(String, SiteWrite)> {
+pub(crate) fn writes() -> Vec<(String, Write)> {
     fn no_log(_: Level, _: &str, _: &str, _: &str) {}
     let fixed = SiteWrite::bytes(FIXED_PATCH, &FIXED_WAS, &FIXED_NOW)
         .unwrap_or_else(|e| panic!("fixed patch: {e}"));
-    let mut out = vec![("fixed patch".to_owned(), fixed)];
+    let mut out = vec![("fixed patch".to_owned(), Write::Patch(fixed))];
     for (profile, values) in [
         ("", Values::read(&Defaults)),
         (" (additional sites)", Values::read(&AdditionalSites)),
@@ -106,7 +107,13 @@ pub(crate) fn writes() -> Vec<(String, SiteWrite)> {
                 }
                 let name = format!("[{}] {}={value}{profile}", f.section, f.key.trim_end());
                 let writes = build(&ctx, value).unwrap_or_else(|e| panic!("{name}: {e}"));
-                out.extend(writes.into_iter().map(|w| (name.clone(), w)));
+                out.extend(
+                    writes
+                        .into_iter()
+                        .map(Write::Patch)
+                        .chain(ctx.ranges.take())
+                        .map(|w| (name.clone(), w)),
+                );
             }
         }
     }
@@ -489,7 +496,7 @@ mod tests {
                             continue;
                         }
                     };
-                    for write in built {
+                    for write in built.into_iter().map(Write::Patch).chain(ctx.ranges.take()) {
                         if (write.site().ru()..write.site().ru() + write.size())
                             .any(|at| !covered.contains(&at))
                         {
@@ -510,6 +517,32 @@ mod tests {
             }
         }
         assert!(missing.is_empty(), "unlisted feature writes: {missing:#?}");
+    }
+
+    #[test]
+    fn inventory_marks_ranges_without_expected_bytes() {
+        let inventory = crate::writes();
+        for (owner, site, size) in [
+            (
+                "[speedrun] timervars=1",
+                eix_sites::C_DIPLOMACY_GET_HOSTILE_MASK__1D,
+                2,
+            ),
+            ("[gameplay] aggrmod=1", eix_sites::DATA_799CF8, 4),
+            ("[speed] gssetvar=1", eix_sites::DATA_78FF34, 4),
+            (
+                "[gameplay] effectredraws=1",
+                eix_sites::C_ITEM_INFO_PANEL_DESCRIBE_SPELL_RECORD__2C0,
+                736,
+            ),
+        ] {
+            let (_, write) = inventory
+                .iter()
+                .find(|(name, w)| name == owner && w.site() == site)
+                .unwrap_or_else(|| panic!("{owner}: missing range at {site:#x}"));
+            assert_eq!(write, &crate::Write::Range { site, size }, "{owner}");
+        }
+        assert!(matches!(&inventory[0].1, crate::Write::Patch(_)));
     }
 
     #[test]

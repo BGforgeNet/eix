@@ -75,6 +75,8 @@ pub(crate) struct Ctx<'a> {
     pub(crate) actions: RefCell<Vec<Action>>,
     /// Describe fixed image ranges without reading live code or applying run-time writes.
     pub(crate) inventory: bool,
+    /// Image ranges whose expected bytes depend on the running game, collected only for the inventory.
+    pub(crate) ranges: RefCell<Vec<crate::Write>>,
 }
 
 /// Read-only feature inputs.
@@ -122,6 +124,7 @@ impl<'a> Ctx<'a> {
             ini_dir: Vec::new(),
             actions: RefCell::new(Vec::new()),
             inventory: false,
+            ranges: RefCell::new(Vec::new()),
         }
     }
 
@@ -133,11 +136,16 @@ impl<'a> Ctx<'a> {
     }
 
     /// A run-time global has no fixed before/after bytes; only its site and width describe all its writes.
-    pub(crate) fn runtime_write<T>(&self, site: eix_sites::Site) -> Vec<SiteWrite> {
+    pub(crate) fn runtime_write<T>(&self, site: eix_sites::Site) {
+        self.range(site, size_of::<T>());
+    }
+
+    /// Record an image range without inventing expected bytes for it.
+    pub(crate) fn range(&self, site: eix_sites::Site, size: usize) {
         if self.inventory {
-            vec![SiteWrite::nop(site, &vec![0x90; size_of::<T>()])]
-        } else {
-            Vec::new()
+            self.ranges
+                .borrow_mut()
+                .push(crate::Write::Range { site, size });
         }
     }
 }

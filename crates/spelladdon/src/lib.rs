@@ -34,14 +34,46 @@ extern "C" fn on_sound_start(_: usize, _: &mut Context) {
     }
 }
 
+/// A fixed image write, with expected bytes only when they are known without reading the running game.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Write {
+    /// A patch with real expected and replacement bytes.
+    Patch(SiteWrite),
+    /// A live-code copy or run-time global whose bytes depend on the running game.
+    Range {
+        /// The first byte written.
+        site: Site,
+        /// The number of bytes written.
+        size: usize,
+    },
+}
+
+impl Write {
+    /// The first byte written, for either kind of entry.
+    pub fn site(&self) -> Site {
+        match self {
+            Self::Patch(write) => write.site(),
+            Self::Range { site, .. } => *site,
+        }
+    }
+
+    /// The number of bytes written, for either kind of entry.
+    pub fn size(&self) -> usize {
+        match self {
+            Self::Patch(write) => write.size(),
+            Self::Range { size, .. } => *size,
+        }
+    }
+}
+
 /// Every fixed game-image range SpellAddon can write, including flag combinations and run-time globals, labelled
-/// by feature. The entries describe overlapping ranges, not an installable patch list: values are representative,
-/// and live-code copies and run-time globals use placeholder bytes. Heap objects and stacks are not image sites.
+/// by feature. Values are representative, so the entries are not an installable patch list. Live-code copies and
+/// run-time globals are [`Write::Range`] entries. Heap objects and stacks are not image sites.
 /// Engine fixes use these ranges to keep clear of SpellAddon's writes.
 ///
 /// # Panics
 /// A feature cannot build its range description; returning a partial list would hide overlaps.
-pub fn writes() -> Vec<(String, SiteWrite)> {
+pub fn writes() -> Vec<(String, Write)> {
     startup::writes()
 }
 

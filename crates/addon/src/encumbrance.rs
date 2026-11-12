@@ -187,6 +187,9 @@ mod tests {
             .into_iter()
             .find(|(name, _)| name == "[gameplay] heroalwayscanrun=1")
             .unwrap();
+        let spelladdon::Write::Patch(theirs) = theirs else {
+            panic!("heroalwayscanrun has fixed expected bytes");
+        };
         assert_eq!(gate.site(), eix_sites::UNIT_STATS_MOVEMENT_STATE__70);
         assert_eq!(
             (gate.site(), gate.expected(), gate.new_bytes()),

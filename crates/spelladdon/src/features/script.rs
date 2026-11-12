@@ -245,7 +245,7 @@ pub(crate) fn gs_set_var(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
     if value != 1 {
         return Ok(Vec::new());
     }
-    let mut writes = vec![common::branch_before(
+    let writes = vec![common::branch_before(
         eix_sites::SCRIPT_RUN_EXECUTE__1BB2,
         &[0x8B, 0x0A, 0x51, 0x8B, 0x48, 0x20],
         &[0x90, 0xE9, 0, 0, 0, 0],
@@ -253,7 +253,7 @@ pub(crate) fn gs_set_var(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
         set_game_speed,
         0,
     )?];
-    writes.extend(ctx.runtime_write::<i32>(UPDATE_PERIOD.site()));
+    ctx.runtime_write::<i32>(UPDATE_PERIOD.site());
     Ok(writes)
 }
 
