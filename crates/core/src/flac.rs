@@ -99,9 +99,16 @@ impl<R: Read> Decoder<R> {
         };
         self.pcm.clear();
         self.at = 0;
-        for i in 0..block.duration() {
-            for channel in 0..block.channels() {
-                let sample = to_16_bits(block.sample(channel, i), self.bits);
+        if block.channels() == 2 {
+            for (left, right) in block.stereo_samples() {
+                for sample in [left, right] {
+                    let sample = to_16_bits(sample, self.bits);
+                    self.pcm.extend_from_slice(&sample.to_le_bytes());
+                }
+            }
+        } else {
+            for &sample in block.channel(0) {
+                let sample = to_16_bits(sample, self.bits);
                 self.pcm.extend_from_slice(&sample.to_le_bytes());
             }
         }
