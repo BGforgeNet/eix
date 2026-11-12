@@ -517,7 +517,8 @@ mod tests {
                 ranges += 1;
                 continue;
             };
-            let range = at(w.site(), w.size());
+            // A verify-only check writes nothing, so its size is 0: compare every byte it expects.
+            let range = at(w.site(), w.expected().len());
             checked += 1;
             if game[range.clone()] != *w.expected() && fixed[range.clone()] != *w.expected() {
                 failures.push(format!(
