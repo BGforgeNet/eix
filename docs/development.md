@@ -44,7 +44,8 @@ Two pages are generated, and each has one data file that holds every signature a
   entries with the keyword table of `game.exe` with `EIX_GAME_DIR` set, as for the other game tests:
   `cargo test -p eix-docs -- --ignored`.
 - Build the book by hand with `mdbook build` and open `target/book/index.html`.
-- Publishing: `.github/workflows/pages.yml` builds the book and deploys it to GitHub Pages on every push to `main`. The
+- Publishing: `.github/workflows/pages.yml` builds the book and deploys it to GitHub Pages after the CI gate succeeds on
+  `main`. The
   repository's Pages source must be set to GitHub Actions once (Settings, Pages, Build and deployment).
 
 ## Continuous integration
