@@ -63,6 +63,11 @@ pub fn narrow(w: &[u16]) -> String {
     String::from_utf16_lossy(w)
 }
 
+/// Bytes in the system ANSI code page as UTF-8 text for logs and Unicode messages.
+pub fn ansi_text(bytes: &[u8]) -> String {
+    narrow(&from_ansi(bytes))
+}
+
 /// UTF-16 (no NUL) in the ANSI code page, which game.exe's strings use; unmappable characters become the code
 /// page's default character.
 pub fn to_ansi(w: &[u16]) -> Vec<u8> {

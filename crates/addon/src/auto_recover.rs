@@ -18,7 +18,7 @@ use eix_engine::game::net::live_server;
 use eix_engine::game::player::{HERO_FILE, Player};
 use eix_engine::game::stream::{self, FILE_STREAM_BYTES, MEMORY_STREAM_BYTES, StreamMemory};
 use eix_engine::game::world::{SAVE_VERSION, SERVER_WORLD, World};
-use eix_engine::win::local_time;
+use eix_engine::win::{ansi_text, local_time};
 
 use crate::log;
 use crate::setup::path;
@@ -160,7 +160,7 @@ pub(crate) fn run() -> Vec<u8> {
         log::warn(
             "crash",
             "no backup: cannot make the folder",
-            &String::from_utf8_lossy(&dir),
+            &ansi_text(&dir),
         );
         return Vec::new();
     }
@@ -173,7 +173,7 @@ pub(crate) fn run() -> Vec<u8> {
         log::warn(
             "crash",
             "no backup: all of today's folders exist",
-            &String::from_utf8_lossy(&dir),
+            &ansi_text(&dir),
         );
         return Vec::new();
     };
@@ -182,7 +182,7 @@ pub(crate) fn run() -> Vec<u8> {
         log::warn(
             "crash",
             "no backup: cannot make the folder",
-            &String::from_utf8_lossy(&folder),
+            &ansi_text(&folder),
         );
         return Vec::new();
     }
@@ -195,10 +195,6 @@ pub(crate) fn run() -> Vec<u8> {
         );
         return Vec::new();
     }
-    log::info(
-        "crash",
-        "saves backed up",
-        &String::from_utf8_lossy(&folder),
-    );
+    log::info("crash", "saves backed up", &ansi_text(&folder));
     folder
 }

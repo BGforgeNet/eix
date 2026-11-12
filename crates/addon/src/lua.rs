@@ -17,7 +17,7 @@ use eix_engine::game::object::{CLASS_UNIT_CLIENT_SPECIFIC, EngineObject};
 use eix_engine::game::player::{ItemList, NamedFloatTable, Player};
 use eix_engine::game::unit::{MapObject, Unit, UnitStats, UnitVitals};
 use eix_engine::game::world::SERVER_WORLD;
-use eix_engine::win::{from_ansi, narrow};
+use eix_engine::win::{ansi_text, from_ansi, narrow};
 use eix_lua::{FatalReport, Game, Host, SlotKind, Table, TableBounds, error_box_and_exit};
 
 use crate::log;
@@ -72,7 +72,7 @@ pub(crate) fn run_main_script(setup: &Setup) {
         );
         return;
     };
-    let script = String::from_utf8_lossy(&addon.lua_main_script_path).into_owned();
+    let script = ansi_text(&addon.lua_main_script_path);
     log::info("lua", "running the main script", &script);
     host.run_main_script(addon, &setup.mod_dir);
     let defined = Defined::from_fn(|name| host.is_function(name));

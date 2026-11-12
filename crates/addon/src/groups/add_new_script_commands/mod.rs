@@ -466,7 +466,7 @@ fn error_lines(line: i32, message: &str, lines: &[Vec<u8>]) -> Vec<String> {
                 let mark = if number as i32 == line { "  <---" } else { "" };
                 out.push(format!(
                     "{number:4}: {}{mark}",
-                    String::from_utf8_lossy(text)
+                    eix_engine::win::ansi_text(text)
                 ));
             }
         }
@@ -783,6 +783,16 @@ mod tests {
         // `Add` (a record) does not match inside the game's `AddObject`, only before a separator.
         assert!(script::rejects_keyword_match(b'A', b'O'));
         assert!(!script::rejects_keyword_match(b'A', b'('));
+    }
+
+    #[test]
+    fn error_context_keeps_the_scripts_ansi_characters() {
+        let source =
+            eix_engine::win::to_ansi(&"caf\u{e9}\u{416}".encode_utf16().collect::<Vec<_>>());
+        let lines = vec![source.clone(), source.clone(), source.clone()];
+        let entries = error_lines(3, "m", &lines);
+        let rendered = eix_engine::win::to_ansi(&entries[1].encode_utf16().collect::<Vec<_>>());
+        assert_eq!(rendered, [&b"   1: "[..], &source].concat());
     }
 
     #[test]

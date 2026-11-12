@@ -113,7 +113,7 @@ fn debug(args: &[Vec<u8>], mut set: impl FnMut(bool, i32), levels: (i32, i32)) -
         }
         other => Some(format!(
             "Unknown debug type: {}",
-            String::from_utf8_lossy(other)
+            eix_engine::win::ansi_text(other)
         )),
     }
 }

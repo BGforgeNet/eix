@@ -6,6 +6,7 @@ use std::sync::{Mutex, OnceLock};
 
 use eix_core::ini;
 use eix_engine::ansi;
+use eix_engine::win::ansi_text;
 
 use crate::{log, setup};
 
@@ -29,9 +30,9 @@ fn report_once(what: &str, file: &[u8], section: &[u8], key: &[u8]) {
     if first {
         let at = format!(
             "{} [{}] {}",
-            String::from_utf8_lossy(file),
-            String::from_utf8_lossy(section),
-            String::from_utf8_lossy(key)
+            ansi_text(file),
+            ansi_text(section),
+            ansi_text(key)
         );
         log::warn("ini", what, &at);
     }

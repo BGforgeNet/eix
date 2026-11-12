@@ -16,7 +16,7 @@ use eix_core::reg::{self, LoadError, Registry};
 use eix_engine::ansi;
 use eix_engine::dll::Dll;
 use eix_engine::registry;
-use eix_engine::win::{error_box, exit_process, from_ansi, narrow, to_ansi};
+use eix_engine::win::{ansi_text, error_box, exit_process, from_ansi, narrow, to_ansi};
 
 use crate::log;
 
@@ -151,7 +151,7 @@ fn eix_ini(mod_dir: &[u8]) -> EixIni {
         return EixIni::default();
     }
     let file = [mod_dir, b"eix.ini"].concat();
-    let shown = String::from_utf8_lossy(&file).into_owned();
+    let shown = ansi_text(&file);
     if !path(&file).is_file() {
         log::info("options", "no eix.ini: its defaults", &shown);
         return EixIni::default();
@@ -170,7 +170,7 @@ fn eix_ini(mod_dir: &[u8]) -> EixIni {
 /// one without the format's header), which stops the game. A file with the header but a body that does not parse is
 /// logged and reads as empty: the original reads it unchecked (garbage, or a crash on an offset outside the file).
 fn read_reg(file: &[u8], what: &str) -> Option<Registry> {
-    let shown = String::from_utf8_lossy(file).into_owned();
+    let shown = ansi_text(file);
     let data = match std::fs::read(path(file)) {
         Ok(data) => data,
         Err(e) => {
@@ -297,12 +297,10 @@ pub(crate) fn read_for(exe_enables_t2: bool, mod_dir: Vec<u8>) -> Setup {
     if mod_dir.is_empty() {
         log::info("options", "no mod selected", "Settings\\AddonPath");
     } else {
-        log::info("options", "mod folder", &String::from_utf8_lossy(&mod_dir));
+        log::info("options", "mod folder", &ansi_text(&mod_dir));
         let config_file = [&mod_dir[..], b"config.reg"].concat();
         let Some(config_reg) = read_reg(&config_file, "config.reg") else {
-            fatal(&reg::config_load_error(&String::from_utf8_lossy(
-                &config_file,
-            )));
+            fatal(&reg::config_load_error(&ansi_text(&config_file)));
         };
         setup.options.config = ConfigReg::from_registry(&config_reg);
         let ai = &setup.options.config.config.ai_reg;
@@ -311,7 +309,7 @@ pub(crate) fn read_for(exe_enables_t2: bool, mod_dir: Vec<u8>) -> Setup {
             match read_reg(&ai_file, "ai.reg") {
                 Some(ai_reg) => setup.options.ai = AiReg::from_registry(&ai_reg),
                 // The original reads ai.reg after the checks below, so their boxes come first.
-                None => ai_failure = Some(reg::ai_load_error(&String::from_utf8_lossy(&ai_file))),
+                None => ai_failure = Some(reg::ai_load_error(&ansi_text(&ai_file))),
             }
         }
         setup.res = ResConfig::new(
@@ -336,7 +334,7 @@ pub(crate) fn read_for(exe_enables_t2: bool, mod_dir: Vec<u8>) -> Setup {
     }
     let zone = &setup.options.config.mp_zone;
     if !mod_dir.is_empty() && zone.duplicate_name().is_some() {
-        let file = String::from_utf8_lossy(&[&mod_dir[..], b"config.reg"].concat()).into_owned();
+        let file = ansi_text(&[&mod_dir[..], b"config.reg"].concat());
         fatal(&format!("Duplicate zone name found in file: {file}"));
     }
     if let Some(text) = ai_failure {

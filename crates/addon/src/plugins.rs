@@ -10,7 +10,7 @@ use std::ffi::{CString, c_char};
 use std::path::Path;
 
 use eix_engine::dll::Dll;
-use eix_engine::win::{error_box, exit_process, from_ansi};
+use eix_engine::win::{ansi_text, error_box, exit_process, from_ansi};
 
 use crate::log;
 use crate::setup::{ansi, path};
@@ -74,14 +74,10 @@ impl Plugins {
         let found = files(mod_dir, value);
         // A mod without plugins leaves the value empty: nothing to report then.
         if found.is_empty() && !value.is_empty() {
-            log::warn(
-                "plugins",
-                "no plugin file found",
-                &String::from_utf8_lossy(value),
-            );
+            log::warn("plugins", "no plugin file found", &ansi_text(value));
         }
         for file in found {
-            let shown = String::from_utf8_lossy(&file).into_owned();
+            let shown = ansi_text(&file);
             log::info("plugins", "loading", &shown);
             match Dll::open(&from_ansi(&file)) {
                 Ok(dll) => loaded.push(dll),

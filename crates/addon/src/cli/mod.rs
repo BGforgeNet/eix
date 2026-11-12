@@ -8,7 +8,7 @@ use eix_core::cli::{
     self as core_cli, DEFAULT_RUNNER, Phase, RUNNER_VARIABLE, Step, WORKDIR_VARIABLE,
 };
 use eix_core::options::CommandLine;
-use eix_engine::win::{error_box, exit_process, write_stdout};
+use eix_engine::win::{ansi_text, error_box, exit_process, write_stdout};
 
 use crate::setup::{self, Setup, ansi, path};
 use crate::{log, lua};
@@ -37,11 +37,7 @@ fn runner() -> Vec<u8> {
 /// Writes `text` to standard output as the original's `printf` does (text mode).
 pub(crate) fn print(text: &[u8]) {
     if !write_stdout(&core_cli::crt_text(text)) {
-        log::debug(
-            "cli",
-            "no standard output for",
-            &String::from_utf8_lossy(text),
-        );
+        log::debug("cli", "no standard output for", &ansi_text(text));
     }
 }
 
@@ -89,12 +85,7 @@ impl Folders {
     /// `arg` made absolute against the work folder: the working folder changes to it for the call and
     /// back. A path that cannot be resolved stops the game with the original's box.
     fn resolve(&self, arg: &[u8]) -> Vec<u8> {
-        let fail = || -> ! {
-            fatal(&format!(
-                "Cannot resolve full path of {}",
-                String::from_utf8_lossy(arg)
-            ))
-        };
+        let fail = || -> ! { fatal(&format!("Cannot resolve full path of {}", ansi_text(arg))) };
         if std::env::set_current_dir(&self.work).is_err() {
             fail();
         }
@@ -127,11 +118,7 @@ pub(crate) fn early(setup: &mut Setup, exe_enables_t2: bool) -> Early {
         match step {
             Step::ModDir(name) => {
                 let dir = setup::named_mod_dir(&name);
-                log::info(
-                    "cli",
-                    "--moddir: the options of",
-                    &String::from_utf8_lossy(&dir),
-                );
+                log::info("cli", "--moddir: the options of", &ansi_text(&dir));
                 *setup = setup::read_for(exe_enables_t2, dir);
                 log::set_threshold(setup.log_level);
                 crate::report::set_console_threshold(setup.console_log_level);

@@ -22,6 +22,7 @@ use eix_core::mod_files::{ResConfig, lower};
 use eix_engine::game::res::{self, GET_FILE, MappedResource, PathRange, StringArray};
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
+use eix_engine::win::ansi_text;
 use eix_sites::Site;
 
 use super::arg_path::c_str;
@@ -61,7 +62,7 @@ fn ensure_loaded() {
     }
     for (key, paths) in &config.overrides {
         for p in paths {
-            let shown = String::from_utf8_lossy(p).into_owned();
+            let shown = ansi_text(p);
             let Ok(c) = CString::new(p.clone()) else {
                 log::error("res", "a mod archive path holds a NUL", &shown);
                 continue;
@@ -132,11 +133,7 @@ fn each_path(list: &[Vec<u8>], mut f: impl FnMut(&CStr)) {
     for p in list {
         match CString::new(p.clone()) {
             Ok(c) => f(&c),
-            Err(_) => log::error(
-                "res",
-                "an archive path holds a NUL",
-                &String::from_utf8_lossy(p),
-            ),
+            Err(_) => log::error("res", "an archive path holds a NUL", &ansi_text(p)),
         }
     }
 }
@@ -329,11 +326,11 @@ pub(super) fn build(setup: &Setup) -> Result<Vec<Labelled>, BuildError> {
         log::info(
             "res",
             &format!("{} mod archive(s) override", paths.len()),
-            &String::from_utf8_lossy(key),
+            &ansi_text(key),
         );
     }
     for key in &setup.res.ignored {
-        log::info("res", "game archive hidden", &String::from_utf8_lossy(key));
+        log::info("res", "game archive hidden", &ansi_text(key));
     }
     // `push imm32` of a game address, as the replaced code holds it.
     let push = |imm: eix_sites::Site| {

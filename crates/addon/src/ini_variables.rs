@@ -35,7 +35,7 @@ static FILES: Mutex<Vec<(Vec<u8>, Option<Document>)>> = Mutex::new(Vec::new());
 static REPORTED: Mutex<Vec<Vec<u8>>> = Mutex::new(Vec::new());
 
 fn shown(bytes: &[u8]) -> String {
-    String::from_utf8_lossy(bytes).into_owned()
+    eix_engine::win::ansi_text(bytes)
 }
 
 /// `<file>.ini` from the mod folder, else the game folder; `None` when neither has it.

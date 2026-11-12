@@ -16,6 +16,7 @@ use eix_core::msvc_map::StringFloatMap;
 use eix_engine::game::player::NamedFloatTable;
 use eix_engine::group::SiteWrite;
 use eix_engine::hook::{self, Context, Mode};
+use eix_engine::win::ansi_text;
 use eix_sites::Site;
 
 use super::{BuildError, Labelled, Setup};
@@ -56,7 +57,7 @@ unsafe fn clear_keeping_globals(table: *mut NamedFloatTable) {
             *kept.entry(name) = value;
             log::debug(
                 "persistent",
-                &format!("keeping {} = {value}", String::from_utf8_lossy(name)),
+                &format!("keeping {} = {value}", ansi_text(name)),
                 "",
             );
         }
