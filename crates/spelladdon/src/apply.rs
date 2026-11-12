@@ -14,6 +14,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_engine::group::{self, Outcome, Report, SiteWrite};
 use eix_engine::patch::{self, Kind};
+use eix_engine::win::{from_ansi, narrow};
 use eix_engine::{hook, imports};
 use eix_sites::Site;
 
@@ -258,7 +259,7 @@ extern "system" fn load_library_a(name: *const c_char) -> *mut c_void {
                     Level::Warn,
                     "spelladdon",
                     "kept from loading: the built-in SpellAddon replaces it",
-                    &String::from_utf8_lossy(path),
+                    &narrow(&from_ansi(path)),
                 );
             }
             return core::ptr::null_mut();

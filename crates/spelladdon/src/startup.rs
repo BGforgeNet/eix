@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use eix_core::spelladdon::{Profile, Values, duplicate_keys};
 use eix_engine::ansi;
 use eix_engine::group::{Outcome, SiteWrite};
-use eix_engine::win::{from_ansi, to_ansi};
+use eix_engine::win::{from_ansi, narrow, to_ansi};
 use eix_sites::Site;
 
 use crate::apply::{self, Merge};
@@ -148,7 +148,7 @@ pub(crate) fn run(mod_dir: &[u8], log: Log, addon: Earlier) {
         );
         return;
     };
-    let shown = String::from_utf8_lossy(&file).into_owned();
+    let shown = narrow(&from_ansi(&file));
     log(
         Level::Info,
         "spelladdon",
@@ -293,7 +293,7 @@ fn perform(action: Action, log: Log) {
                     "spelladdon",
                     &format!(
                         "changefont: the font file {} was not added",
-                        String::from_utf8_lossy(&path)
+                        narrow(&from_ansi(&path))
                     ),
                     "",
                 );
@@ -369,6 +369,23 @@ fn keep(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn font_failure_logs_the_ansi_path() {
+        static MESSAGE: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+        fn log(_: Level, _: &str, message: &str, _: &str) {
+            *MESSAGE.lock().unwrap() = message.to_owned();
+        }
+        let path = b"eix_missing_font_\xE9.ttf";
+        perform(Action::AddFont(path.to_vec()), log);
+        assert_eq!(
+            *MESSAGE.lock().unwrap(),
+            format!(
+                "changefont: the font file {} was not added",
+                eix_engine::win::narrow(&from_ansi(path))
+            )
+        );
+    }
+
     use super::*;
 
     #[test]
