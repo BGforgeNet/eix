@@ -116,7 +116,7 @@ Unless stated otherwise, these `[Addon]` keys default to 0: 0 leaves the option 
 | `UnlockExperimentalSpells` | Allow Possession, Link and Charm through the spell-casting restriction | same |
 | `LoadSpellAnimationFromSlotsField` | Select cast animations from the spell record's slots field | same |
 | `ImproveInfoWindows` | Show spell damage to one decimal, cast time in seconds, and the unit rate percentage | fixed: info windows keep their text alive while it is drawn (the original draws freed memory); same text shown |
-| `RemoveSpellConstructReqs` | Remove mana and skill requirements for spell construction and equipping | same |
+| `RemoveSpellConstructReqs` | Remove stamina and skill requirements for spell construction and equipping | same |
 | `SendSpellEffectValueToPlayers` | Add effect strengths to network state; enable on both host and clients because it changes the record format | same |
 | `AddWeaponsFromDbToAllUnits` | Give all units their prototype's starting weapons and armor, not just heroes | same |
 | `UnlockCorpses` | Allow searching a corpse already owned or searched by another unit | same |

@@ -121,7 +121,7 @@ entry strips items. Set `QuIs` to the active quest-item count when using `camp=4
 | `possessioncharmlink` | 1: allow casting Possession, Charm and Link. | same |
 | `possessionpatch` | 1: Possession retains the caster's sight and registers both caster and target for script visibility. | same |
 | `batterycharge` | 1+: reject spells containing modifier codes `ic` or `it` when placing them in wands. Invalid rune-table references are skipped. | fixed: a modifier past the rune table is skipped (the original crashes) |
-| `nonstopmanaregen` | 1+: continue stamina/mana regeneration through the state that normally stops it. | same |
+| `nonstopmanaregen` | 1+: continue mana regeneration through the state that normally stops it. | same |
 | `npcsmana` | 1: charge NPCs mana on cast completion. 2: require enough mana before casting. 3: both. 4: make both exemptions depend on AI class 16 instead of player ownership. | same |
 | `splashdamageonair` | 1: area spells can hit flying units. 2: only Invoke Lightning gains this ability, including AI targeting. | same |
 | `newspells` | 1-3: extend spell dispatch, enable Ensorcell (42), Inspiration (43), script spells (44-48), and the Fireball-based spell 49. 1 also marks spell 49's caster; 1/2 load the autorun mob. 3 adds lasting-effect cases and Ensorcell's damage type. See script variables below. New spell records/scripts must come from the mod. | fixed: the original's crashes left out: Charm on a spawned wolf, the effect types that crash the effect loop, Charm and Healing with a broken stack; `legendaryspellsystem` and `changefont` keep their data |
@@ -129,7 +129,7 @@ entry strips items. Set `QuIs` to the active quest-item count when using `camp=4
 | `[speed] spellsaimod` | 1: extend the AI offensive/friendly spell table to 54 types. | also accepts `[gameplay] spellsaimod` when absent (the original ignores it) |
 | `[speed] spellsarealwaysconstructable` | 1: bypass level checks when assembling spells or giving them to heroes. | also accepts `[gameplay] spellsarealwaysconstructable` when absent (the original ignores it) |
 | `offensivespells` | 1: mark Stench and Shrink as friendly in missile hostility checks. | same |
-| `inspirationintelligence` | 1: item Inspiration waits until mana is below maximum, as Healing waits for missing health; limit repeated item casts within the tick. 2/3 are skipped. | 2 and 3 skipped (Healing items crash) |
+| `inspirationintelligence` | 1: item Inspiration waits until stamina is below maximum, as Healing waits for missing health; limit repeated item casts within the tick. 2/3 are skipped. | 2 and 3 skipped (Healing items crash) |
 | `teleportboost` | 1: teleport duration becomes `round(900 / (effect strength / 2 + 22)) + 2`. 2: use delay 8 instead of 30. 3: use delay 1. | same |
 | `shrinkenlargerebalance` | 1, 2: Shrink and Enlarge no longer change unit size. 1 also changes the scale multiplier used by the size calculation. | same |
 | `hidefireworks` | 1: omit Fireworks' drawing setup. | same |
@@ -141,7 +141,7 @@ entry strips items. Set `QuIs` to the active quest-item count when using `camp=4
 | `regenerationremaster` | 1: add Regeneration strength times `regenerationmul` to natural regeneration. | same |
 | `speedslowremaster` | 1, 2: multiply Speed minus Slow by `speedslowmul`. 2 also affects movement when `encumbrancemovespeed=1`. | same |
 | `strengthweakrebalance` | 1: Strengthen minus Weaken, times `strengthweakmul`, scales strength. | same |
-| `linkremaster` | 1: every 32 ticks, transfer mana from the proportionally fuller linked unit towards equal fill ratios, limited by spell strength. 2/3 are skipped. | 2 and 3 skipped (the original crashes) |
+| `linkremaster` | 1: every 32 ticks, transfer stamina from the proportionally fuller linked unit towards equal fill ratios, limited by spell strength. 2/3 are skipped. | 2 and 3 skipped (the original crashes) |
 | `allowcastsonbriefings` | 1: allow casting in briefing zones. | same |
 | `fakesrcrune` | 1: modifier code `f` starts a spell from its target point instead of its caster. | same |
 | `filtersarealwaysusing` | 1, 2: apply target filters to every spell. | same |
@@ -160,7 +160,7 @@ entry strips items. Set `QuIs` to the active quest-item count when using `camp=4
 | `aggrmod` | 1: record lost-sight state, without changing the loss calculation. 2: distance-dependent random loss using `losehardcore`. 4/5: distance-dependent loss based on clock ticks, `losefactor1/2`. 6/7: per-viewer aggression counter using `losehardcore`, `losefactor1/2/3`, `difffactor`, `maxadd`. `follow` affects all these modes; `loseallyfast` affects 6/7. 3 is skipped; 6/7 omit the faulty `improve` alarm hook and warn if requested. | 3 skipped (corrupts the AI's state); 6 and 7 with `improve` nonzero leave out the alarm hook (it acts on the wrong unit), with a warning; 2, 4-7 handle a zero divisor |
 | `spellsprioritys` | 1: replace seven AI target-rating constants with the priority parameters below. | same |
 | `otherspellcastingai` | 1: permit area spells even with allies nearby. | same |
-| `npcsspellcastingtactics` | 1: NPCs lacking mana switch to weapons and return to spells once mana recovers. | same |
+| `npcsspellcastingtactics` | 1: NPCs lacking stamina switch to weapons and return to spells once stamina recovers. | same |
 | `removenpcsblock` | 1, 2: remove NPC-specific stats, AI and naming branches. 1 also removes the NPC difficulty-scaling exception. | same |
 | `everyoneishero` | 1: broaden the shared hero-ID test to nonnegative IDs below two billion. 2: selected game systems treat all units as heroes. 3: as 2 but retain difficulty scaling for enemy heroes. | same |
 | `allysseeseachothers` | 1: sight treats all units as player-owned. 2/3: also use the player branch during visibility updates. 4: sight uses hero IDs from one billion to below two billion as the ownership test. | fixed: 4: looting works with or without `improvedstealing` (the original crashes without it at the first scripted loot) |
@@ -291,7 +291,7 @@ they do not supply a summoning script or mod assets.
 
 ### Indexed stat readers
 
-`HP` indices: 10 current HP, 11 maximum HP; 13 current mana, 14 maximum mana, 15 mana regeneration.
+`HP` indices: 10 current HP, 11 maximum HP; 13 current stamina, 14 maximum stamina, 15 stamina regeneration.
 Resistance uses base/current pairs: 16/17 piercing, 18/19 slashing, 20/21 crushing, 22/23 fire, 24/25 acid,
 26/27 lightning, 28/29 general.
 
