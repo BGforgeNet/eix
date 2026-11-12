@@ -167,7 +167,7 @@ These need no individual switch. Mod-file overrides and the settings above suppl
 | `PlayerNumbers` | Give each new session player the next number after the highest existing player | same |
 | `AddNewScriptCommands` | Add the script interface below and log script-load errors | same |
 | `PersistentGlobalVars` | Preserve party variables with the case-sensitive `gvar.` prefix across network resets and saved-party reloads | same |
-| `MultipleLoadingMobs` | When adding a mob to a populated zone, skip duplicate object IDs and assign unused IDs from 100 to anonymous objects | fixed: frees the entries it skips (the original leaks them); anonymous objects of one file each get their own ID (the original gives them one, so only the last appears) |
+| `MultipleLoadingMobs` | When adding a mob to a populated zone, skip duplicate object IDs and assign unused IDs from 100 to anonymous objects | fixed: frees the entries it skips (the original leaks them); anonymous objects get distinct IDs, also avoiding explicit IDs in the same file in either record order. The file's reserved IDs are released when reading ends |
 
 ## Console and command line
 
