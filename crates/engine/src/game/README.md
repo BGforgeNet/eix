@@ -56,7 +56,7 @@ was left out.
 | `CItem` stack count (+0x48) | only `CopyToImpl`'s write of 1 was found; no reader shows it is the count |
 | `CItemWeapon` reach, `CItemQuick`, `CItemLoot` | copied from the prototype only; no reader checked |
 | the other `CSpell` fields (duration, radius, speed, range, targets, price, skill) | `InitFromPrototype` copies them from the record; their meaning rests on the record's, unverified |
-| `UnitStats` speeds, sight values | not checked against a reader yet |
+| `UnitStats` sight values | not checked against a reader yet |
 | `UnitVitals` hit-point regeneration (+0x10) | `Regenerate` was read for mana only |
 | `CUnit` relations, movement modes, fight-at-will | no group need found yet |
 | `CWorldServer` / `CWorldClient` fields past the shared head (zone, diplomacy, camera, managers) | large and unverified; the shared head covers tick and pause |

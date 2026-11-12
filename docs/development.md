@@ -20,7 +20,7 @@ cargo xtask container
   `build/Containerfile` installs, then `cargo xtask check`.
 - Tests that need the game's files are ignored by the gate. Run them with `EIX_GAME_DIR` set to the game folder as a
   Windows path (under Wine, `Z:\...`):
-  `cargo test -p eix-addon --target i686-pc-windows-gnu -- --ignored`. They check every expected byte of the fixes
+  `cargo test -p eix-addon --target i686-pc-windows-gnu -- --ignored`. They check the expected bytes of the fixes
   and SpellAddon's features against `game.exe`, and the vertex lighting against `3dfpfpu.dll`.
 
 ## Documentation site
@@ -40,7 +40,7 @@ Two pages are generated, and each has one data file that holds every signature a
 - `cargo xtask check` also fails on a broken link between pages and on a page missing from `docs/SUMMARY.md`, then builds
   the book into `target/book`. The build image carries mdBook, pinned in `build/install-mdbook.sh`.
 - Tests compare the data files with the code: every function and callback that addon.dll registers appears in
-  `docs/scripting.yml` or `docs/eix.lua` with the same name and signature. Run the test that compares the game's own
+  `docs/scripting.yml` or `docs/eix.lua` with the same name. Run the test that compares the game's own
   entries with the keyword table of `game.exe` with `EIX_GAME_DIR` set, as for the other game tests:
   `cargo test -p eix-docs -- --ignored`.
 - Build the book by hand with `mdbook build` and open `target/book/index.html`.

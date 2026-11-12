@@ -1,7 +1,8 @@
 # Fixes and features
 
 eix's own changes to game.exe, beside the originals' features: [fixes](#fixes) of defects that the original
-addon.dll and SpellAddon leave, and [features](#features). Each is set in [eix.ini](eix-ini.md).
+addon.dll and SpellAddon leave, and [features](#features). The engine fixes and game options use [eix.ini](eix-ini.md);
+the `ShowTutorialDefault` option is read from the mod's `config.reg`.
 
 ## Fixes
 
