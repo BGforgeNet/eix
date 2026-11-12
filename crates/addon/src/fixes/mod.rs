@@ -79,7 +79,7 @@ impl Warnings {
 /// What turns a fix off: the reason it is off, or `None` to apply it.
 type Switch = fn(&Setup) -> Option<String>;
 
-/// A visible fix's own registry setting: off when it is 0.
+/// A visible fix's own eix.ini `[EngineFixes]` setting: off when it is 0.
 fn setting(value: u32, name: &str) -> Option<String> {
     (value == 0).then(|| format!("{name} is 0"))
 }
@@ -444,8 +444,8 @@ mod tests {
         at..at + u32_at(directory + 4)
     }
 
-    /// The patch groups read game memory while they build, so a test process, which holds no game.exe, cannot build
-    /// them; the fixes and SpellAddon's features build from their own tables.
+    /// Patch groups read live game memory while building; fixes and SpellAddon features mostly use their own tables.
+    /// HeapPadding reads live import slots and the heap mode, and FatalErrorExit checks live call bytes.
     #[test]
     #[ignore = "needs the game's game.exe: EIX_GAME_DIR=<the game folder, as a Windows path>"]
     fn every_expected_byte_is_game_exes() {
