@@ -225,7 +225,7 @@ Only the differences; everything else behaves as the original.
 | Patch writes are verified | a site that does not hold the expected bytes skips the whole group, logged with site, expected and found bytes (the original logs and writes anyway) |
 | config.reg and ai.reg | fixed: a file with a valid header and a broken body reads as empty, with an addon.log error (the original reads garbage or crashes); a section with no keys reads as empty (the original's lookup there crashes start-up) |
 | addon.log: opening | an addon.log that cannot be opened gets a message box, and the game goes on (the original runs silently without it) |
-| addon.log: when a line is written | fixed: each line is written at once (the original buffers, so a crash loses the last lines); a busy log lock drops the line, so crash recovery and process exit cannot wait on a stopped thread |
+| addon.log: when a line is written | fixed: each line is written at once (the original buffers, so a crash loses the last lines); normal writes wait for the log lock. Only from crash thread suspension or process detach onward does a busy lock drop the line, so logging cannot wait on a stopped thread |
 | Exit of a command | fixed: ends with the same exit code and no box (the original stops on an `R6025 - pure virtual function call` box) |
 | addon.log: what it records | also the eix build and commit, the Windows and Wine versions, the game.exe build, and the loaded modules (the original logs none of these) |
 | Crash handler: a filter set later | fixed: a plugin that replaces the crash handler (Universal Mod's um.dll) no longer disables it: eix's handler runs the others first, then its own. A crash within a quarter of a second of the plugin setting its filter reaches only the plugin's |

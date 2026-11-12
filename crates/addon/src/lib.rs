@@ -180,8 +180,10 @@ pub unsafe extern "system" fn DllMain(
     match reason {
         // SAFETY: `module` is our own handle, as the Windows loader passes it.
         DLL_PROCESS_ATTACH => unsafe { eix_engine::win::disable_thread_library_calls(module) },
-        // The logger drops this line if a stopped thread holds its file lock.
-        DLL_PROCESS_DETACH => log::info("main", "cleanup: the process is ending", ""),
+        DLL_PROCESS_DETACH => {
+            log::use_nonblocking_writes();
+            log::info("main", "cleanup: the process is ending", "");
+        }
         _ => {}
     }
     1

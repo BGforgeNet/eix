@@ -2,14 +2,15 @@
 //! (`-` when none).
 //!
 //! Each line goes to the file in one write as it is logged, with nothing buffered in the process, so a crash or
-//! `ExitProcess` loses no buffered line. A busy file lock drops the line, so a stopped thread cannot block logging.
+//! `ExitProcess` loses no buffered line. Normal writes wait for the file lock; from crash thread suspension or
+//! process detach onward, a busy lock drops the line because its owner may no longer run.
 
 use std::fmt;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 use eix_engine::group::SiteWrite;
 
@@ -59,6 +60,12 @@ impl fmt::Display for Level {
 }
 
 static FILE: Mutex<Option<File>> = Mutex::new(None);
+static NONBLOCKING: AtomicBool = AtomicBool::new(false);
+
+/// Stops waiting for the file lock; call before suspending threads or during process detach.
+pub(crate) fn use_nonblocking_writes() {
+    NONBLOCKING.store(true, Ordering::Relaxed);
+}
 
 /// The threshold: an event whose [`Level::rank`] is below it is not written; 4 writes nothing. The registry's
 /// `LogLevel` sets it at start (default 1, as the original's), the console's `addon debug log` later.
@@ -111,20 +118,26 @@ pub(crate) fn format_line(
     )
 }
 
-/// Logs one event, unless its level is below the threshold or the file lock is busy.
+/// Logs one event at or above the threshold, dropping a contended line only after [`use_nonblocking_writes`].
 pub(crate) fn write(level: Level, subsystem: &str, message: &str, at: &str) {
     if level.rank() < threshold() {
         return;
     }
-    let mut guard = match FILE.try_lock() {
-        Ok(guard) => guard,
-        Err(std::sync::TryLockError::Poisoned(error)) => error.into_inner(),
-        Err(std::sync::TryLockError::WouldBlock) => return,
+    let line = format_line(eix_engine::win::local_time(), level, subsystem, message, at);
+    let line = format!("{line}\r\n");
+    let mut guard = if NONBLOCKING.load(Ordering::Relaxed) {
+        match FILE.try_lock() {
+            Ok(guard) => guard,
+            Err(std::sync::TryLockError::Poisoned(error)) => error.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => return,
+        }
+    } else {
+        FILE.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     };
     if let Some(file) = guard.as_mut() {
-        let line = format_line(eix_engine::win::local_time(), level, subsystem, message, at);
         // The log is the reporting channel itself; a failed write has nowhere else to go.
-        let _ = file.write_all(format!("{line}\r\n").as_bytes());
+        let _ = file.write_all(line.as_bytes());
     }
 }
 
@@ -175,30 +188,63 @@ mod tests {
     }
 
     #[test]
-    fn lines_reach_the_file_at_once() {
+    fn lines_wait_normally_and_drop_only_after_threads_stop() {
         let dir = std::env::temp_dir().join(format!("eix-log-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("addon.log");
         open(&path).unwrap();
-        info("main", "started", "");
-        error("plugins", "cannot load", "x.dll");
-        let text = std::fs::read_to_string(&path).unwrap();
-        let lines: Vec<&str> = text.lines().collect();
-        assert_eq!(lines.len(), 2);
-        assert!(lines[0].ends_with("\tINFO\tmain\tstarted\t-"));
-        assert!(lines[1].ends_with("\tERROR\tplugins\tcannot load\tx.dll"));
+        let read = || {
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .lines()
+                .filter(|line| line.contains("\tlog-test\t"))
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        };
+        info("log-test", "started", "");
+        error("log-test", "cannot load", "x.dll");
+        let text = read();
+        assert_eq!(text.len(), 2);
+        assert!(text[0].ends_with("\tINFO\tlog-test\tstarted\t-"));
+        assert!(text[1].ends_with("\tERROR\tlog-test\tcannot load\tx.dll"));
 
+        let guard = FILE.lock().unwrap();
+        let (started, starting) = std::sync::mpsc::channel();
+        let (sent, received) = std::sync::mpsc::channel();
+        let writer = std::thread::spawn(move || {
+            started.send(()).unwrap();
+            info("log-test", "normal contention", "");
+            sent.send(()).unwrap();
+        });
+        starting
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .unwrap();
+        let waiting = received.recv_timeout(std::time::Duration::from_millis(250));
+        let while_locked = read();
+        drop(guard);
+        writer.join().unwrap();
+        assert_eq!(waiting, Err(std::sync::mpsc::RecvTimeoutError::Timeout));
+        assert_eq!(while_locked, text);
+        received
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .unwrap();
+        let text = read();
+        assert_eq!(text.len(), 3);
+        assert!(text[2].ends_with("\tINFO\tlog-test\tnormal contention\t-"));
+
+        use_nonblocking_writes();
         let guard = FILE.lock().unwrap();
         let (sent, received) = std::sync::mpsc::channel();
         let writer = std::thread::spawn(move || {
-            info("main", "cleanup: the process is ending", "");
+            info("log-test", "cleanup: the process is ending", "");
             sent.send(()).unwrap();
         });
         let completed = received.recv_timeout(std::time::Duration::from_secs(2));
         drop(guard);
         writer.join().unwrap();
+        NONBLOCKING.store(false, Ordering::Relaxed);
         assert!(completed.is_ok(), "logging waited for the held file lock");
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+        assert_eq!(read(), text);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

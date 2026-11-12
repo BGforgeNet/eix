@@ -132,6 +132,7 @@ fn handle(c: &Crash) {
             "",
         );
     }
+    log::use_nonblocking_writes();
     c.stop_other_threads();
     let (log_path, dump, full) = FILES.get().cloned().unwrap_or_default();
     // The original writes no dump over a file of that name.
