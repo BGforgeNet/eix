@@ -201,16 +201,12 @@ pub fn is_code(site: Site, kind: Kind) -> bool {
 /// # Safety
 /// As for [`write()`], for `site` itself.
 unsafe fn write_at(site: Site, expected: &[u8], new: &[u8]) -> Result<(), PatchError> {
-    // SAFETY: the caller guarantees the range; the closure calls VirtualProtect with the writer's arguments.
-    unsafe {
-        write_at_using(
-            site,
-            expected,
-            new,
-            |ptr, len, protect, old| VirtualProtect(ptr, len, protect, old),
-            protection_warning,
-        )
-    }
+    let protect = |ptr, len, protection, old| {
+        // SAFETY: the writer supplies the caller's mapped range and its local protection word.
+        unsafe { VirtualProtect(ptr, len, protection, old) }
+    };
+    // SAFETY: the caller guarantees the range; `protect` forwards the protection change to VirtualProtect.
+    unsafe { write_at_using(site, expected, new, protect, protection_warning) }
 }
 
 /// # Safety
@@ -427,20 +423,17 @@ mod tests {
         let site = Site::of(buf.as_mut_ptr() as usize);
         let mut calls = 0;
         let mut warning = None;
+        let protect = |_, _, _, old: *mut PAGE_PROTECTION_FLAGS| {
+            calls += 1;
+            // SAFETY: the writer passes its local protection word.
+            unsafe { old.write(PAGE_EXECUTE_READWRITE) };
+            i32::from(calls == 1)
+        };
         // SAFETY: the buffer belongs to this test and is writable; the substitute changes no page protection.
         let result = unsafe {
-            write_at_using(
-                site,
-                &[1],
-                &[2],
-                |_, _, _, old| {
-                    calls += 1;
-                    // SAFETY: the writer passes its local protection word.
-                    old.write(PAGE_EXECUTE_READWRITE);
-                    i32::from(calls == 1)
-                },
-                |at, error| warning = Some((at, error.to_owned())),
-            )
+            write_at_using(site, &[1], &[2], protect, |at, error| {
+                warning = Some((at, error.to_owned()))
+            })
         };
         assert_eq!(result, Ok(()));
         assert_eq!(buf, [2]);
