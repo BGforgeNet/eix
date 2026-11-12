@@ -5,14 +5,8 @@ use eix_engine::group::SiteWrite;
 use eix_engine::registry::hkcu_value;
 use eix_engine::win::to_ansi;
 
-use super::{Action, Build, BuildError, Ctx};
+use super::{Action, BuildError, Ctx};
 use crate::{Level, Log};
-
-/// The implemented features: `(section, key, build)`.
-pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
-    ("gameplay", "importantalerts", important_alerts),
-    ("gameplay", "versionalerts", version_alerts),
-];
 
 const MB_OK: u32 = 0;
 const MB_HELP: u32 = 0x4000;
@@ -23,7 +17,7 @@ const PATH_BUFFER: usize = 0x104;
 
 /// `importantalerts` >= 1: a modal box with the starter's `AddonPath` and the caption "2"; without the value, the
 /// caption "3" over the unwritten buffer, a run of 0xCC bytes. The game waits until it is closed.
-fn important_alerts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn important_alerts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value >= 1 {
         ctx.actions.borrow_mut().push(Action::ImportantAlerts);
     }
@@ -78,7 +72,7 @@ fn version_alert_for(name: &[u8]) -> bool {
 }
 
 /// `versionalerts` = 1: one box per `.asi` file of the working folder that is not on the known list.
-fn version_alerts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn version_alerts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value == 1 {
         ctx.actions.borrow_mut().push(Action::VersionAlerts);
     }

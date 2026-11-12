@@ -19,48 +19,7 @@ use eix_engine::x87::{C0, Ext};
 use eix_sites::Site;
 
 use super::common::{self, Bytes, PushTail, read, write};
-use super::{Build, BuildError, Ctx};
-
-/// The implemented features: `(section, key, build)`.
-pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
-    ("gameplay", "newspells", new_spells),
-    ("gameplay", "possessioncharmlink", possession_charm_link),
-    ("gameplay", "splashdamageonair", splash_damage_on_air),
-    ("gameplay", "offensivespells", offensive_spells),
-    ("gameplay", "shrinkenlargerebalance", shrink_enlarge),
-    ("gameplay", "regenerationremaster", regeneration),
-    ("gameplay", "strengthweakrebalance", strength_weak),
-    ("gameplay", "tornadochanges", tornado),
-    ("gameplay", "filtersarealwaysusing", filters_always),
-    ("gameplay", "teleportboost", teleport_boost),
-    ("gameplay", "allowcastsonbriefings", casts_on_briefings),
-    (
-        "speed",
-        "spellsarealwaysconstructable",
-        always_constructable,
-    ),
-    ("speed", "spellsaimod", spells_ai_mod),
-    ("gameplay", "npcsmana", npcs_mana),
-    ("gameplay", "nonstopmanaregen", nonstop_mana_regen),
-    ("gameplay", "hidefireworks", hide_fireworks),
-    ("gameplay", "changesounds", change_sounds),
-    ("gameplay", "wallsfrequency", walls_frequency),
-    ("gameplay", "wallspercentage", walls_percentage),
-    ("gameplay", "lastspellsdamagetype", last_spells_damage_type),
-    ("gameplay", "possessionpatch", possession_patch),
-    ("gameplay", "speedslowremaster", speed_slow_remaster),
-    ("gameplay", "vampirism", vampirism),
-    ("gameplay", "batterycharge", battery_charge_build),
-    (
-        "gameplay",
-        "inspirationintelligence",
-        inspiration_intelligence,
-    ),
-    ("gameplay", "linkremaster", link_remaster),
-    ("gameplay", "fakesrcrune", fake_source_rune),
-    ("gameplay", "controlmagic", control_magic),
-    ("gameplay", "effectredraws", effect_redraws),
-];
+use super::{BuildError, Ctx};
 
 /// `CWorldServer::CastSpell`+0x50: the three `je` that refuse Possession (0x15), Link (0x1B) and Charm (0x24), with
 /// the compares between them.
@@ -77,7 +36,10 @@ const CAST_SPELL_LOADS: [u8; 6] = [0x8B, 0x4F, 0x3C, 0x8B, 0x5F, 0x38];
 const AND_EBX_MASK: [u8; 6] = [0x81, 0xE3, 0xFF, 0xFF, 0xFF, 0x00];
 
 /// `possessioncharmlink` = 1: `CastSpell` no longer refuses the three spells.
-fn possession_charm_link(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn possession_charm_link(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -128,7 +90,7 @@ extern "C" fn can_reach_flying(_: usize, ctx: &mut Context) {
 
 /// `splashdamageonair` 1: `IsSpellTarget` no longer refuses flying units and `CSpellEffect::HitUnitsInRadius` does
 /// not skip them. 2: only Invoke Lightning reaches them, and the AI aims it at them.
-fn splash_damage_on_air(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn splash_damage_on_air(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         1 => Ok(common::nops(&[
             (
@@ -157,7 +119,7 @@ fn splash_damage_on_air(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildE
 
 /// `offensivespells` = 1: two entries of the hostility table inside `CWorldServer::CreateMissile`, Stench and
 /// Shrink, become 1.
-fn offensive_spells(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn offensive_spells(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -178,7 +140,7 @@ fn offensive_spells(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
 /// `shrinkenlargerebalance` 1 or 2: Shrink and Enlarge stop changing the size (a table byte in
 /// `CMapObject::AddEffectImpl`, `RecomputeScaleHook`'s `jne`, their test in `CMapObjectServer::Update`, a byte of
 /// `IsOffensive`'s table); 1 also points `RecomputeScaleHook`'s multiplier at 0x73B850.
-fn shrink_enlarge(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn shrink_enlarge(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !matches!(value, 1 | 2) {
         return Ok(Vec::new());
     }
@@ -235,7 +197,7 @@ const REGENERATION: [Bytes; 2] = [
 ];
 
 /// `regenerationremaster` = 1.
-fn regeneration(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn regeneration(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -268,7 +230,7 @@ const STRENGTH_WEAK: Bytes = (
 );
 
 /// `strengthweakrebalance` = 1.
-fn strength_weak(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn strength_weak(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -285,7 +247,7 @@ fn strength_weak(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 
 /// `tornadochanges` >= 1: the tornado's damage pushed in `CEffectTornado::Tick` is `tordmg`; >= 2 also hurts
 /// every unit (the `je` that skips some goes).
-fn tornado(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn tornado(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -305,7 +267,7 @@ fn tornado(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `filtersarealwaysusing` 1 or 2: `CSpellEffect::HitUnit` applies the target filter to every spell.
-fn filters_always(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn filters_always(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !matches!(value, 1 | 2) {
         return Ok(Vec::new());
     }
@@ -342,7 +304,7 @@ extern "C" fn teleport_time(_: usize, ctx: &mut Context) {
 
 /// `teleportboost` 1: the delay is 5, then added code makes it depend on the effect's strength; 2 or 3: the delay of 30
 /// becomes 8 or 1.
-fn teleport_boost(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn teleport_boost(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let delay = match value {
         1 => {
             return Ok(vec![
@@ -425,7 +387,7 @@ extern "C" fn possession_register(_: usize, ctx: &mut Context) {
 }
 
 /// `possessionpatch` = 1: Possession no longer takes the caster's sight.
-fn possession_patch(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn possession_patch(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -489,7 +451,10 @@ extern "C" fn damage_type(arg: usize, ctx: &mut Context) {
 
 /// `lastspellsdamagetype` = 1: the damage types of Lightning, Astral Beam, Fire Arrow and Destroy Ray come from the
 /// INI.
-fn last_spells_damage_type(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn last_spells_damage_type(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -576,7 +541,7 @@ extern "C" fn wall_fraction(_: usize, ctx: &mut FpuContext) {
 
 /// `wallspercentage` 1 or 2: the walls' per-tick damage fraction comes from the INI per wall type; 1 scales the
 /// period by the fractions (divided by 150), 2 takes them as they are.
-fn walls_percentage(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn walls_percentage(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !matches!(value, 1 | 2) {
         return Ok(Vec::new());
     }
@@ -636,7 +601,7 @@ extern "C" fn speed_slow(_: usize, ctx: &mut Context) {
 }
 
 /// `speedslowremaster` 1 or 2: the Speed and Slow effects count times `speedslowmul`.
-fn speed_slow_remaster(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn speed_slow_remaster(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !matches!(value, 1 | 2) {
         return Ok(Vec::new());
     }
@@ -648,12 +613,12 @@ fn speed_slow_remaster(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
 
 /// `vampirism` = 1 is in the registry's skip list: its added code is copied from a stack buffer the module never fills,
 /// so Link's update runs into breakpoint bytes. No other value changes anything.
-fn vampirism(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn vampirism(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
     Ok(Vec::new())
 }
 
 /// `allowcastsonbriefings` = 1: `CWorldServer::CastSpell`+0x3D jumps past the briefing-zone refusal.
-fn casts_on_briefings(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn casts_on_briefings(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -688,7 +653,7 @@ const LEVEL_SETGE: [Site; 4] = [
 ];
 
 /// `spellsarealwaysconstructable` = 1: spells can always be given to heroes and assembled.
-fn always_constructable(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn always_constructable(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -729,7 +694,7 @@ const OFFENSIVE_54: [u8; 64] = {
 
 /// `spellsaimod` = 1: `IsOffensive` reads its table, 54 types long, from the header slack; the `SpellKind` bound
 /// becomes 0x36 as with the caster table.
-fn spells_ai_mod(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn spells_ai_mod(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -768,7 +733,7 @@ const HAS_PLAYER_TESTS: [Bytes; 2] = [
 
 /// `npcsmana` 1: `FinishCast` charges every unit; 2: `CanCast` checks every unit's mana; 3: both; 4: both tests
 /// look at the AI class instead of the player.
-fn npcs_mana(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn npcs_mana(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         1 => Ok(common::nops(&[FINISH_CAST_JE])),
         2 => Ok(common::nops(&[CAN_CAST_JE])),
@@ -779,7 +744,7 @@ fn npcs_mana(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `nonstopmanaregen` >= 1: `UnitVitals::Regenerate`+0x34's `jne` that stops regeneration goes.
-fn nonstop_mana_regen(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn nonstop_mana_regen(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -790,7 +755,7 @@ fn nonstop_mana_regen(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
 }
 
 /// `hidefireworks` = 1: `CSpellEffect::Start`+0x1824 jumps over the Fireworks drawing setup to +0x1847.
-fn hide_fireworks(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn hide_fireworks(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -802,7 +767,7 @@ fn hide_fireworks(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 }
 
 /// `changesounds` = 1: the fireball's volume factor pushed in `CSpellEffect::UpdateMissile`+0x9EF is `fireboom`.
-fn change_sounds(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn change_sounds(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -823,7 +788,7 @@ const WALL_PERIODS: [Site; 4] = [
 ];
 
 /// `wallsfrequency` = 1: the walls hit every `frequencyvalue` ticks.
-fn walls_frequency(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn walls_frequency(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -883,7 +848,7 @@ extern "C" fn battery_charge(_: usize, ctx: &mut Context) {
 }
 
 /// `batterycharge` >= 1: spells with the "ic" or "it" modifier cannot be put into wands.
-fn battery_charge_build(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn battery_charge_build(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -950,7 +915,10 @@ extern "C" fn item_spell_full(pair: usize, ctx: &mut Context) {
 
 /// `inspirationintelligence` 1: an item's Inspiration is not cast at full mana, as its Healing is not at full health.
 /// The registry skips 2 and 3, which send Healing items into the middle of an instruction.
-fn inspiration_intelligence(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn inspiration_intelligence(
+    _: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1023,7 +991,7 @@ extern "C" fn link_mana(_: usize, ctx: &mut Context) {
 
 /// `linkremaster` 1: Link shares the two units' mana. The registry skips 2 and 3, which run into a `hlt` with one
 /// word too many on the stack.
-fn link_remaster(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn link_remaster(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1102,7 +1070,7 @@ extern "C" fn effect_target(_: usize, ctx: &mut Context) {
 }
 
 /// `fakesrcrune` = 1: the modifier 'f' makes a spell start from its target point instead of the caster.
-fn fake_source_rune(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn fake_source_rune(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1262,7 +1230,7 @@ extern "C" fn control_bonus(arg: usize, ctx: &mut Context) {
 /// `controlmagic` 1: control spells meet the target's resistance. 2, 3, 5, 7: the 22 spell types get their strength
 /// bonus (3: only those switched on). The registry skips 4 and 6, which jump into the middle of an instruction in
 /// every spell's block.
-fn control_magic(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn control_magic(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let mut writes = match value {
         1 => common::jump_at(CONTROL_SITE, &CONTROL_SITE_BYTES, 1, control_spell, 0)?,
         2 | 3 | 5 | 7 => {
@@ -1448,7 +1416,7 @@ fn shift_up(code: &[u8], by: usize, calls: &[usize]) -> Result<Vec<u8>, BuildErr
 }
 
 /// `effectredraws` = 1: spell lines in the item panels and the HUD show the `b<spell>` bonus.
-fn effect_redraws(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn effect_redraws(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1866,7 +1834,7 @@ extern "C" fn sacrifice_caster(_: usize, ctx: &mut Context) {
 /// `newspells` 1-3: spell types 0x2A-0x33 get cases in `Start`, `UpdateMissile` and `GetDamage`; Charm and Ensorcell
 /// (0x2A) meet the target's resistance; Inspiration (0x2B) gives mana; 0x2C-0x30 publish variables for scripts. 1 also
 /// marks 0x31's caster, 1 and 2 load the AutoRun mob, 3 adds lasting cases and Ensorcell's damage type.
-fn new_spells(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_spells(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !matches!(value, 1..=3) {
         return Ok(Vec::new());
     }

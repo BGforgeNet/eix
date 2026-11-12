@@ -10,28 +10,10 @@ use eix_engine::hook::Context;
 use eix_sites::Site;
 
 use super::common::{self, Bytes, fixed};
-use super::{Build, BuildError, Ctx};
-
-/// The implemented features: `(section, key, build)`.
-pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
-    ("speed", "allowmpspeed", allow_mp_speed),
-    ("gameplay", "fullexpforall", full_exp_for_all),
-    ("gameplay", "manygameexe", many_game_exe),
-    ("gameplay", "enablecheatsinmulti", cheats_in_multi),
-    ("gameplay", "extendedparams", extended_params),
-    ("gameplay", "longnick", long_nick),
-    ("speed", "rewritespeed", rewrite_speed),
-    ("speed", "rewritespeedkey", rewrite_speed_key),
-    ("speed", "disablepausekey ", disable_pause_key),
-    ("speed", "disablepause", disable_pause),
-    ("speed", "showallquestsinmulti", all_quests_in_multi),
-    ("speed", "rewriteotherspeed", rewrite_other_speed),
-    ("gameplay", "disableexppenalty", no_exp_penalty),
-    ("speedrun", "timervars", timer_vars),
-];
+use super::{BuildError, Ctx};
 
 /// `manygameexe` = 1: `GameMain` never finds a running game (`je` -> `jmp`), so several can run.
-fn many_game_exe(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn many_game_exe(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -39,7 +21,7 @@ fn many_game_exe(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `longnick` = 1: `EditFieldChar` loses its field-flag test and both length limits.
-fn long_nick(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn long_nick(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -78,7 +60,7 @@ const SUM_SITES: [Bytes; 2] = [
 
 /// `extendedparams` = 1: the three hero-screen constants become 5, 45, 20000. = 2: they become `parammin`,
 /// `parammax`, `balance`, and the screen compares the required sum with itself, so any attributes pass.
-fn extended_params(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn extended_params(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let params = |values: [f32; 3]| -> Result<SiteWrite, BuildError> {
         let mut new = Vec::with_capacity(12);
         for v in values {
@@ -104,7 +86,7 @@ fn extended_params(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 }
 
 /// `fullexpforall` = 1: `CWorldServer::GiveExperience` no longer divides by the number of receivers.
-fn full_exp_for_all(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn full_exp_for_all(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -123,7 +105,7 @@ fn full_exp_for_all(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
 }
 
 /// `enablecheatsinmulti` = 1: both `IsMultiplayerClient` calls of the console dispatcher become `mov eax, 0`.
-fn cheats_in_multi(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn cheats_in_multi(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -143,7 +125,7 @@ fn cheats_in_multi(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 
 /// `allowmpspeed` >= 1: the "multiplayer: skip" branches before the speed changes of the keys and the clock button
 /// become NOPs.
-fn allow_mp_speed(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn allow_mp_speed(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -181,7 +163,7 @@ fn period(site: Site, was: u32, value: i32) -> Result<SiteWrite, BuildError> {
 }
 
 /// `rewritespeed` = 1: the clock button's normal and fast periods become `normal` and `fast`.
-fn rewrite_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn rewrite_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -200,7 +182,7 @@ fn rewrite_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 }
 
 /// `rewritespeedkey` = 1: the speed keys' fast and normal periods become `fastkey` and `normalkey`.
-fn rewrite_speed_key(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn rewrite_speed_key(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -237,7 +219,7 @@ fn pause_write(site: Site, call: [u8; 4], period: i32) -> Result<SiteWrite, Buil
 }
 
 /// `disablepause` = 1: the clock's pause button sets the period `pause` instead of pausing.
-fn disable_pause(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn disable_pause(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -251,7 +233,7 @@ fn disable_pause(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 
 /// `"disablepausekey "` = 1 (the original's key name, trailing space included): the pause key sets the period
 /// `pausekey` instead of pausing.
-fn disable_pause_key(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn disable_pause_key(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -264,7 +246,7 @@ fn disable_pause_key(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 }
 
 /// `showallquestsinmulti` = 1: `PickZones` jumps over its multiplayer test.
-fn all_quests_in_multi(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn all_quests_in_multi(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -273,7 +255,7 @@ fn all_quests_in_multi(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 
 /// `rewriteotherspeed`: 2 makes `CBattleScreen::Close` reset the period to `normal1`; 3 makes the clock's first
 /// period `(mask & (fast2 - normal2)) + normal2` in `CHudClock::SetupVanilla`; 1 does both.
-fn rewrite_other_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn rewrite_other_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let mut writes = Vec::new();
     if matches!(value, 1 | 2) {
         writes.push(period(
@@ -323,7 +305,7 @@ const DIRECT_RAISE: [u8; 53] = {
 /// `disableexppenalty` >= 1: experience goes straight to the totals (+0x04, +0x08) instead of the pending field,
 /// the camp's trade panel reads +0x04 alone, and the leader's death (`WorldServer::Respawn`) no longer takes pending
 /// experience.
-fn no_exp_penalty(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn no_exp_penalty(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -470,7 +452,7 @@ const RET: &[u8] = &[0xC3];
 
 /// `timervars` 1, 2 or 3: the timer word's writes, at the original's places (1 and 3 differ in which battle-screen
 /// paths set it; 2 sets it from `CInterface3D::Activate` instead of the briefing).
-fn timer_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn timer_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !matches!(value, 1..=3) {
         return Ok(Vec::new());
     }

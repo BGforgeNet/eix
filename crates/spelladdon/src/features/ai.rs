@@ -13,36 +13,8 @@ use eix_engine::x87::{C0, C3, Ext};
 use eix_sites::Site;
 
 use super::common::{self, Bytes, NOWHERE, read, write};
-use super::{Build, BuildError, Ctx};
+use super::{BuildError, Ctx};
 use crate::Level;
-
-/// The implemented features: `(section, key, build)`.
-pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
-    ("aicastertable", "rebuildedaicastertable", caster_table),
-    ("gameplay", "newbigtables", new_big_tables),
-    ("aioffendtable", "rebuildedaioffendtable", offend_table),
-    ("gameplay", "visionfix", vision_fix),
-    ("gameplay", "spellsprioritys", spells_priorities),
-    ("gameplay", "otherspellcastingai", other_spell_casting_ai),
-    ("gameplay", "stupidenemies", stupid_enemies),
-    ("gameplay", "fearpatch", fear_patch),
-    ("gameplay", "newplayersafetyconditions", player_safety),
-    ("gameplay", "removenpcsblock", remove_npcs_block),
-    ("gameplay", "everyoneishero", everyone_is_hero),
-    ("gameplay", "allysseeseachothers", allies_see_each_other),
-    ("gameplay", "allvisible", all_visible),
-    ("gameplay", "rewritenpcvisionarc", npc_vision_arc),
-    ("gameplay", "nightvisionincaves", night_vision_in_caves),
-    ("gameplay", "visioninweather", vision_in_weather),
-    ("gameplay", "hyperreactions", hyper_reactions),
-    ("gameplay", "stenchremaster", stench_remaster),
-    ("gameplay", "aggrmod", aggrmod),
-    ("gameplay", "hearingreactionspatch", hearing_reactions),
-    ("gameplay", "npcsspellcastingtactics", spell_casting_tactics),
-    ("gameplay", "unitsrunfromdangers", units_run_from_dangers),
-    ("gameplay", "nightpowervisionpatch", night_power_vision),
-    ("gameplay", "sizerebalance", size_rebalance),
-];
 
 /// `AIAttention::SpellKind`'s bound, the operand of `cmp eax, 0x29` at 0x5CEDD1: the number of spell types.
 const SPELL_KIND_BOUND: Site = eix_sites::AI_ATTENTION_SPELL_KIND__13;
@@ -86,7 +58,7 @@ fn new_big_tables_on(ctx: &Ctx<'_>) -> Result<bool, BuildError> {
 
 /// `rebuildedaicastertable` = 1: `SpellKind` maps 54 spell types through the INI's table, which starts 4 bytes
 /// before the game's (11 bytes after it with `newbigtables`, whose table then reads past what was written).
-fn caster_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn caster_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -110,13 +82,13 @@ fn caster_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 
 /// `newbigtables` writes only inside the two table blocks (both builds read it); its third test moves an arena
 /// offset of a later block and writes nothing.
-fn new_big_tables(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_big_tables(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
     Ok(Vec::new())
 }
 
 /// `rebuildedaioffendtable` = 1: `IsOffensive`'s table comes from the INI (0 harmful, 1 friendly); `newbigtables`
 /// raises its bound to 0x57 without a longer table.
-fn offend_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn offend_table(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -148,7 +120,7 @@ const VIEWER_SECOND_JE: (Site, &[u8]) = (
 
 /// `visionfix` = 1: both "lost from sight" jumps of `AIViewer::Update` go; with `aggrmod` above 5 only the first,
 /// which those `aggrmod` values remove as well.
-fn vision_fix(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn vision_fix(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -160,7 +132,7 @@ fn vision_fix(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `spellsprioritys` = 1: the AI target rating's seven constants (one `.rdata` row from 0x73FF04) come from the INI.
-fn spells_priorities(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn spells_priorities(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     const ROW: [(&str, f32); 7] = [
         ("sametarget", 10.0),
         ("magicattack", 3.0),
@@ -180,7 +152,7 @@ fn spells_priorities(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 }
 
 /// `otherspellcastingai` = 1: `AIAttention::IsUsable`+0x192 returns 1, so splash spells are cast with allies near.
-fn other_spell_casting_ai(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn other_spell_casting_ai(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -192,7 +164,7 @@ fn other_spell_casting_ai(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Buil
 }
 
 /// `stupidenemies` = 1: `CUnitServer::WitnessMurder` drops its call of `CDiplomacy::OnAttack` with its arguments.
-fn stupid_enemies(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn stupid_enemies(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -206,7 +178,7 @@ fn stupid_enemies(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 }
 
 /// `fearpatch` = 1: the flee distance and the leg damage that ends fleeing come from the INI.
-fn fear_patch(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn fear_patch(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -229,7 +201,7 @@ const SAFETY_DISTANCE: Site = eix_sites::C_PLAYER_SERVER_SEND_PARTY_STATE__36C;
 
 /// `newplayersafetyconditions` = 1: the party-state distance tests compare with `safetymuldist`, kept in padding,
 /// and the visibility factor at 0x73FE90 becomes `maxvisibilitymul`.
-fn player_safety(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn player_safety(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -281,7 +253,7 @@ const NPC_ATTENTION: (Site, &[u8]) = (
 
 /// `removenpcsblock` 1 or 2: NPCs lose their own branches and marker (1 also in the difficulty scaling), and
 /// `CBattleScreen::UnitName` always takes its monster path.
-fn remove_npcs_block(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn remove_npcs_block(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !matches!(value, 1 | 2) {
         return Ok(Vec::new());
     }
@@ -371,7 +343,7 @@ const HERO_CALLS: [(Site, [u8; 5], bool); 14] = [
 const MOV_EAX_1: [u8; 5] = [0xB8, 0x01, 0x00, 0x00, 0x00];
 
 /// `everyoneishero` 1: `IsTextKey` compares the id with 0; 2 and 3: chosen callers take every unit as a hero.
-fn everyone_is_hero(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn everyone_is_hero(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         // The immediate of `cmp ecx, 1000000000` at `IsTextKey`, bytes +2 to +5.
         1 => Ok(vec![SiteWrite::bytes(
@@ -405,7 +377,7 @@ extern "C" fn id_has_player(_: usize, ctx: &mut Context) {
 /// `allysseeseachothers` 1-3: `AIViewer::See` treats every unit as having a player; 2 and 3 also make
 /// `AIViewer::Update` take its player branch. 4: `See` takes a hero's id range as having a player
 /// ([`id_has_player`]).
-fn allies_see_each_other(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn allies_see_each_other(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         1..=3 => {
             let mut writes = vec![SiteWrite::bytes(
@@ -449,13 +421,13 @@ fn allies_see_each_other(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
 /// `allvisible`: the registry skips 1, its one value, whose original takes 0 for `DrawVisibleOnly` in
 /// `GameOptions::LoadFromRegistry` instead of calling `CWinRegistry::GetInt`, so the call's three stack arguments
 /// stay pushed. No other value changes anything.
-fn all_visible(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn all_visible(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
     Ok(Vec::new())
 }
 
 /// `rewritenpcvisionarc` >= 1: `visionarc` over the immediate of `mov dword ptr [ebx+0x44], 0xC0000000` at
 /// 0x524B2A, the NPC marker whose bits are the float -2.0.
-fn npc_vision_arc(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn npc_vision_arc(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -498,7 +470,7 @@ const CAVE_VISION: [Bytes; 3] = [
 ];
 
 /// `nightvisionincaves` >= 1: vision in dark zones is the night value.
-fn night_vision_in_caves(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn night_vision_in_caves(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -506,7 +478,7 @@ fn night_vision_in_caves(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
 }
 
 /// `visioninweather` = 1: the bad-weather vision factor of `CWorldServer::UpdateWeather` comes from the INI.
-fn vision_in_weather(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn vision_in_weather(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -519,7 +491,7 @@ fn vision_in_weather(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 }
 
 /// `hyperreactions` = 1: `AIViewer::See` and `AIMemory::SeeCorpse` drop their "own side only" tests.
-fn hyper_reactions(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn hyper_reactions(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -571,7 +543,7 @@ extern "C" fn stench(_: usize, ctx: &mut FpuContext) {
 }
 
 /// `stenchremaster` = 1: Stench makes the unit easier to see and hear.
-fn stench_remaster(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn stench_remaster(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -807,7 +779,7 @@ fn param_int(ctx: &Ctx<'_>, key: &str, site: Site) -> Result<SiteWrite, BuildErr
 /// `aggrmod` 1 to 7 (the registry skips 3, which corrupts `AIViewer::Update`'s frame): when a viewer loses sight of units, with `follow` (all values)
 /// letting it keep after them. 1 only records state; 2, 4, 5 lose units by chance over distance; 6 and 7 through a
 /// counter per viewer.
-fn aggrmod(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn aggrmod(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let flag = |key: &str| ctx.values.int("gameplay", key);
     let mut writes = match value {
         1 => vec![
@@ -976,7 +948,7 @@ extern "C" fn noise_target(_: usize, ctx: &mut Context) {
 }
 
 /// `hearingreactionspatch` 1 or 2: units go towards what they hear; 2 aims near the heard unit, scattered.
-fn hearing_reactions(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn hearing_reactions(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !matches!(value, 1 | 2) {
         return Ok(Vec::new());
     }
@@ -1087,7 +1059,7 @@ extern "C" fn spell_block_mana(_: usize, ctx: &mut Context) {
 }
 
 /// `npcsspellcastingtactics` = 1: units without the mana for their spell fight with weapons until it is back.
-fn spell_casting_tactics(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn spell_casting_tactics(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1111,13 +1083,13 @@ fn spell_casting_tactics(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
 
 /// `unitsrunfromdangers` = 1 is in the registry's skip list: its code passes `FearMode`'s danger point (`ebx+0x10`)
 /// to the path search as the unit, which reads unit fields from it. No other value changes anything.
-fn units_run_from_dangers(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn units_run_from_dangers(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
     Ok(Vec::new())
 }
 
 /// `sizerebalance` 1 to 3 are in the registry's skip list: the original's stats routine stores the item size sum
 /// into `unit+0x49c`, the vtable pointer of an object inside the unit. No other value changes anything.
-fn size_rebalance(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn size_rebalance(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
     Ok(Vec::new())
 }
 
@@ -1192,7 +1164,7 @@ extern "C" fn night_ramp(arg: usize, ctx: &mut FpuContext) {
 }
 
 /// `nightpowervisionpatch` = 1: the night level ramps up in the evening and down in the morning.
-fn night_power_vision(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn night_power_vision(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }

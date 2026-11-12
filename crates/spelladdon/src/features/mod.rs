@@ -1,5 +1,5 @@
-//! The features, one module per group of them. Each module lists its implemented features in `BUILDS` as
-//! `(section, key, build)`; the registry ([`crate::registry`]) finds them there and runs them in the original's order.
+//! The features, one module per group of them. The registry ([`crate::registry`]) holds each build and runs them in
+//! the original's order.
 //!
 //! A build gets the feature's flag value (the low byte of the INI value, signed) and returns the feature's writes to
 //! game.exe; it returns none for a value its feature does nothing with. Writes expect game.exe's own bytes: where an
@@ -168,7 +168,7 @@ pub(crate) mod testing {
             if value == 0 || registry::skipped(f, value, &v).is_some() {
                 continue;
             }
-            let Some(build) = f.build() else { continue };
+            let Some(build) = f.build else { continue };
             let writes = build(&ctx, value)
                 .unwrap_or_else(|e| panic!("[{}] {}={value}: {e}", f.section, f.key));
             for w in writes {

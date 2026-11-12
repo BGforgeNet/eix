@@ -26,49 +26,7 @@ use eix_engine::x87::Ext;
 use eix_sites::Site;
 
 use super::common::{self, Bytes, Obj, read};
-use super::{Build, BuildError, Ctx};
-
-/// The implemented features: `(section, key, build)`.
-pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
-    ("speed", "gsgetvar", gs_get_var),
-    ("speed", "gssetvar", gs_set_var),
-    ("saves", "savecontrol", save_control),
-    ("gameplay", "autorunmobfile", auto_run_mob_file),
-    ("gameplay", "infiniteaddmobspawn", infinite_add_mob_spawn),
-    ("gameplay", "waslootedtrans", was_looted_trans),
-    ("gameplay", "castscripttrans", cast_script_trans),
-    ("gameplay", "hptrans", hp_trans),
-    ("gameplay", "mptrans", mp_trans),
-    ("gameplay", "giveunitspelltrans", give_unit_spell_trans),
-    ("gameplay", "notifydeaths", notify_deaths),
-    ("gameplay", "castspellunittrans", cast_spell_unit_trans),
-    ("gameplay", "castspellpointtrans", cast_spell_point_trans),
-    ("gameplay", "removefrozenvar", remove_frozen_var),
-    ("gameplay", "freemultiplayervars", free_multiplayer_vars),
-    ("gameplay", "genocideincvars", genocide_inc_vars),
-    ("gameplay", "genocidedipvars", genocide_dip_vars),
-    ("gameplay", "movetoobjecttrans", move_to_object_trans),
-    ("gameplay", "groupseetrans", group_see_trans),
-    ("gameplay", "unitseetrans", unit_see_trans),
-    ("gameplay", "notifylootings", notify_lootings),
-    ("gameplay", "runtrans", run_trans),
-    ("gameplay", "crawltrans", crawl_trans),
-    ("gameplay", "getaiclasstrans", get_ai_class_trans),
-    ("gameplay", "getplayertrans", get_player_trans),
-    ("gameplay", "setplayertrans", set_player_trans),
-    ("gameplay", "standtrans", stand_trans),
-    ("tech", "drawunitsids", draw_units_ids),
-    ("tech", "scriptchecking", script_checking),
-    ("gameplay", "playmusictrans", play_music_trans),
-    ("gameplay", "legendaryspellsystem", legendary_spell_system),
-    ("gameplay", "killunittrans", kill_unit_trans),
-    ("gameplay", "fixworldtimetrans", fix_world_time_trans),
-    (
-        "gameplay",
-        "setspellaggressiontrans",
-        set_spell_aggression_trans,
-    ),
-];
+use super::{BuildError, Ctx};
 
 fn bytes(site: Site, expected: &[u8], new: &[u8]) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(site, expected, new)?)
@@ -257,7 +215,7 @@ extern "C" fn get_game_value(_: usize, ctx: &mut Context) {
 }
 
 /// `gsgetvar` = 1: `GSGetVar` answers the difficulty and the game speed.
-fn gs_get_var(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn gs_get_var(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -283,7 +241,7 @@ extern "C" fn set_game_speed(_: usize, ctx: &mut Context) {
 }
 
 /// `gssetvar` = 1: `GSSetVar` sets the game speed.
-fn gs_set_var(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn gs_set_var(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -326,7 +284,7 @@ extern "C" fn key_save(_: usize, ctx: &mut Context) {
 }
 
 /// `savecontrol` 1 or 2: player 0's variable "Save" forbids saving from the escape menu and by key.
-fn save_control(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn save_control(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !(1..=2).contains(&value) {
         return Ok(Vec::new());
     }
@@ -377,7 +335,7 @@ extern "C" fn notify_death(arg: usize, ctx: &mut Context) {
 }
 
 /// `notifydeaths` 1 or 2: a unit's death sets the variable named after its id.
-fn notify_deaths(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn notify_deaths(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !(1..=2).contains(&value) {
         return Ok(Vec::new());
     }
@@ -422,7 +380,7 @@ extern "C" fn notify_looting(arg: usize, ctx: &mut Context) {
 }
 
 /// `notifylootings` 1-3: looting a body sets a variable named after an id ([`notify_looting`]).
-fn notify_lootings(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn notify_lootings(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !(1..=3).contains(&value) {
         return Ok(Vec::new());
     }
@@ -436,7 +394,7 @@ fn notify_lootings(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 }
 
 /// `removefrozenvar` = 1: `EnterZone` treats zone 6 as not unique, whatever its frozen state (`jne` -> `jmp`).
-fn remove_frozen_var(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn remove_frozen_var(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -444,7 +402,7 @@ fn remove_frozen_var(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 }
 
 /// `freemultiplayervars` = 1: `ClassTemplatesBuild` and `Journal::Refresh` skip the multiplayer variables.
-fn free_multiplayer_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn free_multiplayer_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -562,7 +520,7 @@ fn genocide_hook(
 }
 
 /// `genocideincvars` 1 or 3: "Hits" counts a hero's hits on non-heroes (2 is skipped: see the registry).
-fn genocide_inc_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn genocide_inc_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         1 | 3 => genocide_hook(TAKE_HIT, genocide_hit, Genocide::Count),
         _ => Ok(Vec::new()),
@@ -570,7 +528,7 @@ fn genocide_inc_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 }
 
 /// `genocidedipvars` 1-5: "Hits" and "Kils" hold the side of the last unit hit or killed.
-fn genocide_dip_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn genocide_dip_vars(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let (hit, kill) = match value {
         1 => (Some(Genocide::HeroSide), None),
         2 => (None, Some(Genocide::HeroSide)),
@@ -621,7 +579,7 @@ pub(crate) fn auto_run_mob() -> Result<SiteWrite, BuildError> {
 }
 
 /// `autorunmobfile` >= 1: [`auto_run_mob`].
-fn auto_run_mob_file(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn auto_run_mob_file(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -642,7 +600,7 @@ extern "C" fn add_mob_again(_: usize, ctx: &mut Context) {
 }
 
 /// `infiniteaddmobspawn` >= 1: `AddMob` loads a file any number of times ([`add_mob_again`]).
-fn infinite_add_mob_spawn(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn infinite_add_mob_spawn(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -665,7 +623,7 @@ extern "C" fn was_looted_bit(_: usize, ctx: &mut Context) {
 }
 
 /// `waslootedtrans`: 1 `WasLooted` returns the unit's whole flag word; 2 the bit its second argument names.
-fn was_looted_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn was_looted_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     const SITE: Site = eix_sites::SSC_CMD_CALC_FLOAT__49F;
     const SHIFT: [u8; 6] = [0xC1, 0xEA, 0x14, 0x83, 0xE2, 0x01];
     match value {
@@ -711,7 +669,7 @@ extern "C" fn hp_by_index(_: usize, ctx: &mut FpuContext) {
 }
 
 /// `hptrans` = 1: `HP(unit, index)` ([`hp_by_index`]).
-fn hp_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn hp_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -772,7 +730,7 @@ extern "C" fn stat_by_index(_: usize, ctx: &mut FpuContext) {
 }
 
 /// `mptrans` = 1: `Mana(unit, index)` ([`stat_by_index`]); `HP` takes the argument as well.
-fn mp_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn mp_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -806,7 +764,7 @@ fn mp_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 
 /// `groupseetrans` = 1: `GroupSee` takes a third, float argument (the signature `"Ggf"`, written into
 /// `SSCCmd::CalcGroup`'s padding); its case stays the game's.
-fn group_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn group_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -845,7 +803,7 @@ extern "C" fn player_word(_: usize, ctx: &mut FpuContext) {
 }
 
 /// `getplayertrans` = 1: `GetPlayer(object, index)` ([`player_word`]), the signature `"of"`.
-fn get_player_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn get_player_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -918,7 +876,7 @@ fn field_offset(index: i32) -> i32 {
 }
 
 /// `setplayertrans` = 1: `SetPlayer(unit, value, field)` ([`set_player_word`]), the signature `"off"`.
-fn set_player_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn set_player_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -968,7 +926,7 @@ extern "C" fn stand_revives(_: usize, ctx: &mut Context) {
 }
 
 /// `standtrans` = 1: `Stand(unit)` also revives the unit ([`stand_revives`]).
-fn stand_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn stand_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1008,7 +966,7 @@ extern "C" fn unit_id_name(_: usize, ctx: &mut Context) {
 }
 
 /// `drawunitsids` = 1: the info panel shows the unit's id before its name ([`unit_id_name`]).
-fn draw_units_ids(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn draw_units_ids(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1075,7 +1033,7 @@ extern "C" fn quest_item_bit(_: usize, ctx: &mut Context) {
 /// `GiveQuestItem(unit, value)` sets one ([`quest_item_bit`]), and `MaxMana` takes seven floats. The original's 96
 /// bytes over `newspells`' code at 0x79AA80 are not written: the built-in `newspells` keeps its code elsewhere, so
 /// nothing reaches them.
-fn legendary_spell_system(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn legendary_spell_system(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1147,7 +1105,7 @@ extern "C" fn unit_see_list(_: usize, ctx: &mut Context) {
 }
 
 /// `unitseetrans` = 1: `UnitSee(unit, mode)` (the signature `"Gof"`, written into `SSCCmd::CalcGroup`'s padding).
-fn unit_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn unit_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1171,7 +1129,7 @@ fn unit_see_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 
 /// `getaiclasstrans` = 1: `GetAIClass` reads the unit's controller and its field +0x984 instead of storing -1 first
 /// and reading +0x324.
-fn get_ai_class_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn get_ai_class_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1251,7 +1209,7 @@ extern "C" fn cast_on_object(_: usize, ctx: &mut FpuContext) {
 
 /// `castscripttrans`: 1 `Cast(unit, x, y, spell)` ([`cast_spell_number`]); 2 `Cast(unit, x, y, spell, target)`
 /// ([`cast_on_object`]), the signature `"offfo"` written into padding at 0x4DA1FA as the original does.
-fn cast_script_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn cast_script_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     /// The padding the original writes the new signature into.
     const OFFFO: Site = eix_sites::GAME_BUFFER_READ_PAST_END__8A;
     match value {
@@ -1300,7 +1258,7 @@ extern "C" fn spell_caster(arg: usize, ctx: &mut Context) {
 }
 
 /// `castspellunittrans` = 1: `CastSpellUnit(spell, x, y, target, caster)`.
-fn cast_spell_unit_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn cast_spell_unit_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1320,7 +1278,7 @@ fn cast_spell_unit_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Build
 
 /// `castspellpointtrans` = 1: `CastSpellPoint(spell, x, y, x2, y2, caster)`; the case reads its floats through EAX so
 /// that ESI keeps the command.
-fn cast_spell_point_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn cast_spell_point_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1352,7 +1310,7 @@ fn cast_spell_point_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Buil
 
 /// `giveunitspelltrans` = 1: `GiveUnitSpell` creates a quick item (`CWorldServer::CreateItemNamed` 0x594AB0) and adds
 /// it with `CUnit::AddQuickItem` 0x531180.
-fn give_unit_spell_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn give_unit_spell_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1432,7 +1390,7 @@ fn move_trans(
 }
 
 /// `runtrans` = 1: `Run(unit, style)` sets the move style it names.
-fn run_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn run_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1445,7 +1403,7 @@ fn run_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `crawltrans` = 1: `Crawl(unit, slot)` sets the weapon slot the unit is to take up, and no move style.
-fn crawl_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn crawl_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1474,7 +1432,7 @@ const KILL_UNIT: Bytes = (
 );
 
 /// `killunittrans` = 1: [`KILL_UNIT`], with the signature `"ff"`.
-fn kill_unit_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn kill_unit_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1498,7 +1456,7 @@ extern "C" fn world_time_speed(_: usize, ctx: &mut Context) {
 }
 
 /// `fixworldtimetrans` = 1: `FixWorldTime(time, speed)`, the signature `"ff"`.
-fn fix_world_time_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn fix_world_time_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1546,7 +1504,7 @@ const MOVE_TO_OBJECT_ITEM: [u8; 67] = [
 
 /// `movetoobjecttrans` >= 1: `MoveToObject` makes the unit use thieving on its target. 1 walks, 2 runs; 3 and up take
 /// the argument list `"ooffff"`, written into `Terrain::GroundAndWaterDepth`'s padding.
-fn move_to_object_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn move_to_object_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     const SITE: Site = eix_sites::SCRIPT_RUN_EXECUTE__B37;
     const OOFFFF: Site = eix_sites::TERRAIN_GROUND_AND_WATER_DEPTH__3E9;
     match value {
@@ -1590,7 +1548,7 @@ extern "C" fn music_by_digit(arg: usize, ctx: &mut Context) {
 }
 
 /// `playmusictrans` 1 or 2: `PlayMusic(player, "0")` and `"1"` switch the local music ([`music_by_digit`]).
-fn play_music_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn play_music_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let field = match value {
         1 => 4,
         2 => 0,
@@ -1606,7 +1564,7 @@ fn play_music_trans(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
 }
 
 /// `setspellaggressiontrans`: its block writes nothing (`SetSpellAggression` does nothing in the game either).
-fn set_spell_aggression_trans(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn set_spell_aggression_trans(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
     Ok(Vec::new())
 }
 
@@ -1675,7 +1633,7 @@ const SCRIPT_ERROR: [u8; 51] = [
 /// `scriptchecking` 1 to 7: script errors, and with 2 and 4 to 7 the mob files loaded, are appended to `SAlog.txt`.
 /// 1, 2 keep the errors out of the script; 3, 4, 6, 7 return non-zero from `ScriptError`; 5 lets eight load errors
 /// of `CScript::Load*` pass. 8 and up are skipped (the registry).
-fn script_checking(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn script_checking(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     // 7 writes what 6 does (the original's sites and code are the same).
     if !(1..=7).contains(&value) {
         return Ok(Vec::new());

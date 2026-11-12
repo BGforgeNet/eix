@@ -18,7 +18,7 @@ use eix_engine::x87::Ext;
 use eix_sites::Site;
 
 use super::common::{self, Obj, read};
-use super::{Build, BuildError, Ctx, rebalance};
+use super::{BuildError, Ctx, rebalance};
 
 /// `UnitStats`' size (its whole-object copy in `CopyStats`).
 const UNIT_STATS: u32 = 0x704;
@@ -26,38 +26,6 @@ const UNIT_STATS: u32 = 0x704;
 const UNIT: u32 = 0x4DC;
 /// The HUD weapon bar's fields reach to its unit at +0x154.
 const WEAPON_BAR: u32 = 0x158;
-
-/// The implemented features: `(section, key, build)`.
-pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
-    ("skills", "extendedskills", extended_skills),
-    ("gameplay", "unlockmoney", unlock_money),
-    ("stealing", "extendedstealing", extended_stealing),
-    ("gameplay", "saveall", save_all),
-    ("gameplay", "extendedmerc", extended_merc),
-    ("gameplay", "shopschanges", shops_changes),
-    ("gameplay", "copystatscut", copy_stats_cut),
-    (
-        "gameplay",
-        "shopsnewnormalchanges",
-        shops_new_normal_changes,
-    ),
-    ("gameplay", "liftchanges", lift_changes),
-    ("gameplay", "liftdebuffs", lift_debuffs),
-    ("gameplay", "heroalwayscanrun", hero_always_can_run),
-    ("gameplay", "encumbrancemovespeed", encumbrance_move_speed),
-    (
-        "gameplay",
-        "encumbranceattackspeed",
-        encumbrance_attack_speed,
-    ),
-    ("gameplay", "dmgtypes", dmg_types),
-    ("gameplay", "itemslightchanges", items_light_changes),
-    ("gameplay", "heroscanhideweapons", heroes_can_hide_weapons),
-    ("gameplay", "avgarmors", avg_armors),
-    ("gameplay", "camp", camp),
-    ("gameplay", "improvedstealing", improved_stealing),
-    ("gameplay", "newoptions", new_options),
-];
 
 fn bytes(site: Site, expected: &[u8], new: &[u8]) -> Result<SiteWrite, BuildError> {
     Ok(SiteWrite::bytes(site, expected, new)?)
@@ -131,7 +99,7 @@ fn skill_caps(sites: &[CapSite], limit: u8) -> Result<Vec<SiteWrite>, BuildError
 }
 
 /// `extendedskills` = 1: three of the panel's caps of 100 become `[skills] skills`.
-fn extended_skills(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn extended_skills(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -162,7 +130,7 @@ fn extended_skills(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 }
 
 /// `extendedstealing` = 1: the other three caps become `[stealing] stealing`.
-fn extended_stealing(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn extended_stealing(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -195,7 +163,7 @@ fn extended_stealing(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 // --- Plain switches -----------------------------------------------------------------------------------------------
 
 /// `unlockmoney` = 1: `GuardPlayers` stops XOR-encoding the money (`xor edx, ebp` at 0x579210 NOPed).
-fn unlock_money(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn unlock_money(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -206,7 +174,7 @@ fn unlock_money(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `heroalwayscanrun` = 1: `UnitStats::MovementState` always takes the "may run" branch.
-fn hero_always_can_run(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn hero_always_can_run(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -219,7 +187,7 @@ fn hero_always_can_run(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 
 /// `saveall` >= 1: `LoadGame` and `SaveGame` treat every zone as "bz7g". Its value 32 also takes part in
 /// `extendedmerc`'s draw range (that block tests it).
-fn save_all(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn save_all(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -245,7 +213,7 @@ const RENDER_RANGE: [Site; 2] = [
 /// `extendedmerc` >= 1: the briefings' mercenary limit (`cmp [esp + 0x40], 2`) becomes `maxcountofmerc`'s low byte.
 /// With `extendedmerc` >= 16, `saveall` = 32 and `maxcountofmerc` > 50 the client's draw range also grows: the
 /// render's 100.0 becomes 4096.0, and the draw pass's four range operands point at it.
-fn extended_merc(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn extended_merc(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -272,7 +240,7 @@ fn extended_merc(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 
 /// `dmgtypes` = 1: the number of damage types the camp lists, in `CItemInfoPanel::DescribeStats` (`cmp eax, 6`) and
 /// `CHeroStatsPanel::DrawPart` (`mov esi, 6`).
-fn dmg_types(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn dmg_types(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -299,7 +267,7 @@ const LIGHTS_GAME: [f32; 32] = [
 ];
 
 /// `itemslightchanges` = 1: the 32 floats `light00` .. `light31`.
-fn items_light_changes(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn items_light_changes(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -378,7 +346,10 @@ const JIGRAN_SLOT: Site = eix_sites::DATA_79A356;
 const SHOP_FIELD_DEFAULT: f32 = f32::from_bits(0x3DCC_CCCD);
 
 /// `shopsnewnormalchanges` = 1: the INI's stock ranges and price factors (the bytes kept, as `push imm8`).
-fn shops_new_normal_changes(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn shops_new_normal_changes(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -455,7 +426,7 @@ extern "C" fn shop_template(arg: usize, ctx: &mut Context) {
 
 /// `shopschanges` >= 1: `ClassTemplatesBuild` stores EBP into the price and count fields of four templates instead
 /// of the per-field registers, and its last template gets fixed values (see [`shop_template`]).
-fn shops_changes(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn shops_changes(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -537,7 +508,7 @@ extern "C" fn copy_stats(_: usize, ctx: &mut Context) {
 }
 
 /// `copystatscut` = 1: `CopyStats` leaves out the blocks [`COPY_STATS_PIECES`] skips.
-fn copy_stats_cut(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn copy_stats_cut(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -568,7 +539,7 @@ extern "C" fn lift_check(_: usize, ctx: &mut Context) {
 }
 
 /// `liftchanges` = 1: the hook of [`lift_check`], which changes no game state.
-fn lift_changes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn lift_changes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -612,7 +583,7 @@ extern "C" fn lift_pack(arg: usize, ctx: &mut Context) {
 }
 
 /// `liftdebuffs` = 1: [`lift_pack`]; `liftkey` goes where the original keeps it, in game.exe's data padding.
-fn lift_debuffs(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn lift_debuffs(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -728,7 +699,10 @@ extern "C" fn move_speed_hook(arg: usize, ctx: &mut Context) {
 }
 
 /// `encumbrancemovespeed` = 1: [`move_speed_hook`] and the multipliers it reads.
-fn encumbrance_move_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn encumbrance_move_speed(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -799,7 +773,10 @@ extern "C" fn attack_rate(_: usize, ctx: &mut Context) {
 /// motion mode 1 instead of 2; 2 slows the stats' attack rate instead. Each hook copies the instruction as
 /// `rewriteactionsspeed` (1) or `actionspatch` (2) left it, so the slowing applies to that feature's value (the
 /// original's hook copies the game's instruction, dropping that feature's value there).
-fn encumbrance_attack_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn encumbrance_attack_speed(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     let mul = ctx
         .values
         .float("gameplay", "encumbranceattackmul")?
@@ -913,7 +890,10 @@ const KEY_SELECTED_JUMPS: [(Site, [u8; 4]); 4] = [
 ];
 
 /// `heroscanhideweapons` = 1: a weapon key or a click on the selected slot sheathes the weapon.
-fn heroes_can_hide_weapons(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn heroes_can_hide_weapons(
+    _: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1004,7 +984,7 @@ extern "C" fn hoover_case(_: usize, ctx: &mut Context) {
 }
 
 /// `improvedstealing` = 1: looting a body and stealing from the living take different things ([`hoover_case`]).
-fn improved_stealing(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn improved_stealing(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1058,7 +1038,7 @@ extern "C" fn toughness_armor(_: usize, ctx: &mut Context) {
 
 /// `avgarmors` = 1: the camp's left panel shows the average armour instead of the largest. The registry skips it
 /// without `newperks`, whose helper the rewrite calls.
-fn avg_armors(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn avg_armors(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1442,7 +1422,7 @@ fn camp_controls(strip: usize) -> Result<Vec<SiteWrite>, BuildError> {
 /// ([`quest_item_hooks`]) and strips them on every way into the camp ([`enter_camp`]); 4 limits the quick panel's
 /// quest items by "QuIs" ([`quest_item_slots`]); 13 up bring the zone music back with the battle screen
 /// ([`camp_music`]).
-fn camp(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn camp(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let strip = usize::from(value == 3);
     if value < 1 {
         return Ok(Vec::new());
@@ -1607,7 +1587,7 @@ const _: () = assert!(KEY_TABLE_GAME.ru() == KEY_TABLE_REFS[2].1.ru());
 /// `newoptions` = 1: the key bindings gain "camp" and "kick", and the battle screen passes actions up to 61 to its
 /// switch (`cmp eax, 0x3A` -> `0x3C`). Actions 60 and 61's entries of the switch's table are NOP padding in the
 /// original, which jumps there when a key is bound to them; ours ends the switch, unless `camp` builds action 60.
-fn new_options(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_options(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }

@@ -20,42 +20,7 @@ use eix_engine::x87::Ext;
 use eix_sites::Site;
 
 use super::common::{self, Bytes, PushTail, fixed, read};
-use super::{Action, Build, BuildError, Ctx};
-
-/// The implemented features: `(section, key, build)`.
-pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
-    ("gameplay", "rewriteperssize", pers_size),
-    ("fonts", "changefont", change_font),
-    ("gameplay", "infowindowschanges", info_window_changes),
-    ("gameplay", "allodsinfo", allods_info),
-    ("gameplay", "showtype", show_type),
-    ("gameplay", "expirementalfxes", experimental_fixes),
-    ("gameplay", "noruinszoneanimation", no_ruins_zone_animation),
-    ("gameplay", "showmanaforeveryone", show_mana_for_everyone),
-    ("gameplay", "meterscale", meter_scale),
-    ("gameplay", "lightsboost", lights_boost),
-    ("gameplay", "mainmenuweather", main_menu_weather),
-    ("gameplay", "notrash", no_trash),
-    ("gameplay", "dontmergegipathzones", dont_merge_gipat_zones),
-    ("gameplay", "musictimings", music_timings),
-    ("gameplay", "exploredcolors", explored_colors),
-    ("gameplay", "disabledragon", disable_dragon),
-    ("gameplay", "newcounters", new_counters),
-    ("gameplay", "infowindowremake", info_window_remake),
-    ("gameplay", "drawvisiblepatch", draw_visible_patch),
-    ("gameplay", "playingnewloadingscreens", new_loading_screens),
-    ("gameplay", "newzonescpecificmusic", zone_specific_music),
-    ("gameplay", "newallodsacks", new_allods_acks),
-    ("gameplay", "segmentsonexitenter", segments_on_exit_enter),
-    ("gameplay", "bigmapspatch", big_maps_patch),
-    ("gameplay", "ultrafixes", ultra_fixes),
-    ("gameplay", "hiddenzonesexits", hidden_zones_exits),
-    (
-        "gameplay",
-        "nogameoveronleadersdeath",
-        no_game_over_on_leaders_death,
-    ),
-];
+use super::{Action, BuildError, Ctx};
 
 /// The writes of `table` when `value` is 1, else none: the shape of most switches here.
 fn when_on(value: i8, table: &[Bytes]) -> Result<Vec<SiteWrite>, BuildError> {
@@ -77,7 +42,7 @@ fn word(site: Site, was: u32, now: [u8; 4]) -> Result<SiteWrite, BuildError> {
 const HERO_PREVIEW_SCALE: Site = eix_sites::C_UI_WINDOW_DRAW_HERO_PREVIEW__5F3;
 
 /// `rewriteperssize` = 1: the hero preview's scale becomes `perssize`.
-fn pers_size(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn pers_size(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -90,7 +55,7 @@ fn pers_size(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `infowindowschanges` = 1: `DrawUnitInfo`'s layout constant `[ebp-0x34]` becomes 0x15.
-fn info_window_changes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn info_window_changes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     when_on(
         value,
         &[(
@@ -102,7 +67,7 @@ fn info_window_changes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 }
 
 /// `showtype` = 1: the movement-type line of the info window is no longer skipped.
-fn show_type(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn show_type(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     when_on(
         value,
         &[(
@@ -114,7 +79,7 @@ fn show_type(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `showmanaforeveryone` = 1: `CHudUnitPanel::ShowHealth` jumps over its hero test to the mana bar.
-fn show_mana_for_everyone(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn show_mana_for_everyone(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     when_on(
         value,
         &[(
@@ -126,7 +91,7 @@ fn show_mana_for_everyone(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Buil
 }
 
 /// `meterscale` = 1: the ruler scale constant (15.0 in `.rdata`) becomes `meter`.
-fn meter_scale(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn meter_scale(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -230,7 +195,7 @@ fn info_lines(format: u32) -> Vec<u8> {
 }
 
 /// `infowindowremake` = 1: attack and defence share one line, with hearing; the panel gets two more rows.
-fn info_window_remake(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn info_window_remake(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -314,7 +279,7 @@ fn imm(site: Site, was: u32, now: i32) -> Result<SiteWrite, BuildError> {
 
 /// `allodsinfo` = 1: the allod's description (`adesc <allod>` from texts.res) shows in a frame of `framex` by
 /// `framey`.
-fn allods_info(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn allods_info(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -406,7 +371,7 @@ fn allods_info(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 
 /// `exploredcolors` = 1: the explored zones' colour (0.5, 0.5, 0.5) in `CGlobalMap::SelectZone` becomes `exred`,
 /// `exgreen`, `exblue`, read as floats.
-fn explored_colors(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn explored_colors(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -424,7 +389,7 @@ fn explored_colors(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 }
 
 /// `dontmergegipathzones` = 1: `CGlobalMap::Create` keeps the Gipat zones apart.
-fn dont_merge_gipat_zones(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn dont_merge_gipat_zones(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     when_on(
         value,
         &[(eix_sites::C_GLOBAL_MAP_CREATE__1726, &[0x75], &[0xEB])],
@@ -434,7 +399,7 @@ fn dont_merge_gipat_zones(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Buil
 // --- The main menu, fonts, light -------------------------------------------------------------------------------
 
 /// `mainmenuweather`: 1 makes `CMainMenu::Create`'s weather type 2 at strength 40, 2 skips the weather.
-fn main_menu_weather(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn main_menu_weather(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         1 => fixed(&[(
             eix_sites::C_MAIN_MENU_CREATE__211,
@@ -447,7 +412,7 @@ fn main_menu_weather(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErro
 }
 
 /// `lightsboost` = 1: the light strength constant (0.001 in `.rdata`) becomes `newlightsvalue`.
-fn lights_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn lights_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -477,7 +442,7 @@ const TIMES_PUSH: [u8; 5] = [0x68, 0x34, 0x30, 0x79, 0x00];
 
 /// `changefont` >= 1: the interface's four fonts are `newfont1` .. `newfont4`. 2 also adds the font file
 /// `newfont5` from spelladdon.ini's folder, for this process only.
-fn change_font(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn change_font(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -504,7 +469,7 @@ fn change_font(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `drawvisiblepatch` = 1: `GameFlow::StartZone` no longer resets "draw visible".
-fn draw_visible_patch(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn draw_visible_patch(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     when_on(
         value,
         &[(eix_sites::GAME_FLOW_START_ZONE__24D, &[0x75], &[0xEB])],
@@ -527,7 +492,7 @@ const LOADING_TEST: Bytes = (
 
 /// `playingnewloadingscreens`: 1 names the loading movie after the zone; 2 also pushes a name kept in the
 /// function's padding instead of 0x78b0ec.
-fn new_loading_screens(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_loading_screens(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         1 => fixed(&[LOADING_TEST]),
         2 => {
@@ -553,7 +518,7 @@ fn new_loading_screens(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 /// `notrash` = 1: `AdvanceTime` tests motion mode 1, and the briefing's table of its two speech folders (`t` at
 /// 0x793378, `s` at 0x79337C, of which the briefing picks one at random) names `t` twice. The English and German
 /// briefing has one folder and no such table.
-fn no_trash(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn no_trash(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let mut writes = when_on(
         value,
         &[(
@@ -578,7 +543,7 @@ const SECOND_SPEECH_FOLDER: Site = eix_sites::DATA_79337C;
 /// `musictimings` = 1: `CMusicSystem::UpdateMusic`'s pause between tracks is `minmusictime` plus a random number
 /// modulo `maxmusictime - minmusictime`, at its three draws. With `maxmusictime` not above `minmusictime` the modulus
 /// is 1, so the pause is `minmusictime` (the original's modulus is then 0, and the game's division faults, or wraps).
-fn music_timings(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn music_timings(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -638,7 +603,7 @@ extern "C" fn zone_music(arg: usize, ctx: &mut Context) {
 /// `newzonescpecificmusic`: 1 gives zone `gz12d2` its own music; 2 and 3 take the music name from another field in
 /// `LoadZone`, `CBriefingScreen::Create` and `CCampPages::Create` (3 leaves the camp's push) and cut
 /// `CMusicSystem::SetZoneMode` short.
-fn zone_specific_music(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn zone_specific_music(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     // The operand byte of `mov edi, [edi]` at 0x568179: `mov edi, edx`.
     const LOAD_ZONE: Bytes = (eix_sites::C_WORLD_CLIENT_LOAD_ZONE__6CA, &[0x3F], &[0xFA]);
     const BRIEFING: Bytes = (
@@ -693,7 +658,7 @@ fn zone_specific_music(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildEr
 
 /// `disabledragon` = 1: `CWorldClient::OnQuestVariable` skips its dragon handling and `CEffectMoshka::Tick` returns
 /// at once.
-fn disable_dragon(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn disable_dragon(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     when_on(
         value,
         &[
@@ -712,7 +677,10 @@ fn disable_dragon(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> 
 }
 
 /// `noruinszoneanimation` = 1: `CWorldServer::CreateUnits` skips zone 1's intro script.
-fn no_ruins_zone_animation(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn no_ruins_zone_animation(
+    _: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     when_on(
         value,
         &[(
@@ -725,7 +693,7 @@ fn no_ruins_zone_animation(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
 
 /// `bigmapspatch` = 1: the network position encoders scale by two floats kept in padding of
 /// `CHudSpellColumn::Construct` instead of 0x73caa0 and 0x73caa4.
-fn big_maps_patch(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn big_maps_patch(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -806,7 +774,7 @@ extern "C" fn zone_exits(arg: usize, ctx: &mut Context) {
 
 /// `hiddenzonesexits` >= 1: a zone's exits are reduced by the host's script variable `Exits`; >= 2 they are that
 /// variable.
-fn hidden_zones_exits(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn hidden_zones_exits(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -828,7 +796,10 @@ fn hidden_zones_exits(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
 
 /// `segmentsonexitenter` = 1: `EnterZone`'s segment count is capped at `maxsegments` and gets `addsegments` added;
 /// its activity radius becomes `exitenteractivityradius`.
-fn segments_on_exit_enter(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn segments_on_exit_enter(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -889,7 +860,7 @@ extern "C" fn zone_flags(_: usize, ctx: &mut Context) {
 }
 
 /// `newallodsacks` = 1: the new allods' zones get environment flags 0x8000 .. 0x800000.
-fn new_allods_acks(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_allods_acks(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -903,7 +874,7 @@ fn new_allods_acks(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError>
 }
 
 /// `newcounters` = 1: `UnitVitals::Regenerate` keeps its counter at +4 in one byte.
-fn new_counters(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_counters(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     when_on(
         value,
         &[
@@ -920,7 +891,10 @@ fn new_counters(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
 }
 
 /// `nogameoveronleadersdeath` = 1: `CInterface3D::OnGameLost` does not end the game.
-fn no_game_over_on_leaders_death(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn no_game_over_on_leaders_death(
+    _: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     when_on(
         value,
         &[(eix_sites::C_INTERFACE_3D_ON_GAME_LOST__8, &[0x74], &[0xEB])],
@@ -947,7 +921,7 @@ extern "C" fn send_object(_: usize, ctx: &mut Context) {
 }
 
 /// `ultrafixes` = 1: `SendObjectsAdded` tests `[ebp+0x170]` for null before it uses it.
-fn ultra_fixes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn ultra_fixes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1142,7 +1116,7 @@ const DRAW_PASS_SKIPS: [Bytes; 10] = [
 
 /// `expirementalfxes`: ten separate changes to the unit sort comparator and the save loading loop (value 10 also
 /// null tests in `PropagateHostility` and `AIViewer::See`, and drawing skips); 9 changes nothing.
-fn experimental_fixes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn experimental_fixes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let id_mask = || common::jump_at(LOADED_ID, &LOADED_ID_BYTES, 0, loaded_id, 0);
     let mut writes = Vec::new();
     match value {
@@ -1201,6 +1175,7 @@ fn experimental_fixes(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildErr
 
 #[cfg(test)]
 mod tests {
+    use super::super::Build;
     #[test]
     fn font_build_defers_registration() {
         let values = values(&[("fonts", "newfont5", "example.ttf")]);

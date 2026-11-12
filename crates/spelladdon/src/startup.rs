@@ -77,7 +77,7 @@ pub(crate) fn writes() -> Vec<(String, SiteWrite)> {
         .into_iter()
         .collect();
     for f in &FEATURES {
-        let Some(build) = f.build() else { continue };
+        let Some(build) = f.build else { continue };
         for value in 1..=i8::MAX {
             if registry::skipped(f, value, &values).is_some() {
                 continue;
@@ -214,7 +214,7 @@ pub(crate) fn run(mod_dir: &[u8], log: Log, addon: Earlier) {
             tally.skipped += 1;
             continue;
         }
-        let Some(build) = f.build() else {
+        let Some(build) = f.build else {
             if value != 0 {
                 log(
                     Level::Warn,

@@ -16,32 +16,7 @@ use eix_engine::x87::Ext;
 use eix_sites::Site;
 
 use super::common::{self, Bytes, NOWHERE, Stale, read, write};
-use super::{Build, BuildError, Ctx};
-
-/// The implemented features: `(section, key, build)`.
-pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
-    ("gameplay", "archersdefence", archers_defence),
-    ("gameplay", "unbreakablebodyparts", unbreakable_body_parts),
-    ("gameplay", "enablekillsinmulti", kills_in_multi),
-    ("gameplay", "rangedweaponbackstabs", ranged_weapon_backstabs),
-    ("rebalanceengine", "useonlymindamage", only_min_damage),
-    ("gameplay", "changeweightrangebonuses", weight_range_bonuses),
-    ("gameplay", "strengthstats", strength_stats),
-    ("gameplay", "allowheroesarmors", heroes_armors),
-    ("gameplay", "backstabsforall", backstabs_for_all),
-    ("gameplay", "runawaydistcontrol", run_away_distance),
-    ("gameplay", "damageboost", damage_boost),
-    ("gameplay", "newattackdefence", new_attack_defence),
-    ("rebalanceengine", "meleesum_low", melee_sum_low),
-    ("gameplay", "increasinghitchance", increasing_hit_chance),
-    ("gameplay", "nightpower", night_power),
-    ("gameplay", "duels", duels),
-    ("rebalanceengine", "meleesum_1", melee_sum_1),
-    ("rebalanceengine", "meleesum_2", melee_sum_2),
-    ("gameplay", "newrangedweapontypes", new_ranged_weapon_types),
-    ("gameplay", "acidattack", acid_attack),
-    ("gameplay", "randomlessaimedhits", randomless_aimed_hits),
-];
+use super::{BuildError, Ctx};
 
 /// `CUnitServer::OnDamaged` 0x553B07: the virtual call that reports the damage, and where the original's added code
 /// goes on with it (0x553B0C) or past the diplomacy reaction it would raise (0x553D62).
@@ -78,7 +53,7 @@ extern "C" fn duel_check(_: usize, ctx: &mut Context) {
 }
 
 /// `duels` = 1: damage between players raises no diplomacy reaction while their duel variable is set.
-fn duels(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn duels(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -178,7 +153,10 @@ const HIT_MARK_LOADS: [(Site, [u8; 6], Site); 2] = [
 
 /// `increasinghitchance` = 1: misses in a row raise the hit chance. Its stub at the second mark runs what
 /// `newattackdefence` left there, so both apply (the original's stub runs the game's load, undoing that feature's).
-fn increasing_hit_chance(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn increasing_hit_chance(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -228,7 +206,7 @@ fn increasing_hit_chance(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, Bui
 
 /// `meleesum_1`: value 1 is skipped by the registry (its hook faults); the shared function it writes is
 /// [`melee_sum_server`], which `meleesum_low` still calls.
-fn melee_sum_1(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn melee_sum_1(_: &Ctx<'_>, _: i8) -> Result<Vec<SiteWrite>, BuildError> {
     Ok(Vec::new())
 }
 
@@ -277,7 +255,7 @@ const MELEE_LOW_NOW: [u8; 26] = [
 
 /// `meleesum_low` = 1: units without a text key get their attack and defence from the sum. The registry skips it
 /// unless `meleesum_1` or `meleesum_2` wrote the function it calls.
-fn melee_sum_low(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn melee_sum_low(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -323,7 +301,7 @@ const MELEE_CLIENT_NOW: [u8; 12] = [0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x
 const MELEE_CLIENT_GO_ON: Site = eix_sites::C_UNIT_CLIENT_SPECIFIC_GET_ATTACK_PARAMS__15D;
 
 /// `meleesum_2` = 1: the client's attack and defence get the sum too.
-fn melee_sum_2(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn melee_sum_2(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -545,7 +523,7 @@ const APPLY_HIT_EBX_GO_ON: Site = eix_sites::TEXT_5251E5;
 /// `newattackdefence` 1 to 4: attack and defence scale damage instead of deciding misses.
 ///
 /// The original's values 1 and 2 also write code at 0x79816A and 0x7981D8 that nothing reaches; it is left out.
-fn new_attack_defence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_attack_defence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !(1..=4).contains(&value) {
         return Ok(Vec::new());
     }
@@ -824,7 +802,7 @@ const FINISH_CAST_EXIT_WAS: [u8; 5] = [0x5F, 0x5E, 0x5B, 0x8B, 0xE5];
 const FINISH_CAST_EXIT_CODE: [u8; 7] = [0x5F, 0x5E, 0x5B, 0x8B, 0xE5, 0x5D, 0xC3];
 
 /// `damageboost` 1 to 5: strength and dexterity scale hits, intelligence spell effects.
-fn damage_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn damage_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if !(1..=5).contains(&value) {
         return Ok(Vec::new());
     }
@@ -935,7 +913,7 @@ const ARCHERS_DEFENCE: &[Bytes] = &[
 ];
 
 /// `archersdefence` >= 1: archers keep their defence.
-fn archers_defence(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn archers_defence(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -948,7 +926,10 @@ const BODY_PART_BREAK: Bytes = (eix_sites::TEXT_525247, &[0x7E, 0x45], &[0xEB, 0
 const BODY_PART_FLOOR: Site = eix_sites::RDATA_73DDC0;
 
 /// `unbreakablebodyparts` >= 1: parts no longer break.
-fn unbreakable_body_parts(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn unbreakable_body_parts(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -968,7 +949,7 @@ const KILLS_IN_MULTI: Bytes = (
 );
 
 /// `enablekillsinmulti` = 1: players can hurt players; god mode still holds.
-fn kills_in_multi(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn kills_in_multi(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1019,7 +1000,10 @@ const RANGED_BACKSTABS: &[Bytes] = &[
 ];
 
 /// `rangedweaponbackstabs` = 1: ranged weapons backstab.
-fn ranged_weapon_backstabs(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn ranged_weapon_backstabs(
+    _: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1037,7 +1021,7 @@ const ONLY_MIN_DAMAGE: &[Bytes] = &[
 ];
 
 /// `useonlymindamage` = 1: every hit does the minimum damage.
-fn only_min_damage(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn only_min_damage(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1051,7 +1035,7 @@ const RANGE_CONSTANT: Site = eix_sites::RDATA_73EEDC;
 const WEIGHT_RANGE_TEST: Bytes = (eix_sites::C_UNIT_SERVER_ATTACK_ROLL__100, &[0x75], &[0xEB]);
 
 /// `changeweightrangebonuses` >= 1: the weight and range constants come from the INI; 2 also drops a test.
-fn weight_range_bonuses(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn weight_range_bonuses(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -1089,7 +1073,7 @@ const FLYING_NUMBERS: &[Bytes] = &[
 ];
 
 /// `strengthstats` = 1: the strength factors come from the INI.
-fn strength_stats(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn strength_stats(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1111,7 +1095,7 @@ const CLEAR_HERO_PROTECTION: Bytes = (
 );
 
 /// `allowheroesarmors` = 1: heroes keep their natural armour.
-fn heroes_armors(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn heroes_armors(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1133,7 +1117,7 @@ const BACKSTABS_FOR_ALL: Bytes = (
 );
 
 /// `backstabsforall` = 1: units without a player can backstab.
-fn backstabs_for_all(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn backstabs_for_all(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1185,7 +1169,7 @@ const HIT_DISTANCE_MUL: Site = eix_sites::C_UNIT_SERVER_FINISH_ACTION__1D4;
 const HIT_DISTANCE_ADD: Site = eix_sites::C_UNIT_SERVER_FINISH_ACTION__1D8;
 
 /// `runawaydistcontrol` = 1: an attack reaches `range * hitdistmul + hitdistadd`.
-fn run_away_distance(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn run_away_distance(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1323,7 +1307,10 @@ impl RangedTest {
 /// `newrangedweapontypes` = 1: weapon types 11 and 15 count as ranged beside bows and crossbows, and every caller
 /// that tested for a bow or crossbow asks `HasRangedWeapon` instead. With `rangedweaponbackstabs`, `ExecuteOrder`'s
 /// test stays as that feature left it, which always takes the melee way (the original rewrites it, dropping that).
-fn new_ranged_weapon_types(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_ranged_weapon_types(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1360,7 +1347,7 @@ extern "C" fn acid_case(_: usize, _: &mut Context) {}
 /// `acidattack` 1 or 2: the case's first instruction becomes a jump to code that does that instruction and goes on
 /// with the case. The original's arena code runs a copy of the game's case either way (value 2 sends kind 8 to the
 /// acid fog case, but only kind 6 reaches it), so nothing the game does changes; the author marked it unfinished.
-fn acid_attack(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn acid_attack(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     let site = match value {
         1 => ACID_CASES[0],
         2 => ACID_CASES[1],
@@ -1471,7 +1458,7 @@ extern "C" fn night_client_scale(arg: usize, ctx: &mut Context) {
 /// client for the unit panel. Value 1, whose server routine loads one value too few and so stores the integer
 /// indefinite as attack and defence, is skipped by the registry. With `damageboost` 3, the client's hook goes on where
 /// that feature's jump goes, so the panel keeps both (the original's hook drops the jump).
-fn night_power(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn night_power(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 2 {
         return Ok(Vec::new());
     }
@@ -1950,7 +1937,10 @@ unsafe fn aim_refresh_hit_points(target: u32) {
 /// [`aim_choice`] gives, where the game would pick one at random ([`AimDamage`]); 2, 6, 7 and 9 compare the reach
 /// difference ([`aim_start`]). 10, whose damage call goes to arena code the original never writes, is skipped by the
 /// registry.
-fn randomless_aimed_hits(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn randomless_aimed_hits(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     let damage = match value {
         1..=4 => AimDamage::LastHit,
         5..=9 => AimDamage::Range,
@@ -2045,9 +2035,19 @@ mod tests {
     fn switches_write_only_at_their_values() {
         let v = values(&[]);
         let ctx = Ctx::new(&v, no_log);
-        for (_, key, build) in BUILDS {
+        let keys: std::collections::BTreeSet<_> = ORIGINAL
+            .iter()
+            .map(|(section, key, ..)| (*section, *key))
+            .collect();
+        for (section, key) in keys {
+            let build = crate::registry::FEATURES
+                .iter()
+                .find(|f| f.section == section && f.key == key)
+                .unwrap()
+                .build
+                .unwrap();
             for value in [0, 3, -1] {
-                if ON_AT_THREE.contains(key) && value > 0 {
+                if ON_AT_THREE.contains(&key) && value > 0 {
                     continue;
                 }
                 assert!(build(&ctx, value).unwrap().is_empty(), "{key} = {value}");

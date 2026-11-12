@@ -18,46 +18,13 @@ use eix_engine::x87::Ext;
 use eix_sites::Site;
 
 use super::common::{self, Bytes, FpuSlot, read};
-use super::{Build, BuildError, Ctx};
+use super::{BuildError, Ctx};
 
 /// A `.rdata` or `.data` float of the game's.
 fn game_float(site: Site) -> f32 {
     // SAFETY: the sites passed are game.exe's own constants and the parameters SpellAddon writes into `.data`.
     unsafe { read::<f32>(site.here32()) }
 }
-
-/// The implemented features: `(section, key, build)`.
-pub(crate) const BUILDS: &[(&str, &str, Build)] = &[
-    ("rebalanceengine", "rewriteskillscounting", skills_counting),
-    ("rebalanceengine", "rewriterunabilitytime", run_ability_time),
-    ("rebalanceengine", "newrunsystem", new_run_system),
-    ("animationsspeed", "rewriteactionsspeed", actions_speed),
-    ("gameplay", "diffchange", difficulty_change),
-    (
-        "rebalanceengine",
-        "rewriteherolevelcounting",
-        level_counting,
-    ),
-    ("gameplay", "changeexpforint", experience_for_intelligence),
-    (
-        "rebalanceengine",
-        "backstabvisualbase",
-        backstab_visual_base,
-    ),
-    ("rebalanceengine", "difficultyreset", difficulty_reset),
-    ("gameplay", "nhits", n_hits),
-    ("gameplay", "actionspatch", actions_patch),
-    ("gameplay", "speedboost", speed_boost),
-    (
-        "gameplay",
-        "actionsdexteritymovespeed",
-        dexterity_move_speed,
-    ),
-    ("gameplay", "cleveranimationsspeedup", clever_animations),
-    ("gameplay", "newperks", new_perks),
-    ("gameplay", "newdifficultylevels", new_difficulty_levels),
-    ("gameplay", "automaticruncontrol", automatic_run_control),
-];
 
 /// `CUnitServer::SyncMoveModes` 0x54A6AD (ECX the unit server, DL the run bit), in place of `or [ecx + 0x175],
 /// dl`: when the unit's companion holds 0 (or NaN, which the x87 compare also reports as equal) at +0x34, the low
@@ -92,7 +59,7 @@ const SYNC_RUN: Site = eix_sites::C_UNIT_SERVER_SYNC_MOVE_MODES__8D;
 const SYNC_RUN_WAS: [u8; 6] = [0x08, 0x91, 0x75, 0x01, 0x00, 0x00];
 
 /// `automaticruncontrol` = 1: a unit stops running when its stamina is 0.
-fn automatic_run_control(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn automatic_run_control(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -170,7 +137,7 @@ const CAST_STEPS_GO_ON: Site = eix_sites::C_UNIT_SERVER_BUILD_CAST_STEPS__100;
 
 /// `cleveranimationsspeedup` = 1: units send their animation speed with their state, and casting sets it from the
 /// cast's frames; the client applies its time factor for motion mode 1 (as `rewriteactionsspeed`).
-fn clever_animations(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn clever_animations(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -243,7 +210,7 @@ const TWENTY_FIVE: Site = eix_sites::RDATA_73E124;
 const ONE: Site = eix_sites::RDATA_73B84C;
 
 /// `actionsdexteritymovespeed` >= 1: actions and dexterity raise the move speed.
-fn dexterity_move_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn dexterity_move_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -303,7 +270,7 @@ const MOVE_SPEEDS: Site = eix_sites::C_UNIT_GET_MOVE_SPEEDS__1A;
 const MOVE_SPEEDS_WAS: [u8; 6] = [0xD8, 0x0D, 0xC0, 0xEB, 0x73, 0x00];
 
 /// `speedboost` = 1: units speed up with their counter.
-fn speed_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn speed_boost(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -377,7 +344,7 @@ fn school_price(pow: f64, mul: f32, add: f32) -> [u8; 96] {
 }
 
 /// `rewriteskillscounting` = 1: a skill level costs `pow ^ level * mul + add`.
-fn skills_counting(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn skills_counting(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -425,7 +392,7 @@ fn run_constant_ex(ctx: &Ctx<'_>) -> Result<SiteWrite, BuildError> {
 }
 
 /// `rewriterunabilitytime` = 1: the stamina constant becomes `runconst`; `runconstex` goes to its padding.
-fn run_ability_time(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn run_ability_time(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -468,7 +435,7 @@ const DRAIN_HELPER: Bytes = (
 );
 
 /// `newrunsystem` 1 or 2: running drains a fixed amount, or the original amount plus `runconstex`.
-fn new_run_system(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_run_system(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         1 => common::fixed(&[DRAIN_ABSOLUTE]),
         2 => {
@@ -537,7 +504,7 @@ pub(super) fn animation_load(value: i8, i: usize) -> (Site, [u8; 6]) {
 }
 
 /// `rewriteactionsspeed` = 1: every unit's animation factors come from the INI.
-fn actions_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn actions_speed(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -577,7 +544,7 @@ extern "C" fn spin_left_down(_: usize, ctx: &mut Context) {
 
 /// `diffchange` = 1: a click on the difficulty spinner of the game options does nothing (the original's code in
 /// game.exe's header, 0x400380).
-fn difficulty_change(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn difficulty_change(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -639,7 +606,7 @@ fn server_level() -> [u8; 64] {
 /// `rewriteherolevelcounting` = 1: `level = round(mullvla * log2(exp / divlvla + addlvla) + addlvlb)` in both
 /// copies. Value 2 is skipped by the registry: its original drops the client copy's store and leaves the FPU stack
 /// one deeper per call.
-fn level_counting(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn level_counting(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -665,7 +632,10 @@ fn level_counting(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError
 const EXPERIENCE_FACTOR: Site = eix_sites::RDATA_73E128;
 
 /// `changeexpforint` = 1: the factor becomes `expforint`.
-fn experience_for_intelligence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn experience_for_intelligence(
+    ctx: &Ctx<'_>,
+    value: i8,
+) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -680,7 +650,7 @@ fn experience_for_intelligence(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite
 const BACKSTAB_BASE: Site = eix_sites::C_ITEM_INFO_PANEL_DESCRIBE_STATS__920;
 
 /// `backstabvisualbase` = 1: the panel shows `bsbase`.
-fn backstab_visual_base(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn backstab_visual_base(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -722,7 +692,7 @@ const DIFFICULTY_ADDS: &[Bytes] = &[
 ///
 /// Both values of the original also write a text-key test function (`1000000000 <= ecx < 2000000000`) to 0x79A280
 /// that no code calls; it is left out.
-fn difficulty_reset(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn difficulty_reset(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     match value {
         1 => common::fixed(DIFFICULTY_FOR_ALL),
         2 => common::fixed(&[DIFFICULTY_FOR_ALL, DIFFICULTY_ADDS].concat()),
@@ -751,7 +721,7 @@ const HITS_SECOND: Bytes = (
 );
 
 /// `nhits` = 1: a fixed hit count for the Zhamevu animations.
-fn n_hits(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn n_hits(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -781,7 +751,7 @@ pub(super) fn actions_add(value: i8) -> (Site, [u8; 6]) {
 }
 
 /// `actionspatch` = 1: actions are `dexterity * actionsmul + actionsadd`.
-fn actions_patch(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn actions_patch(ctx: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -921,7 +891,7 @@ const PERKS_SCHOOLS: &[Bytes] = &[
 
 /// `newperks` >= 1: the perks Endurance (armour against every damage type) and Ghostliness (less visible); value 2
 /// renames the magic schools in the info text.
-fn new_perks(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_perks(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value < 1 {
         return Ok(Vec::new());
     }
@@ -1302,7 +1272,7 @@ extern "C" fn normal_clicked(_: usize, ctx: &mut Context) {
 
 /// `newdifficultylevels` = 1: the new game's difficulty box offers easy (stored 2), normal (1, checked at the start)
 /// and hard (0), and the options' difficulty becomes a slider of `2 - x`.
-fn new_difficulty_levels(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
+pub(crate) fn new_difficulty_levels(_: &Ctx<'_>, value: i8) -> Result<Vec<SiteWrite>, BuildError> {
     if value != 1 {
         return Ok(Vec::new());
     }
@@ -1409,10 +1379,20 @@ mod tests {
     fn switches_write_only_at_their_values() {
         let v = values(&[]);
         let ctx = Ctx::new(&v, no_log);
-        for (_, key, build) in BUILDS {
+        let keys: std::collections::BTreeSet<_> = ORIGINAL
+            .iter()
+            .map(|(section, key, ..)| (*section, *key))
+            .collect();
+        for (section, key) in keys {
+            let build = crate::registry::FEATURES
+                .iter()
+                .find(|f| f.section == section && f.key == key)
+                .unwrap()
+                .build
+                .unwrap();
             for value in [0, 3, -1] {
                 // The blocks here that act on any value from 1 up.
-                if matches!(*key, "actionsdexteritymovespeed" | "newperks") && value > 0 {
+                if matches!(key, "actionsdexteritymovespeed" | "newperks") && value > 0 {
                     continue;
                 }
                 assert!(build(&ctx, value).unwrap().is_empty(), "{key} = {value}");
