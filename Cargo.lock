@@ -83,7 +83,7 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 
 [[package]]
 name = "eix-addon"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "eix-core",
  "eix-docs",
@@ -95,14 +95,14 @@ dependencies = [
 
 [[package]]
 name = "eix-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "claxon",
 ]
 
 [[package]]
 name = "eix-docs"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "eix-sites",
  "serde",
@@ -111,7 +111,7 @@ dependencies = [
 
 [[package]]
 name = "eix-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "eix-core",
  "eix-sites",
@@ -120,7 +120,7 @@ dependencies = [
 
 [[package]]
 name = "eix-loader"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "eix-engine",
  "eix-sites",
@@ -128,7 +128,7 @@ dependencies = [
 
 [[package]]
 name = "eix-lua"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "eix-core",
  "eix-docs",
@@ -138,14 +138,14 @@ dependencies = [
 
 [[package]]
 name = "eix-sites"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "syn",
 ]
 
 [[package]]
 name = "eix-spelladdon"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "eix-core",
  "eix-engine",
@@ -460,7 +460,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "eix-docs",
 ]
