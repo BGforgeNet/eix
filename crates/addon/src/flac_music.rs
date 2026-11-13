@@ -121,6 +121,18 @@ impl Stream {
     }
 }
 
+/// Logs the gain a track's tag sets, or the tag that is no gain. A loop opens the track again and logs nothing.
+fn log_gain(decoder: &Decoder<Source>) {
+    if let Some(text) = decoder.invalid_gain() {
+        warn(&format!(
+            "the {} tag \"{text}\" is not a number of decibels from -100 to 100; the track plays at its own level",
+            flac::GAIN_TAG
+        ));
+    } else if let Some(db) = decoder.gain_db() {
+        log::info("flac", "gain", &format!("{db:+.2} dB"));
+    }
+}
+
 /// The stream behind `handle` when it is one of ours.
 fn ours(handle: u32) -> Option<*mut Stream> {
     let ours = OURS.lock().ok()?;
@@ -142,10 +154,14 @@ extern "system" fn open(user: u32, fetch: Fetch, total: u32) -> u32 {
     // SAFETY: the game's source, as it passed it, into four bytes from the file's start.
     let n = unsafe { fetch(user, magic.as_mut_ptr(), 4, 0) };
     if n == 4 && magic == MAGIC {
+        let decoder = Stream::decoder(user, fetch);
+        if let Some(decoder) = &decoder {
+            log_gain(decoder);
+        }
         let stream = Box::new(Stream {
             user,
             fetch,
-            decoder: Stream::decoder(user, fetch),
+            decoder,
         });
         let raw = Box::into_raw(stream);
         // A 32-bit process: an address fits the decoder handle the game keeps.

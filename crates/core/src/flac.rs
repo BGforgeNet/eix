@@ -1,10 +1,20 @@
 //! FLAC music: a FLAC stream decoded into the 16-bit interleaved PCM the game's music player takes from its decoder
-//! (`docs/addon.md`, FLAC music).
+//! (`docs/engine.md`, FLAC music).
 
 use std::io::Read;
 
 /// The first four bytes of a FLAC stream.
 pub const MAGIC: [u8; 4] = *b"fLaC";
+
+/// The Vorbis comment that sets a track's gain, in decibels, as `-10.2` or `-10.2 dB`. Named for eix: a ReplayGain tag
+/// aims a track at a reference loudness, which is not what the game's music levels are.
+pub const GAIN_TAG: &str = "EIX_GAIN";
+
+/// The gain tag's range in decibels; a value outside it is not a gain.
+const GAIN_RANGE_DB: core::ops::RangeInclusive<f64> = -100.0..=100.0;
+
+/// A gain of less than this many decibels is no gain: a 0 dB track stays bit for bit, and 0.005 dB is 0.06 %.
+const UNITY_DB: f64 = 0.005;
 
 /// Why a stream does not decode.
 pub type Error = claxon::Error;
@@ -18,11 +28,64 @@ pub struct Format {
     pub channels: u32,
 }
 
+/// A track's gain tag read: the decibels to apply, or the text that is not a gain.
+#[derive(Debug, Clone, PartialEq)]
+enum Gain {
+    /// No tag, or a tag of about 0 dB: samples pass bit for bit when they are 16 bits.
+    Unity,
+    Db(f64),
+    Invalid(String),
+}
+
+/// The decibels in a gain tag's value: a number, with or without a trailing `dB`, within [`GAIN_RANGE_DB`].
+fn parse_gain_db(value: &str) -> Option<f64> {
+    let value = value.trim();
+    let number = match value.len().checked_sub(2) {
+        Some(at) if value.is_char_boundary(at) && value[at..].eq_ignore_ascii_case("db") => {
+            &value[..at]
+        }
+        _ => value,
+    };
+    number
+        .trim()
+        .parse::<f64>()
+        .ok()
+        .filter(|db| GAIN_RANGE_DB.contains(db))
+}
+
+/// Noise for the last rounding: two uniform draws from an xorshift generator make a triangular one, which keeps the
+/// rounding error independent of the signal. Fixed seed, so a track decodes the same every time.
+#[derive(Debug, Clone)]
+struct Dither(u32);
+
+impl Dither {
+    fn new() -> Self {
+        Self(0x2545_F491)
+    }
+
+    /// A uniform value in [0, 1).
+    fn unit(&mut self) -> f64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 17;
+        self.0 ^= self.0 << 5;
+        f64::from(self.0) / 4_294_967_296.0
+    }
+
+    /// A triangular value in (-1, 1), in units of the last bit.
+    fn triangular(&mut self) -> f64 {
+        self.unit() + self.unit() - 1.0
+    }
+}
+
 /// A FLAC stream read from `R`, decoded a block at a time.
 pub struct Decoder<R: Read> {
     reader: claxon::FlacReader<R>,
     format: Format,
     bits: u32,
+    gain: Gain,
+    /// The linear factor of `gain`, 1 for no gain.
+    factor: f64,
+    dither: Dither,
     /// The last block's samples, reused for the next block.
     samples: Vec<i32>,
     /// PCM of the last block not handed out yet, from `at`.
@@ -36,6 +99,7 @@ impl<R: Read> core::fmt::Debug for Decoder<R> {
         f.debug_struct("Decoder")
             .field("format", &self.format)
             .field("bits", &self.bits)
+            .field("gain", &self.gain)
             .field("ended", &self.ended)
             .finish_non_exhaustive()
     }
@@ -52,13 +116,28 @@ impl<R: Read> Decoder<R> {
         if info.bits_per_sample > 32 {
             return Err(Error::Unsupported("more than 32 bits a sample"));
         }
+        let gain = match reader.get_tag(GAIN_TAG).next() {
+            None => Gain::Unity,
+            Some(text) => match parse_gain_db(text) {
+                Some(db) if db.abs() < UNITY_DB => Gain::Unity,
+                Some(db) => Gain::Db(db),
+                None => Gain::Invalid(text.to_owned()),
+            },
+        };
+        let factor = match gain {
+            Gain::Db(db) => 10f64.powf(db / 20.0),
+            Gain::Unity | Gain::Invalid(_) => 1.0,
+        };
         Ok(Self {
-            reader,
             format: Format {
                 sample_rate: info.sample_rate,
                 channels: info.channels,
             },
             bits: info.bits_per_sample,
+            reader,
+            gain,
+            factor,
+            dither: Dither::new(),
             samples: Vec::new(),
             pcm: Vec::new(),
             at: 0,
@@ -69,6 +148,22 @@ impl<R: Read> Decoder<R> {
     /// The decoded audio's format.
     pub fn format(&self) -> Format {
         self.format
+    }
+
+    /// The gain in decibels the stream's tag sets; `None` for a stream that plays at its own level.
+    pub fn gain_db(&self) -> Option<f64> {
+        match self.gain {
+            Gain::Db(db) => Some(db),
+            Gain::Unity | Gain::Invalid(_) => None,
+        }
+    }
+
+    /// The text of a gain tag that is not a gain; the stream plays at its own level.
+    pub fn invalid_gain(&self) -> Option<&str> {
+        match &self.gain {
+            Gain::Invalid(text) => Some(text),
+            Gain::Unity | Gain::Db(_) => None,
+        }
     }
 
     /// Fills `out` with PCM and returns the bytes written: all of `out` until the stream ends.
@@ -99,16 +194,17 @@ impl<R: Read> Decoder<R> {
         };
         self.pcm.clear();
         self.at = 0;
+        let gain = matches!(self.gain, Gain::Db(_)).then_some(self.factor);
         if block.channels() == 2 {
             for (left, right) in block.stereo_samples() {
                 for sample in [left, right] {
-                    let sample = to_16_bits(sample, self.bits);
+                    let sample = to_16_bits(sample, self.bits, gain, &mut self.dither);
                     self.pcm.extend_from_slice(&sample.to_le_bytes());
                 }
             }
         } else {
             for &sample in block.channel(0) {
-                let sample = to_16_bits(sample, self.bits);
+                let sample = to_16_bits(sample, self.bits, gain, &mut self.dither);
                 self.pcm.extend_from_slice(&sample.to_le_bytes());
             }
         }
@@ -145,16 +241,21 @@ pub fn candidates(path: &[u8], mod_stream: &[u8]) -> Vec<Vec<u8>> {
     found
 }
 
-/// A sample of `bits` bits as a 16-bit one: wider samples lose their low bits, narrower ones are scaled up.
-fn to_16_bits(sample: i32, bits: u32) -> i16 {
-    let scaled = if bits > 16 {
-        sample >> (bits - 16)
-    } else {
-        sample << (16 - bits)
-    };
-    // In range after the shift for a sample that fits its `bits`; a stream out of range is clamped.
-    let clamped = scaled.clamp(i16::MIN.into(), i16::MAX.into());
-    i16::try_from(clamped).unwrap_or_default()
+/// A sample of `bits` bits as a 16-bit one, times `gain` when there is one. A narrower sample without a gain is scaled
+/// up exactly, and a 16-bit one passes as it is. Any other result needs rounding, which takes dither, so that the
+/// error stays noise and does not follow the music.
+fn to_16_bits(sample: i32, bits: u32, gain: Option<f64>, dither: &mut Dither) -> i16 {
+    if gain.is_none() && bits <= 16 {
+        let scaled = sample << (16 - bits);
+        // In range for a sample that fits its `bits`; a stream out of range is clamped.
+        let clamped = scaled.clamp(i16::MIN.into(), i16::MAX.into());
+        return i16::try_from(clamped).unwrap_or_default();
+    }
+    let exact =
+        f64::from(sample) * 2f64.powi(16 - i32::try_from(bits).unwrap_or(16)) * gain.unwrap_or(1.0);
+    let rounded = (exact + dither.triangular()).round();
+    // Clamped to the 16-bit range first, so the conversion is exact.
+    i16::try_from(rounded.clamp(i16::MIN.into(), i16::MAX.into()) as i32).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -163,6 +264,9 @@ mod tests {
 
     const STEREO_16: &[u8] = include_bytes!("../tests/data/flac/stereo16.flac");
     const MONO_24: &[u8] = include_bytes!("../tests/data/flac/mono24.flac");
+    /// `stereo16.flac` with `EIX_GAIN=-6.0206 dB` and with `EIX_GAIN=loud` added by the reference `metaflac`.
+    const STEREO_16_GAIN: &[u8] = include_bytes!("../tests/data/flac/stereo16-gain.flac");
+    const STEREO_16_BAD_GAIN: &[u8] = include_bytes!("../tests/data/flac/stereo16-badgain.flac");
 
     /// The fixtures' samples: a sawtooth per channel, as the WAV sources the reference encoder took were written.
     fn source_sample(i: i64, channel: i64, bits: u32) -> i64 {
@@ -209,19 +313,109 @@ mod tests {
         assert_eq!(pcm, expected(5000, 2, 16));
     }
 
+    /// The 16-bit samples of interleaved PCM.
+    fn samples(pcm: &[u8]) -> Vec<i16> {
+        pcm.as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| i16::from_le_bytes(*b))
+            .collect()
+    }
+
+    /// The fixtures' samples times `factor`, in 16-bit units, one per decoded sample.
+    fn exact(frames: i64, channels: i64, bits: u32, factor: f64) -> Vec<f64> {
+        (0..frames)
+            .flat_map(|i| (0..channels).map(move |c| (i, c)))
+            .map(|(i, c)| {
+                source_sample(i, c, bits) as f64 / f64::from(1u32 << (bits - 16)) * factor
+            })
+            .collect()
+    }
+
+    /// Asserts each decoded sample is within a rounding and a dither of `exact` (1.5 of the last bit), and that the
+    /// error has no bias.
+    fn assert_rounded(pcm: &[u8], exact: &[f64]) {
+        let got = samples(pcm);
+        assert_eq!(got.len(), exact.len());
+        let mut total = 0.0;
+        for (g, e) in got.iter().zip(exact) {
+            let error = f64::from(*g) - e;
+            assert!(error.abs() <= 1.5, "{g} for {e}");
+            total += error;
+        }
+        assert!((total / exact.len() as f64).abs() < 0.05, "biased");
+    }
+
     #[test]
-    fn a_24_bit_mono_stream_keeps_its_high_16_bits() {
+    fn a_24_bit_mono_stream_is_dithered_to_16_bits() {
         let (format, pcm) = decode_all(MONO_24, 4096);
         assert_eq!(format.channels, 1);
-        assert_eq!(pcm, expected(3000, 1, 24));
+        assert_rounded(&pcm, &exact(3000, 1, 24, 1.0));
+    }
+
+    #[test]
+    fn a_gain_tag_scales_the_stream() {
+        let decoder = Decoder::new(STEREO_16_GAIN).unwrap();
+        assert_eq!(decoder.gain_db(), Some(-6.0206));
+        assert_eq!(decoder.invalid_gain(), None);
+        // 6.0206 dB is half the amplitude.
+        assert_rounded(
+            &decode_all(STEREO_16_GAIN, 4096).1,
+            &exact(5000, 2, 16, 0.5),
+        );
+    }
+
+    #[test]
+    fn a_stream_without_a_gain_tag_has_no_gain() {
+        assert_eq!(Decoder::new(STEREO_16).unwrap().gain_db(), None);
+    }
+
+    #[test]
+    fn a_gain_tag_that_is_no_number_leaves_the_stream_alone() {
+        let decoder = Decoder::new(STEREO_16_BAD_GAIN).unwrap();
+        assert_eq!(decoder.gain_db(), None);
+        assert_eq!(decoder.invalid_gain(), Some("loud"));
+        assert_eq!(
+            decode_all(STEREO_16_BAD_GAIN, 4096).1,
+            expected(5000, 2, 16)
+        );
+    }
+
+    #[test]
+    fn gain_text_is_decibels_with_or_without_the_unit() {
+        for (text, db) in [
+            ("-10.2", -10.2),
+            ("-10.2 dB", -10.2),
+            (" -6DB ", -6.0),
+            ("+3.5 db", 3.5),
+            ("0", 0.0),
+            ("-100", -100.0),
+        ] {
+            assert_eq!(parse_gain_db(text), Some(db), "{text:?}");
+        }
+        for text in [
+            "", "dB", "loud", "NaN", "inf", "-100.5", "101", "6 dB dB", "\u{e9}",
+        ] {
+            assert_eq!(parse_gain_db(text), None, "{text:?}");
+        }
     }
 
     #[test]
     fn any_read_size_gives_the_same_pcm() {
-        let whole = decode_all(STEREO_16, 1 << 20).1;
-        for chunk in [1, 3, 4096, 4097] {
-            assert_eq!(decode_all(STEREO_16, chunk).1, whole, "chunk {chunk}");
+        for data in [STEREO_16, STEREO_16_GAIN] {
+            let whole = decode_all(data, 1 << 20).1;
+            for chunk in [1, 3, 4096, 4097] {
+                assert_eq!(decode_all(data, chunk).1, whole, "chunk {chunk}");
+            }
         }
+    }
+
+    #[test]
+    fn a_stream_decodes_the_same_every_time() {
+        assert_eq!(
+            decode_all(STEREO_16_GAIN, 4096),
+            decode_all(STEREO_16_GAIN, 4096)
+        );
     }
 
     #[test]
@@ -272,11 +466,36 @@ mod tests {
     }
 
     #[test]
-    fn narrow_and_wide_samples_scale_to_16_bits() {
-        assert_eq!(to_16_bits(-128, 8), -32768);
-        assert_eq!(to_16_bits(127, 8), 32512);
-        assert_eq!(to_16_bits(0x7F_FFFF, 24), 0x7FFF);
-        assert_eq!(to_16_bits(-0x80_0000, 24), -0x8000);
-        assert_eq!(to_16_bits(1234, 16), 1234);
+    fn narrow_samples_scale_up_and_16_bit_ones_pass_exactly() {
+        let mut dither = Dither::new();
+        assert_eq!(to_16_bits(-128, 8, None, &mut dither), -32768);
+        assert_eq!(to_16_bits(127, 8, None, &mut dither), 32512);
+        assert_eq!(to_16_bits(1234, 16, None, &mut dither), 1234);
+        // No dither was drawn.
+        assert_eq!(dither.0, Dither::new().0);
+    }
+
+    #[test]
+    fn full_scale_stays_in_range_with_dither_and_gain() {
+        let mut dither = Dither::new();
+        for _ in 0..1000 {
+            assert_eq!(to_16_bits(0x7F_FFFF, 24, None, &mut dither), 0x7FFF);
+            // Dither can lift the lowest value by one before it rounds.
+            assert!((-0x8000..=-0x7FFF).contains(&to_16_bits(-0x80_0000, 24, None, &mut dither)));
+            assert_eq!(to_16_bits(30000, 16, Some(2.0), &mut dither), 0x7FFF);
+            assert_eq!(to_16_bits(-30000, 16, Some(2.0), &mut dither), -0x8000);
+        }
+    }
+
+    #[test]
+    fn dither_is_triangular_and_has_no_bias() {
+        let mut dither = Dither::new();
+        let draws: Vec<f64> = (0..100_000).map(|_| dither.triangular()).collect();
+        assert!(draws.iter().all(|d| (-1.0..1.0).contains(d)));
+        let mean = draws.iter().sum::<f64>() / draws.len() as f64;
+        let variance = draws.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / draws.len() as f64;
+        // A triangular distribution over (-1, 1) has variance 1/6.
+        assert!(mean.abs() < 0.01, "mean {mean}");
+        assert!((variance - 1.0 / 6.0).abs() < 0.01, "variance {variance}");
     }
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- [FLAC music](docs/engine.md#flac-music): a track's `EIX_GAIN` tag sets its gain in decibels, so a lossless pack can
+  match the level of the game's own MP3s. The gain is applied with dither; a FLAC wider than 16 bits is dithered
+  down too, where it was cut before.
+
 ## 0.1.0
 
 First release.
