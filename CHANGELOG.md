@@ -8,8 +8,8 @@ First release.
 
 - Game builds: game.exe 1.06, Russian (EI starter's and GOG's) or English and German (GOG's, one file). eix finds the
   build at start and puts each patch at its place in that build; every patch group, fix and SpellAddon feature
-  applies on both. Russian and English/German players play together in multiplayer. A Lua script that reads
-  game.exe at fixed addresses works on the build it was written for ([Lua](docs/lua.md#host)).
+  applies on both. A Lua script that reads game.exe at fixed addresses works on the build it was written for
+  ([Lua](docs/lua.md#host)).
 - `dinput.dll`: the addon loader, a drop-in for EI starter's Addon Loader 1.1.0.0.
 - `addon.dll`: all 87 patch groups of addon.dll 0.12.4.2, the Lua host (LuaJIT 2.1) with its script functions and
   callbacks, the command line (`game.exe addon <command>`), plugins, addon.log and AutoRecover. A mod's Lua script

@@ -2,8 +2,8 @@
 
 Engine fixes and tweaks for Evil Islands: Curse of the Lost Soul.
 
-EIX is an open source reimplementation of EI [addon.dll](docs/addon.md) and [SpellAddon](docs/spelladdon.md).
-It also provides additional [fixes](docs/engine.md#fixes) and [features](docs/engine.md#features). LUA [scripting](docs/lua.md) is available.
+EIX is an open source reimplementation of EI [addon.dll](docs/addon.md) and [SpellAddon](docs/spelladdon.md), with
+additional fixes and features.
 
 Reference pages: [eix site](https://bgforgenet.github.io/eix/).
 
@@ -11,6 +11,22 @@ Reference pages: [eix site](https://bgforgenet.github.io/eix/).
 - Mods and plugins work the same way: same `config.reg`, `ai.reg` and `spelladdon.ini`.
 - Game: `game.exe` 1.06, EI starter's or GOG's, any language.
 <!-- ANCHOR_END: compat -->
+
+## For players
+
+- [Engine fixes](docs/engine.md#fixes): multiple crash fixes and faster zone loading.
+- [Widescreen](docs/addon.md#launcher-settings): the interface adapts to wide resolution.
+- [Game options](docs/engine.md#game-options): keep running or stay on screen when the window loses focus, confine the
+  cursor, smoother camera, sharper unit shadows, spells on the unit panel.
+- [AutoPause](docs/engine.md#autopause): pause on low health, an enemy in sight or an attack, in single player.
+- [Encumbrance rebalance](docs/engine.md#encumbrance): more stamina allows to run longer, but heavy load reduces speed
+  and increases stamina spend.
+- [FLAC music](docs/engine.md#flac-music): FLAC tracks in place of MP3.
+- All SpellAddon features that a mod enables.
+
+Everything is optional, see [eix.ini](docs/eix-ini.md) for configuration.
+
+For a ready-made gameplay and quality-of-life mod, see [EItweaks](https://github.com/BGforgeNet/EItweaks).
 
 <!-- ANCHOR: install -->
 
@@ -27,6 +43,18 @@ Reference pages: [eix site](https://bgforgenet.github.io/eix/).
 
 To uninstall, put the starter's `dinput.dll` and `addon.dll` back.
 <!-- ANCHOR_END: install -->
+
+## For modders
+
+- Drop-in replacement for the starter's `addon.dll`, loader and SpellAddon: [addon and loader](docs/addon.md) and
+  [SpellAddon options](docs/spelladdon.md) list every setting and its differences from the originals.
+- Plugins: DLL plugins load from the mod folder, set in
+  [config.reg](docs/addon.md#mod-configuration-configreg).
+- [Lua scripting](docs/lua.md): callbacks into the game, with the [Lua reference](docs/lua-reference.md) of its
+  functions and callbacks.
+- [Script reference](docs/scripting.md): every function and command of the game's script language.
+- [INI variables](docs/engine.md#ini-variables): map scripts read numbers from the mod's INI files.
+- [Recipes](docs/recipes.md): common changes, with the file, keys and values.
 
 <!-- ANCHOR: report -->
 
