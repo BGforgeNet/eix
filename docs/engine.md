@@ -126,12 +126,13 @@ the game's `.mp3`.
 - The track keeps its `.mp3` name in the game: `music.reg` names and `streamsn.reg` sections (`<name>.mp3`) stay.
 - Mono or stereo, any sample rate, up to 32 bits a sample. The game plays 16 bits: a wider sample is dithered down.
   Packs can mix FLAC and MP3 tracks.
-- A track's level: a Vorbis comment `EIX_GAIN`, in decibels (`-10.2` or `-10.2 dB`, from -100 to 100), sets its gain,
-  for a pack whose tracks must play as loud as the game's own MP3s. The gain and the dither come before the game's
-  music volume, which is left as it is. A track without the tag, or at 0 dB, plays at its own level, and a 16-bit
-  one bit for bit.
+- A track's level: the standard ReplayGain Vorbis comment `REPLAYGAIN_TRACK_GAIN` sets its gain in decibels (`-10.2`
+  or `-10.2 dB`, from -100 to 100). `EIX_GAIN`, in the same form, wins over it, for a pack whose tracks must play as
+  loud as the game's own MP3s rather than at a reference loudness. The album gain and the peak tags are ignored. The
+  gain and the dither come before the game's music volume, which is left as it is. A track with neither tag, or at
+  0 dB, plays at its own level, and a 16-bit one bit for bit.
 - addon.log names each FLAC file played and the gain it takes. A file that does not decode plays silence, with a
-  warning; a tag that is no number of decibels is a warning too, and the track plays at its own level.
+  warning; a gain tag that is no number of decibels is a warning too, and the track plays at its own level.
 - Briefing speech (`speech.res`) stays MP3.
 - On by default; [eix.ini](eix-ini.md#music)'s `[Music] Flac=0` turns it off.
 

@@ -6,9 +6,12 @@ use std::io::Read;
 /// The first four bytes of a FLAC stream.
 pub const MAGIC: [u8; 4] = *b"fLaC";
 
-/// The Vorbis comment that sets a track's gain, in decibels, as `-10.2` or `-10.2 dB`. Named for eix: a ReplayGain tag
-/// aims a track at a reference loudness, which is not what the game's music levels are.
+/// The Vorbis comment that sets a track's gain, in decibels, as `-10.2` or `-10.2 dB`. It wins over [`REPLAYGAIN_TAG`],
+/// for a track whose level the game's music sets and a reference loudness does not.
 pub const GAIN_TAG: &str = "EIX_GAIN";
+
+/// The standard ReplayGain track gain, read when a track has no [`GAIN_TAG`].
+pub const REPLAYGAIN_TAG: &str = "REPLAYGAIN_TRACK_GAIN";
 
 /// The gain tag's range in decibels; a value outside it is not a gain.
 const GAIN_RANGE_DB: core::ops::RangeInclusive<f64> = -100.0..=100.0;
@@ -34,7 +37,8 @@ enum Gain {
     /// No tag, or a tag of about 0 dB: samples pass bit for bit when they are 16 bits.
     Unity,
     Db(f64),
-    Invalid(String),
+    /// A tag whose text is no gain: its name and its text.
+    Invalid(&'static str, String),
 }
 
 /// The decibels in a gain tag's value: a number, with or without a trailing `dB`, within [`GAIN_RANGE_DB`].
@@ -116,17 +120,20 @@ impl<R: Read> Decoder<R> {
         if info.bits_per_sample > 32 {
             return Err(Error::Unsupported("more than 32 bits a sample"));
         }
-        let gain = match reader.get_tag(GAIN_TAG).next() {
+        let tag = [GAIN_TAG, REPLAYGAIN_TAG]
+            .into_iter()
+            .find_map(|name| reader.get_tag(name).next().map(|text| (name, text)));
+        let gain = match tag {
             None => Gain::Unity,
-            Some(text) => match parse_gain_db(text) {
+            Some((name, text)) => match parse_gain_db(text) {
                 Some(db) if db.abs() < UNITY_DB => Gain::Unity,
                 Some(db) => Gain::Db(db),
-                None => Gain::Invalid(text.to_owned()),
+                None => Gain::Invalid(name, text.to_owned()),
             },
         };
         let factor = match gain {
             Gain::Db(db) => 10f64.powf(db / 20.0),
-            Gain::Unity | Gain::Invalid(_) => 1.0,
+            Gain::Unity | Gain::Invalid(..) => 1.0,
         };
         Ok(Self {
             format: Format {
@@ -154,14 +161,14 @@ impl<R: Read> Decoder<R> {
     pub fn gain_db(&self) -> Option<f64> {
         match self.gain {
             Gain::Db(db) => Some(db),
-            Gain::Unity | Gain::Invalid(_) => None,
+            Gain::Unity | Gain::Invalid(..) => None,
         }
     }
 
-    /// The text of a gain tag that is not a gain; the stream plays at its own level.
-    pub fn invalid_gain(&self) -> Option<&str> {
+    /// The name and text of a gain tag that is not a gain; the stream plays at its own level.
+    pub fn invalid_gain(&self) -> Option<(&'static str, &str)> {
         match &self.gain {
-            Gain::Invalid(text) => Some(text),
+            Gain::Invalid(name, text) => Some((name, text)),
             Gain::Unity | Gain::Db(_) => None,
         }
     }
@@ -374,11 +381,85 @@ mod tests {
     fn a_gain_tag_that_is_no_number_leaves_the_stream_alone() {
         let decoder = Decoder::new(STEREO_16_BAD_GAIN).unwrap();
         assert_eq!(decoder.gain_db(), None);
-        assert_eq!(decoder.invalid_gain(), Some("loud"));
+        assert_eq!(decoder.invalid_gain(), Some((GAIN_TAG, "loud")));
         assert_eq!(
             decode_all(STEREO_16_BAD_GAIN, 4096).1,
             expected(5000, 2, 16)
         );
+    }
+
+    /// `base` with its Vorbis comment block replaced by one holding `tags`, written by hand so a test needs no
+    /// fixture per combination.
+    fn with_tags(base: &[u8], tags: &[(&str, &str)]) -> Vec<u8> {
+        const VORBIS_COMMENT: u8 = 4;
+        let mut out = base[..4].to_vec();
+        let mut at = 4;
+        loop {
+            let header = base[at];
+            let len = usize::from(base[at + 1]) << 16
+                | usize::from(base[at + 2]) << 8
+                | usize::from(base[at + 3]);
+            if header & 0x7F != VORBIS_COMMENT {
+                // Not the last block any more: the comment block follows.
+                out.push(header & 0x7F);
+                out.extend_from_slice(&base[at + 1..at + 4 + len]);
+            }
+            at += 4 + len;
+            if header & 0x80 != 0 {
+                break;
+            }
+        }
+        let mut body = Vec::new();
+        body.extend_from_slice(&0u32.to_le_bytes()); // empty vendor string
+        body.extend_from_slice(&u32::try_from(tags.len()).unwrap().to_le_bytes());
+        for (name, value) in tags {
+            let comment = format!("{name}={value}");
+            body.extend_from_slice(&u32::try_from(comment.len()).unwrap().to_le_bytes());
+            body.extend_from_slice(comment.as_bytes());
+        }
+        let len = u32::try_from(body.len()).unwrap().to_be_bytes();
+        out.extend_from_slice(&[0x80 | VORBIS_COMMENT, len[1], len[2], len[3]]);
+        out.extend_from_slice(&body);
+        out.extend_from_slice(&base[at..]);
+        out
+    }
+
+    #[test]
+    fn the_replaygain_track_gain_sets_the_gain() {
+        for tag in ["REPLAYGAIN_TRACK_GAIN", "replaygain_track_gain"] {
+            let data = with_tags(
+                STEREO_16,
+                &[(tag, "-6.02 dB"), ("REPLAYGAIN_TRACK_PEAK", "0.98")],
+            );
+            assert_eq!(
+                Decoder::new(&data[..]).unwrap().gain_db(),
+                Some(-6.02),
+                "{tag}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_eix_gain_wins_over_the_replaygain_track_gain() {
+        let data = with_tags(
+            STEREO_16,
+            &[("REPLAYGAIN_TRACK_GAIN", "-6.02 dB"), (GAIN_TAG, "-3 dB")],
+        );
+        assert_eq!(Decoder::new(&data[..]).unwrap().gain_db(), Some(-3.0));
+    }
+
+    #[test]
+    fn an_invalid_replaygain_tag_names_itself() {
+        let data = with_tags(STEREO_16, &[("REPLAYGAIN_TRACK_GAIN", "quiet")]);
+        let decoder = Decoder::new(&data[..]).unwrap();
+        assert_eq!(decoder.gain_db(), None);
+        assert_eq!(decoder.invalid_gain(), Some((REPLAYGAIN_TAG, "quiet")));
+    }
+
+    #[test]
+    fn the_album_gain_is_no_gain() {
+        let data = with_tags(STEREO_16, &[("REPLAYGAIN_ALBUM_GAIN", "-6.02 dB")]);
+        assert_eq!(Decoder::new(&data[..]).unwrap().gain_db(), None);
     }
 
     #[test]

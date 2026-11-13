@@ -123,10 +123,9 @@ impl Stream {
 
 /// Logs the gain a track's tag sets, or the tag that is no gain. A loop opens the track again and logs nothing.
 fn log_gain(decoder: &Decoder<Source>) {
-    if let Some(text) = decoder.invalid_gain() {
+    if let Some((tag, text)) = decoder.invalid_gain() {
         warn(&format!(
-            "the {} tag \"{text}\" is not a number of decibels from -100 to 100; the track plays at its own level",
-            flac::GAIN_TAG
+            "the {tag} tag \"{text}\" is not a number of decibels from -100 to 100; the track plays at its own level"
         ));
     } else if let Some(db) = decoder.gain_db() {
         log::info("flac", "gain", &format!("{db:+.2} dB"));
