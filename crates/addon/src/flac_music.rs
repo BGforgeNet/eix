@@ -22,7 +22,7 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 
 use eix_core::eix_ini::Music;
-use eix_core::flac::{self, Decoder, MAGIC};
+use eix_core::flac::{self, Decoder, MAGIC, SeamFade};
 use eix_engine::hook;
 use eix_sites::Site;
 
@@ -102,6 +102,8 @@ struct Stream {
     user: u32,
     fetch: Fetch,
     decoder: Option<Decoder<Source>>,
+    /// The music cut at the last loop, laid over the restart until it has faded out.
+    fade: Option<SeamFade>,
 }
 
 impl Stream {
@@ -161,6 +163,7 @@ extern "system" fn open(user: u32, fetch: Fetch, total: u32) -> u32 {
             user,
             fetch,
             decoder,
+            fade: None,
         });
         let raw = Box::into_raw(stream);
         // A 32-bit process: an address fits the decoder handle the game keeps.
@@ -199,7 +202,15 @@ extern "system" fn process(handle: u32, buffer: *mut u8, bytes: i32) -> i32 {
     // SAFETY: the game's buffer of `bytes` bytes.
     let out = unsafe { core::slice::from_raw_parts_mut(buffer, len) };
     match decoder.read(out) {
-        Ok(n) => i32::try_from(n).unwrap_or(0),
+        Ok(n) => {
+            if let Some(fade) = stream.fade.as_mut() {
+                fade.mix(&mut out[..n]);
+                if fade.is_done() {
+                    stream.fade = None;
+                }
+            }
+            i32::try_from(n).unwrap_or(0)
+        }
         Err(e) => {
             warn(&format!(
                 "a FLAC stream stops decoding: {e}; the rest plays silence"
@@ -219,8 +230,18 @@ extern "system" fn seek(handle: u32, offset: i32) -> i32 {
     };
     // SAFETY: as in `process`.
     let stream = unsafe { &mut *stream };
-    // The game seeks to 0 to loop a track, and to -1 (go on from where the source is) after opening one.
+    // The game seeks to 0 to loop a track, and to -1 (go on from where the source is) after opening one. A loop cut
+    // before the stream's end fades the music on from the cut out over the restart.
     if offset == 0 {
+        stream.fade = stream.decoder.as_mut().and_then(|decoder| {
+            SeamFade::take(decoder)
+                .inspect_err(|e| {
+                    warn(&format!(
+                        "a FLAC stream does not decode past a loop's cut: {e}"
+                    ))
+                })
+                .ok()
+        });
         stream.decoder = Stream::decoder(stream.user, stream.fetch);
     }
     0

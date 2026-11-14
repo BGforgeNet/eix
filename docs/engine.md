@@ -131,6 +131,11 @@ the game's `.mp3`.
   loud as the game's own MP3s rather than at a reference loudness. The album gain and the peak tags are ignored. The
   gain and the dither come before the game's music volume, which is left as it is. A track with neither tag, or at
   0 dB, plays at its own level, and a 16-bit one bit for bit.
+- Loops: the game cuts a looping track where its stream counter meets the `streamsn.reg` marker and plays it again
+  from the start, often mid-phrase. With a FLAC, the music at the cut fades out over the first 10 ms of the restart,
+  about as far as the MP3 decoder's own overlap carries it, so the cut does not click. The loop points are the
+  same as the MP3's from the second loop on. The first loop differs because the MP3 decoder skips its stream's
+  first 2304 samples and plays to the file's end, while a FLAC plays from its first sample to the marker.
 - addon.log names each FLAC file played and the gain it takes. A file that does not decode plays silence, with a
   warning; a gain tag that is no number of decibels is a warning too, and the track plays at its own level.
 - Briefing speech (`speech.res`) stays MP3.

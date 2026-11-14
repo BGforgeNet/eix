@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- [FLAC music](docs/engine.md#flac-music): a looping FLAC track no longer clicks where the game cuts it to play
+  again; the music at the cut fades out over 10 ms, as the game's MP3 decoder carries it.
+
 ## 0.2.0
 
 ### Added

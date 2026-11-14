@@ -220,6 +220,65 @@ impl<R: Read> Decoder<R> {
     }
 }
 
+/// How long the music at a loop's cut fades out over the restart, in milliseconds: about what the MP3 decoder's own
+/// overlap carries past a seek (an MP3 granule is 576 frames, 13 ms at 44.1 kHz).
+pub const SEAM_FADE_MS: u32 = 10;
+
+/// The music a decoder would have played on from a loop's cut, faded out, to lay over the restart's first frames. The
+/// game cuts a looping track where its block counter lands, often mid-phrase, and the restart begins in silence: a cut
+/// straight to it clicks, where the MP3 decoder's leftover overlap carries the music down.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SeamFade {
+    /// Interleaved 16-bit samples, the fade applied; `at` is the next one to lay over.
+    samples: Vec<i16>,
+    at: usize,
+}
+
+impl SeamFade {
+    /// The next [`SEAM_FADE_MS`] of `decoder`, faded from full level to silence by a raised cosine; shorter or empty
+    /// at the stream's end.
+    pub fn take<R: Read>(decoder: &mut Decoder<R>) -> Result<Self, Error> {
+        let format = decoder.format();
+        let frames = usize::try_from(format.sample_rate * SEAM_FADE_MS / 1000).unwrap_or(0);
+        let channels = usize::try_from(format.channels).unwrap_or(1);
+        let mut pcm = vec![0; frames * channels * 2];
+        let n = decoder.read(&mut pcm)?;
+        let samples = pcm[..n]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .enumerate()
+            .map(|(i, bytes)| {
+                let frame = (i / channels) as f64;
+                let level =
+                    0.5 * (1.0 + (core::f64::consts::PI * (frame + 0.5) / frames as f64).cos());
+                let faded = (f64::from(i16::from_le_bytes(*bytes)) * level).round();
+                // Within the 16-bit range: a 16-bit sample times a level of at most 1.
+                faded as i16
+            })
+            .collect();
+        Ok(Self { samples, at: 0 })
+    }
+
+    /// Adds the fade's next samples onto the 16-bit interleaved `pcm`, clamped to the 16-bit range.
+    pub fn mix(&mut self, pcm: &mut [u8]) {
+        for bytes in pcm.as_chunks_mut::<2>().0 {
+            let Some(&fade) = self.samples.get(self.at) else {
+                return;
+            };
+            *bytes = i16::from_le_bytes(*bytes)
+                .saturating_add(fade)
+                .to_le_bytes();
+            self.at += 1;
+        }
+    }
+
+    /// True once every sample has been laid over.
+    pub fn is_done(&self) -> bool {
+        self.at >= self.samples.len()
+    }
+}
+
 /// The FLAC files to try, in order, for the stream file `path` the game opens: the mod's `Stream\` folder
 /// (`mod_stream`, ending in `\`, empty without a mod) and then `path`'s own folder, with the name's `.mp3` replaced by
 /// `.flac`. None for a path that does not end in `.mp3`. The game's folder choice keeps its order: a mod's `.mp3`
@@ -505,6 +564,63 @@ mod tests {
         let mut all = vec![0; 30_000];
         assert_eq!(decoder.read(&mut all).unwrap(), 20_000);
         assert_eq!(decoder.read(&mut all).unwrap(), 0);
+    }
+
+    #[test]
+    fn a_seam_fade_is_the_music_on_from_the_cut_faded_to_silence() {
+        let cut = 1000 * 4;
+        let mut decoder = Decoder::new(STEREO_16).unwrap();
+        let mut played = vec![0; cut];
+        assert_eq!(decoder.read(&mut played).unwrap(), cut);
+        let mut fade = SeamFade::take(&mut decoder).unwrap();
+        // Laid over silence, the fade is what the stream would have played on, times the fade's level.
+        let mut silence = vec![0; 441 * 4 + 8];
+        fade.mix(&mut silence);
+        assert!(fade.is_done());
+        let got = samples(&silence);
+        let on = samples(&expected(5000, 2, 16)[cut..cut + 441 * 4]);
+        for frame in 0..441 {
+            let level = 0.5 * (1.0 + (core::f64::consts::PI * (frame as f64 + 0.5) / 441.0).cos());
+            for c in 0..2 {
+                let want = (f64::from(on[frame * 2 + c]) * level).round();
+                assert_eq!(f64::from(got[frame * 2 + c]), want, "frame {frame}");
+            }
+        }
+        // Full level at the cut, silent at the end, nothing past it.
+        assert_eq!(got[..2], on[..2]);
+        assert!(got[880..882].iter().all(|s| s.abs() <= 1));
+        assert!(got[882..].iter().all(|&s| s == 0));
+    }
+
+    #[test]
+    fn a_seam_fade_adds_onto_the_restart_and_clamps() {
+        let mut fade = SeamFade {
+            samples: vec![30000, -30000, 5, 7],
+            at: 0,
+        };
+        let mut pcm: Vec<u8> = [10000i16, -10000]
+            .iter()
+            .flat_map(|s| s.to_le_bytes())
+            .collect();
+        fade.mix(&mut pcm);
+        assert_eq!(samples(&pcm), [i16::MAX, i16::MIN]);
+        assert!(!fade.is_done());
+        let mut rest = vec![0; 8];
+        fade.mix(&mut rest);
+        assert_eq!(samples(&rest), [5, 7, 0, 0]);
+        assert!(fade.is_done());
+    }
+
+    #[test]
+    fn a_seam_fade_at_the_streams_end_is_empty() {
+        let mut decoder = Decoder::new(STEREO_16).unwrap();
+        let mut all = vec![0; 20_000];
+        assert_eq!(decoder.read(&mut all).unwrap(), 20_000);
+        let mut fade = SeamFade::take(&mut decoder).unwrap();
+        assert!(fade.is_done());
+        let mut pcm = vec![1, 2, 3, 4];
+        fade.mix(&mut pcm);
+        assert_eq!(pcm, [1, 2, 3, 4]);
     }
 
     #[test]
