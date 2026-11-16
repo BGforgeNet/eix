@@ -15,7 +15,7 @@ use eix_engine::hook::{self, Context, Mode};
 use eix_engine::patch;
 use eix_sites::Site;
 
-use super::{Numbered, bytes, layout, word};
+use super::{Numbered, bytes, layout};
 use crate::groups::BuildError;
 
 /// `CInterface3D::ScaleRectToScreen` 0x5F7CA0, `ScalePointToScreen` 0x5F7D20 and its unused copy 0x5F7D60: each
@@ -128,7 +128,9 @@ const TEXT_EXTENT_STRING: usize = 0x34;
 
 /// The global map's pick picture `CUiSurface::Pixel` 0x5FD240 is read at (x / 2, y / 2); its callers in the map's
 /// mouse move (#80, the call's operand at 0x63023C) and click (#81, 0x62FB20) push x / 2 last, with it in EAX. They
-/// call 9 bytes early instead (#79, the padding in front of it), where half the margin comes off.
+/// call 9 bytes early instead (#79, the padding in front of it), where half the margin comes off. The write covers
+/// the whole `call`: another build's translation rebases a displacement only in an instruction it sees whole, and a
+/// bare operand would keep RU's (EN's map code lies 64 bytes lower, so its call would land inside another function).
 const PICK_ENTRY: Site = eix_sites::C_UI_SURFACE_RELEASE_CONTENTS__117;
 const PICK: Site = eix_sites::C_UI_SURFACE_PIXEL;
 const PICK_CALLERS: [(usize, Site); 2] = [
@@ -286,9 +288,15 @@ pub(super) fn build(l: &Layout) -> Result<Vec<Numbered>, BuildError> {
         hook::context_hook(PICK_ENTRY, &[0x90; 9], Mode::Drop, pick, shift)?.padded(0xCC),
     ));
     for (n, operand) in PICK_CALLERS {
-        let end = operand.offset(4);
-        let rel = |to: Site| to.ru32().wrapping_sub(end.ru32()).to_le_bytes();
-        sites.push((n, word(operand, rel(PICK), rel(PICK_ENTRY))?));
+        let call = operand.back(1);
+        sites.push((
+            n,
+            bytes(
+                call,
+                &patch::call_rel32(call, PICK.ru()),
+                &patch::call_rel32(call, PICK_ENTRY.ru()),
+            )?,
+        ));
     }
     Ok(sites)
 }
@@ -323,7 +331,8 @@ mod tests {
 
     #[test]
     fn the_pick_callers_are_redirected_nine_bytes_early() {
-        // The operands: call 0x5FD240 becomes call 0x5FD237.
+        // The whole calls (another build rebases only a displacement it sees with its opcode): call 0x5FD240
+        // becomes call 0x5FD237.
         let l = crate::groups::wide_screen::tests::layout_1056x768();
         let sites = build(&l).unwrap_or_default();
         let find = |n: usize| sites.iter().find(|(m, _)| *m == n).map(|(_, w)| w.clone());
@@ -331,17 +340,17 @@ mod tests {
             (
                 80,
                 SiteWrite::bytes(
-                    eix_sites::GLOBAL_MAP_MOUSE_MOVE__22C,
-                    &[0x00, 0xD0, 0xFC, 0xFF],
-                    &[0xF7, 0xCF, 0xFC, 0xFF],
+                    eix_sites::GLOBAL_MAP_MOUSE_MOVE__22C.back(1),
+                    &[0xE8, 0x00, 0xD0, 0xFC, 0xFF],
+                    &[0xE8, 0xF7, 0xCF, 0xFC, 0xFF],
                 ),
             ),
             (
                 81,
                 SiteWrite::bytes(
-                    eix_sites::GLOBAL_MAP_LEFT_DOWN__1D0,
-                    &[0x1C, 0xD7, 0xFC, 0xFF],
-                    &[0x13, 0xD7, 0xFC, 0xFF],
+                    eix_sites::GLOBAL_MAP_LEFT_DOWN__1D0.back(1),
+                    &[0xE8, 0x1C, 0xD7, 0xFC, 0xFF],
+                    &[0xE8, 0x13, 0xD7, 0xFC, 0xFF],
                 ),
             ),
         ];

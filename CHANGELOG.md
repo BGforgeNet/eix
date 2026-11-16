@@ -6,6 +6,8 @@
 
 - [FLAC music](docs/engine.md#flac-music): a looping FLAC track no longer clicks where the game cuts it to play
   again; the music at the cut fades out over 10 ms, as the game's MP3 decoder carries it.
+- [WideScreen](docs/addon.md#launcher-settings): on the English and German game, moving the mouse on an allod's map no
+  longer closes the game without a message.
 
 ## 0.2.0
 

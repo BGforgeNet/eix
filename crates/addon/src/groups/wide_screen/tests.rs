@@ -328,15 +328,15 @@ const SITES: [(usize, Site, usize, Option<&[u8]>); 100] = [
     (79, eix_sites::C_UI_SURFACE_RELEASE_CONTENTS__117, 9, None),
     (
         80,
-        eix_sites::GLOBAL_MAP_MOUSE_MOVE__22C,
-        4,
-        Some(&[0xF7, 0xCF, 0xFC, 0xFF]),
+        eix_sites::GLOBAL_MAP_MOUSE_MOVE__22C.back(1),
+        5,
+        Some(&[0xE8, 0xF7, 0xCF, 0xFC, 0xFF]),
     ),
     (
         81,
-        eix_sites::GLOBAL_MAP_LEFT_DOWN__1D0,
-        4,
-        Some(&[0x13, 0xD7, 0xFC, 0xFF]),
+        eix_sites::GLOBAL_MAP_LEFT_DOWN__1D0.back(1),
+        5,
+        Some(&[0xE8, 0x13, 0xD7, 0xFC, 0xFF]),
     ),
     (
         82,
