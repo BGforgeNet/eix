@@ -220,26 +220,37 @@ pub(crate) unsafe fn matches(site: Site, bytes: &[u8], found: &[u8], kind: Kind)
     {
         return false;
     }
+    // SAFETY: the caller's guarantee.
+    let (before, after) = unsafe { around(site, bytes.len()) };
+    context_start(site, bytes, found, before, after, here).is_some()
+}
+
+/// The [`REACH`] bytes the running build holds before and after RU address `site` and `len` bytes from it.
+///
+/// # Safety
+/// As for [`matches`].
+unsafe fn around(site: usize, len: usize) -> (&'static [u8], &'static [u8]) {
     let at = here(site);
     // SAFETY: the caller's guarantee.
     let read = |from: usize| unsafe { core::slice::from_raw_parts(from as *const u8, REACH) };
-    let (before, after) = (read(at - REACH), read(at + bytes.len()));
-    equivalent_around(site, bytes, found, before, after, here)
+    (read(at - REACH), read(at + len))
 }
 
-fn equivalent_around(
+/// Where, in `before` followed by the site, decoding starts that makes `found` (with `before` and `after` around it)
+/// `bytes` translated: at the site for an instruction cut at its end, or at a preceding instruction whose field
+/// crosses into it.
+fn context_start(
     site: usize,
     bytes: &[u8],
     found: &[u8],
     before: &[u8],
     after: &[u8],
     map: impl Fn(usize) -> usize,
-) -> bool {
+) -> Option<usize> {
     let reach = before.len();
     let ru = [before, bytes, after].concat();
     let now = [before, found, after].concat();
-    // Start at the site for an instruction cut at its end, or at a preceding instruction whose field crosses it.
-    (0..=reach).rev().any(|start| {
+    (0..=reach).rev().find(|&start| {
         let Ok(insn) = x86::decode_in_place(&ru[start..], 0) else {
             return false;
         };
@@ -256,6 +267,80 @@ fn equivalent_around(
                 &map,
             )
     })
+}
+
+/// Where `new`, written over `bytes` (expected at RU address `site`, which [`matches`] `found`), changes a field the
+/// running build holds moved, of an instruction the site cuts and the write keeps: the offset of the first such byte.
+/// Translation rebases only instructions it sees whole, so that field would keep RU's value.
+///
+/// # Safety
+/// As for [`matches`].
+pub(crate) unsafe fn cut_field_edit(
+    site: Site,
+    bytes: &[u8],
+    found: &[u8],
+    new: &[u8],
+    kind: Kind,
+) -> Option<usize> {
+    let site = site.ru();
+    if shape(site, kind) != Shape::Code
+        || !in_image(site)
+        || found.len() != bytes.len()
+        || new.len() != bytes.len()
+    {
+        return None;
+    }
+    // SAFETY: the caller's guarantee.
+    let (before, after) = unsafe { around(site, bytes.len()) };
+    cut_field_edit_with(site, bytes, found, new, before, after, here)
+}
+
+fn cut_field_edit_with(
+    site: usize,
+    bytes: &[u8],
+    found: &[u8],
+    new: &[u8],
+    before: &[u8],
+    after: &[u8],
+    map: impl Fn(usize) -> usize,
+) -> Option<usize> {
+    if found == bytes || equivalent_with(site, bytes, found, Shape::Code, &map) {
+        return None;
+    }
+    let start = context_start(site, bytes, found, before, after, &map)?;
+    let (reach, end) = (before.len(), before.len() + bytes.len());
+    let ru = [before, bytes, after].concat();
+    let own = own_fields(Shape::Code, new);
+    let owned = |i: usize| own.iter().any(|&f| (f..f + 4).contains(&i));
+    let changed = |j: usize| new[j - reach] != bytes[j - reach];
+    for (at, insn) in x86::whole_insns(&ru[start..]) {
+        let from = start + at;
+        if from >= end {
+            break;
+        }
+        // An instruction begun before the site runs on with whatever the write puts in its field; one begun inside
+        // it is the write's own unless the write keeps its bytes up to the field (a jump over its opcode replaces it).
+        let begun_before = from < reach;
+        if !begun_before && from + insn.len <= end {
+            continue;
+        }
+        for field in [insn.rel32, insn.disp32, insn.imm32]
+            .into_iter()
+            .flatten()
+            .map(|f| from + f)
+        {
+            let mut over = field.max(reach)..(field + 4).min(end);
+            let moved = over.clone().any(|j| found[j - reach] != bytes[j - reach]);
+            let kept = begun_before || !(from..field.min(end)).any(changed);
+            if moved
+                && kept
+                && let Some(j) = over.find(|&j| changed(j) && (begun_before || !owned(j - reach)))
+            {
+                return Some(j - reach);
+            }
+        }
+    }
+    None
 }
 
 /// What the running build holds at RU address `site` when it is `bytes` translated, else `bytes` (a mismatch the
@@ -357,31 +442,101 @@ mod tests {
         let address = DATA_7AF784.ru32().to_le_bytes();
         let moved = (map(DATA_7AF784.ru()) as u32).to_le_bytes();
         let before = [0x8B, 0x0D];
-        assert!(equivalent_around(
-            site + 2,
-            &address,
-            &moved,
-            &before,
-            &[],
-            map
-        ));
-        assert!(equivalent_around(
-            site + 2,
-            &address[..1],
-            &moved[..1],
-            &before,
-            &address[1..],
-            map
-        ));
+        assert!(context_start(site + 2, &address, &moved, &before, &[], map).is_some());
+        assert!(
+            context_start(
+                site + 2,
+                &address[..1],
+                &moved[..1],
+                &before,
+                &address[1..],
+                map
+            )
+            .is_some()
+        );
         // A push with an 8-bit immediate does not give the following bytes an address field.
-        assert!(!equivalent_around(
-            site + 2,
-            &address,
-            &moved,
-            &[0x90, 0x6A],
-            &[],
-            map
-        ));
+        assert!(context_start(site + 2, &address, &moved, &[0x90, 0x6A], &[], map).is_none());
+    }
+
+    /// The English build's map, as `translate` applies it there.
+    fn en(ru: usize) -> usize {
+        Site::new(ru).in_build(eix_sites::Build::En106)
+    }
+
+    #[test]
+    fn a_bare_call_operand_in_moved_code_is_refused() {
+        // WideScreen's first pick redirect as once written: only the displacement of the map's `call
+        // CUiSurface::Pixel`, moved 9 bytes early, which the English build would have kept RU's.
+        let call = eix_sites::GLOBAL_MAP_MOUSE_MOVE__22C.ru() - 1;
+        let to = |target: usize| {
+            let mut c = [0xE8, 0, 0, 0, 0];
+            put(&mut c, 1, (target as u32).wrapping_sub(call as u32 + 5));
+            c
+        };
+        let pixel = eix_sites::C_UI_SURFACE_PIXEL.ru();
+        let (old, redirected) = (to(pixel), to(pixel - 9));
+        let found = translated_with(call, &old, Shape::Code, en);
+        assert_ne!(found, old, "the English build moves this call");
+        let (before, after) = (
+            [[0x90; REACH - 1].as_slice(), &[0xE8]].concat(),
+            [0x90; REACH],
+        );
+        assert_eq!(
+            cut_field_edit_with(
+                call + 1,
+                &old[1..],
+                &found[1..],
+                &redirected[1..],
+                &before,
+                &after,
+                en
+            ),
+            Some(0)
+        );
+        // The whole call is the write's own instruction: rebased.
+        let before = [0x90; REACH];
+        assert_eq!(
+            cut_field_edit_with(call, &old, &found, &redirected, &before, &after, en),
+            None
+        );
+        // A write that leaves the cut operand as it is takes the build's own bytes there.
+        let (mut kept, mut tail) = (old[1..].to_vec(), found[1..].to_vec());
+        kept.push(0x90);
+        tail.push(0x90);
+        let mut nop = kept.clone();
+        nop[4] = 0xCC;
+        let before = [[0x90; REACH - 1].as_slice(), &[0xE8]].concat();
+        assert_eq!(
+            cut_field_edit_with(call + 1, &kept, &tail, &nop, &before, &after, en),
+            None
+        );
+    }
+
+    #[test]
+    fn a_jump_over_a_cut_instruction_replaces_it() {
+        // As WideScreen's hook on the quick item bar: `push -1`, then a push of a code address that the English
+        // build moves, cut after its first two bytes.
+        let site = eix_sites::C_HUD_QUICK_ITEMS_CONSTRUCT.ru();
+        let pushed = eix_sites::TEXT_72E2E9;
+        let address = pushed.ru32().to_le_bytes();
+        let moved = (en(pushed.ru()) as u32).to_le_bytes();
+        assert_ne!(moved, address, "the English build moves the pushed address");
+        assert_eq!(moved[2..], address[2..], "only the low bytes move");
+        let bytes = [0x6A, 0xFF, 0x68, address[0], address[1]];
+        let found = [0x6A, 0xFF, 0x68, moved[0], moved[1]];
+        let after = [[address[2], address[3]].as_slice(), &[0x90; REACH - 2]].concat();
+        let before = [0x90; REACH];
+        let jump = [0xE9, 0xEB, 0x38, 0x6C, 0x04];
+        assert_eq!(
+            cut_field_edit_with(site, &bytes, &found, &jump, &before, &after, en),
+            None
+        );
+        // Keeping the push and changing its address leaves RU's low bytes in it.
+        let edited = [0x6A, 0xFF, 0x68, 0x00, address[1]];
+        assert_eq!(
+            cut_field_edit_with(site, &bytes, &found, &edited, &before, &after, en),
+            Some(3)
+        );
     }
 
     #[test]

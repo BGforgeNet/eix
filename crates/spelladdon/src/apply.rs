@@ -162,7 +162,8 @@ impl Merge {
             // SAFETY: as above.
             let (expected, new) = unsafe {
                 patch::localize_against(w.site(), w.kind(), w.expected(), w.new_bytes(), &found)
-            };
+            }
+            .map_err(|e| e.to_string())?;
             pieces.push((site, expected, new));
         }
         for check in &checks {

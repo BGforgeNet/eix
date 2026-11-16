@@ -52,6 +52,14 @@ pub enum PatchError {
         /// What is there.
         found: Vec<u8>,
     },
+    /// `new` changes a field the running build holds moved, of an instruction the site cuts and keeps: translation
+    /// rebases only whole instructions, so the field would keep RU 1.06's value. Nothing was written.
+    CutField {
+        /// The patch site.
+        site: Site,
+        /// The offset in the site of the first byte so changed.
+        offset: usize,
+    },
 }
 
 impl fmt::Display for PatchError {
@@ -77,6 +85,11 @@ impl fmt::Display for PatchError {
                 "patch at {site:#x}: expected {} but found {}",
                 hex(expected),
                 hex(found)
+            ),
+            Self::CutField { site, offset } => write!(
+                f,
+                "patch at {site:#x}: byte {offset} changes a moved field of an instruction the patch cuts, which \
+                 only a write of the whole instruction translates for this build"
             ),
         }
     }
@@ -120,7 +133,7 @@ pub unsafe fn write_as(
         });
     }
     // SAFETY: the caller's guarantee, for the site in the running build.
-    let (expected, new) = unsafe { for_build(site, kind, expected, new) };
+    let (expected, new) = unsafe { for_build(site, kind, expected, new) }?;
     // SAFETY: as above.
     unsafe { write_at(site, &expected, &new) }
 }
@@ -147,10 +160,15 @@ pub unsafe fn write_native(site: Site, expected: &[u8], new: &[u8]) -> Result<()
 ///
 /// # Safety
 /// As for [`verify`].
-pub unsafe fn localize(site: Site, kind: Kind, expected: &[u8], new: &[u8]) -> (Vec<u8>, Vec<u8>) {
+pub unsafe fn localize(
+    site: Site,
+    kind: Kind,
+    expected: &[u8],
+    new: &[u8],
+) -> Result<(Vec<u8>, Vec<u8>), PatchError> {
     // SAFETY: the caller's guarantee.
-    let (expected, new) = unsafe { for_build(site, kind, expected, new) };
-    (expected.into_owned(), new.into_owned())
+    let (expected, new) = unsafe { for_build(site, kind, expected, new) }?;
+    Ok((expected.into_owned(), new.into_owned()))
 }
 
 /// [`localize`] against `found` instead of what the site holds now: a merge of writes not yet made weighs each one
@@ -164,9 +182,9 @@ pub unsafe fn localize_against(
     expected: &[u8],
     new: &[u8],
     found: &[u8],
-) -> (Vec<u8>, Vec<u8>) {
+) -> Result<(Vec<u8>, Vec<u8>), PatchError> {
     if !eix_sites::translating() {
-        return (expected.to_vec(), new.to_vec());
+        return Ok((expected.to_vec(), new.to_vec()));
     }
     // SAFETY: the caller's guarantee.
     unsafe { against(site, kind, expected, new, found.to_vec()) }
@@ -275,6 +293,9 @@ fn debug_warning(site: Site, error: &str) {
     unsafe { OutputDebugStringW(text.as_ptr()) };
 }
 
+/// The bytes expected and written at a site, as the running build has them.
+type BuildBytes<'a> = (Cow<'a, [u8]>, Cow<'a, [u8]>);
+
 /// An RU 1.06 site and the bytes expected and written there, for the running build: the site translated, the
 /// expected bytes those found when they are the RU bytes translated, the written bytes translated.
 ///
@@ -285,15 +306,15 @@ unsafe fn for_build<'a>(
     kind: Kind,
     expected: &'a [u8],
     new: &'a [u8],
-) -> (Cow<'a, [u8]>, Cow<'a, [u8]>) {
+) -> Result<BuildBytes<'a>, PatchError> {
     if !eix_sites::translating() {
-        return (Cow::Borrowed(expected), Cow::Borrowed(new));
+        return Ok((Cow::Borrowed(expected), Cow::Borrowed(new)));
     }
     // SAFETY: the caller's guarantee.
     let found = unsafe { core::slice::from_raw_parts(site.ptr::<u8>(), expected.len()) }.to_vec();
     // SAFETY: as above.
-    let (expected, new) = unsafe { against(site, kind, expected, new, found) };
-    (Cow::Owned(expected), Cow::Owned(new))
+    let (expected, new) = unsafe { against(site, kind, expected, new, found) }?;
+    Ok((Cow::Owned(expected), Cow::Owned(new)))
 }
 
 /// [`for_build`] with `found` given: what the site holds, or will once earlier writes not yet made land.
@@ -306,9 +327,16 @@ unsafe fn against(
     expected: &[u8],
     new: &[u8],
     found: Vec<u8>,
-) -> (Vec<u8>, Vec<u8>) {
+) -> Result<(Vec<u8>, Vec<u8>), PatchError> {
     // SAFETY: the caller's guarantee; a site in the image has its neighbours mapped.
     let matched = unsafe { translate::matches(site, expected, &found, kind) };
+    if matched {
+        // SAFETY: as above.
+        let cut = unsafe { translate::cut_field_edit(site, expected, &found, new, kind) };
+        if let Some(offset) = cut {
+            return Err(PatchError::CutField { site, offset });
+        }
+    }
     let new = translate::written(site, expected, matched.then_some(&found[..]), new, kind);
     // Where the bytes match only in part (an earlier write holds the rest), the fields that translate are the build's;
     // the rest stays RU's, for the caller to judge.
@@ -317,7 +345,7 @@ unsafe fn against(
     } else {
         translate::localized(site, expected, &found, kind)
     };
-    (expected, new)
+    Ok((expected, new))
 }
 
 /// Checks that `expected` is what is at `site`, without writing.
@@ -336,7 +364,7 @@ pub unsafe fn verify(site: Site, expected: &[u8]) -> Result<(), PatchError> {
 /// As for [`verify`].
 pub unsafe fn verify_as(site: Site, kind: Kind, expected: &[u8]) -> Result<(), PatchError> {
     // SAFETY: the caller's guarantee, for the site in the running build.
-    let (expected, _) = unsafe { for_build(site, kind, expected, expected) };
+    let (expected, _) = unsafe { for_build(site, kind, expected, expected) }?;
     // SAFETY: as above.
     unsafe { verify_at(site, &expected) }
 }
