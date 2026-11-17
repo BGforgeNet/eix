@@ -747,8 +747,9 @@ pub struct UnitClient {
     /// The unit.
     pub unit: *mut Unit,
     _unknown20: [u8; 0x78 - 0x20],
-    /// The fade-in alpha, 0 to 1: the unit's figure parts take it as their alpha, and `UpdateClient` 0x5341A0 adds
-    /// 1/15 on each client tick until it reaches 1. Creation sets 1; `RestartFadeIn` 0x5344A0 restarts it from 0
+    /// The fade-in alpha, 0 to 1: the unit's figure parts take it as their alpha. While it is below 1,
+    /// `UpdateClient` 0x5341A0 writes it to every part (0x534278) and then adds 1/15, once per client tick, so the
+    /// parts lag it by one tick. Creation sets 1; `RestartFadeIn` 0x5344A0 restarts it from 0
     /// for a unit with no player, called by `CWorldClient::AddObject` 0x5647E0 when the unit is added to a running
     /// world and by `CPlayerClient::OnPartyState` 0x668E5E when the party comes to see it ([`FLAG_SEEN`]).
     pub fade: f32,
@@ -760,6 +761,29 @@ const _: () = {
     assert!(offset_of!(UnitClient, _unknown20) == 0x20);
     assert!(offset_of!(UnitClient, fade) == 0x78);
 };
+
+impl UnitClient {
+    /// Ends the unit's fade-in at once: the fade set to 1, then the controller's virtual slot 13
+    /// (`CUnitClientSpecific::FiguresLoaded` 0x5344E0), which writes the fade to every figure part as
+    /// `RestartFadeIn` does. `UpdateClient` leaves a fade of 1 alone, so the unit stays drawn in full.
+    ///
+    /// # Safety
+    /// `this` must be a live unit's client controller, on the game's thread.
+    pub unsafe fn complete_fade(this: *mut Self) {
+        // SAFETY: the caller guarantees a live controller.
+        unsafe { (*this).fade = 1.0 };
+        // SAFETY: a live object's first word is its vtable.
+        let vtable = unsafe { (*this).base.vtable }.cast::<usize>();
+        // SAFETY: a unit client controller's vtable (0x73ECD8) has slot 13 (+0x34).
+        let address = unsafe { *vtable.wrapping_add(13) };
+        // SAFETY: slot 13 is `int __thiscall ()`; it returns 1, which tells nothing here.
+        let f = unsafe {
+            crate::hook::as_fn_at::<unsafe extern "thiscall" fn(*mut Self) -> i32>(address)
+        };
+        // SAFETY: the caller guarantees the controller and the thread.
+        unsafe { f(this) };
+    }
+}
 
 /// `CUnitServer`: a unit's server controller. Allocated as 0xB20 bytes (0x4D6A4A).
 #[repr(C)]

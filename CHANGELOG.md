@@ -4,9 +4,10 @@
 
 ### Fixed
 
-- [AutoPause](docs/engine.md#autopause): `EnemySighted` pauses once the enemy is drawn; it paused before the game had
-  shown and faded the enemy in, so the paused screen showed it only on the map, also when the party walked up to an
-  enemy after a game was loaded. `EnemyAggro` likewise waits for the aggressor to be drawn.
+- [AutoPause](docs/engine.md#autopause): `EnemySighted` pauses as soon as the game shows the enemy, and the paused
+  screen draws it in full; it paused before the game had shown and faded the enemy in, so the paused screen showed it
+  only on the map, also when the party walked up to an enemy after a game was loaded. `EnemyAggro` likewise waits for
+  the aggressor to be shown.
 
 ## 0.2.1
 

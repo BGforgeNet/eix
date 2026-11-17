@@ -9,11 +9,13 @@
 //! - Health: the server-side vitals of every unit of each player.
 //! - In view: the units each party unit's AI sees (the list the script `PlayerSee` reads), less those with a player,
 //!   the dead and those not hostile to the player's side (its number, as the game's own danger test takes it).
-//!   `EnemySighted` waits until one of them is drawn (`sight`): the client draws a unit only once its party state
-//!   marks it seen, and fades it in over its own ticks from then.
+//!   `EnemySighted` waits until the client shows one of them (`sight`): it draws a unit only once its party state
+//!   marks it seen, and fades it in over its own ticks from then, which a pause would stop. So the pause ends the
+//!   fade-in of every shown enemy in view at once, and the paused screen draws them in full.
 //! - Aggression: each living hostile unit of the server world whose AI aggression is aimed at a party unit, as
 //!   `CPlayerServer::SendPartyState` finds it for the danger state (0x66E666). `EnemyAggro` also waits until the
-//!   aggressor is drawn: the server's AI turns on the party before the client has the unit at all.
+//!   client shows the aggressor, and ends its fade-in: the server's AI turns on the party before the client has the
+//!   unit at all.
 //! - Deaths: `CUnitServer::OnDamaged` is the one caller of `CUnitServer::SetDead` 0x546720 (0x553BB0); its call is
 //!   redirected to note the unit, and the next check pauses when the unit was in view at the check before.
 #![expect(
@@ -68,9 +70,9 @@ struct State {
     triggers: Triggers,
     /// The party's health.
     watch: Watch,
-    /// Enemies in view, told once one is drawn.
+    /// Enemies in view, told once one is shown.
     sighted: ReadyOnset,
-    /// Enemies aggressive to the party, told once the aggressor is drawn.
+    /// Enemies aggressive to the party, told once the aggressor is shown.
     aggro: ReadyOnset,
     /// The enemies in view at the last check.
     in_view: Vec<i32>,
@@ -228,9 +230,9 @@ enum Sight {
 }
 
 impl Sight {
-    /// Whether the unit is drawn in full: shown, its fade-in ended.
-    fn drawn(self) -> bool {
-        matches!(self, Self::Present { shown: true, fade } if fade >= 1.0)
+    /// Whether the client draws the unit, faded in or not.
+    fn shown(self) -> bool {
+        matches!(self, Self::Present { shown: true, .. })
     }
 }
 
@@ -269,11 +271,20 @@ unsafe fn client_ticks() -> i32 {
 /// # Safety
 /// On the game's thread, with the client's world constructed and a zone loaded.
 unsafe fn sight(id: i32) -> Sight {
+    // SAFETY: the caller's guarantee.
+    unsafe { look(id) }.0
+}
+
+/// How the client shows its unit `id`, and the unit's client controller (null when absent or without one).
+///
+/// # Safety
+/// As for [`sight`].
+unsafe fn look(id: i32) -> (Sight, *mut UnitClient) {
     let world = client_world();
     // SAFETY: the caller guarantees the client's world with a zone.
     let unit = unsafe { World::find_unit(world.cast(), id) };
     if unit.is_null() {
-        return Sight::Absent;
+        return (Sight::Absent, std::ptr::null_mut());
     }
     // SAFETY: the client world's live local player, or null before a session.
     let local = unsafe { (*world).local };
@@ -290,22 +301,44 @@ unsafe fn sight(id: i32) -> Sight {
         // SAFETY: the controller's live fade, read only.
         unsafe { (*client).fade }
     };
-    Sight::Present {
+    let sight = Sight::Present {
         shown: all || seen,
         fade,
-    }
+    };
+    (sight, client)
 }
 
-/// The pause line's account of a told start: the enemy's sight, and whether the wait ran out.
+/// Ends the fade-in of the client's unit `id` when the client shows it, so a pause from now draws it in full.
+/// Returns its sight from before.
 ///
 /// # Safety
 /// As for [`sight`].
-unsafe fn account(id: i32, told: Told) -> String {
+unsafe fn finish_fade(id: i32) -> Sight {
     // SAFETY: the caller's guarantee.
-    let s = unsafe { sight(id) };
+    let (sight, client) = unsafe { look(id) };
+    if let Sight::Present { shown: true, fade } = sight
+        && fade < 1.0
+        && !client.is_null()
+    {
+        // SAFETY: the live unit's client controller, on the game's thread.
+        unsafe { UnitClient::complete_fade(client) };
+    }
+    sight
+}
+
+/// The pause line's account of a told start: the enemy's sight from before [`finish_fade`] and what the pause
+/// shows, and whether the wait ran out.
+fn account(before: Sight, told: Told) -> String {
+    let s = if let Sight::Present { shown: true, fade } = before
+        && fade < 1.0
+    {
+        format!("fade {fade:.2} -> 1.00, shown")
+    } else {
+        format!("{before}")
+    };
     match told {
-        Told::Ready => format!("{s}"),
-        Told::Capped => format!("{s}; not drawn after {MAX_WAIT} client ticks"),
+        Told::Ready => s,
+        Told::Capped => format!("{s}; not shown after {MAX_WAIT} client ticks"),
     }
 }
 
@@ -416,19 +449,26 @@ unsafe fn check() {
             unsafe { in_view(player, &mut ids) };
         }
         if triggers.enemy_sighted {
-            let mut drawn = None;
+            let mut shown = None;
             let told = state.sighted.check(!ids.is_empty(), ticks, || {
-                drawn = ids.iter().copied().find(|&id| {
+                shown = ids.iter().copied().find(|&id| {
                     // SAFETY: on the game's thread after a server tick, the client's world constructed.
-                    unsafe { sight(id) }.drawn()
+                    unsafe { sight(id) }.shown()
                 });
-                drawn.is_some()
+                shown.is_some()
             });
             if let Some(told) = told
-                && let Some(id) = drawn.or_else(|| ids.first().copied())
+                && let Some(id) = shown.or_else(|| ids.first().copied())
             {
-                // SAFETY: as above.
-                let account = unsafe { account(id, told) };
+                let mut before = None;
+                for &other in &ids {
+                    // SAFETY: as above.
+                    let s = unsafe { finish_fade(other) };
+                    if other == id {
+                        before = Some(s);
+                    }
+                }
+                let account = account(before.unwrap_or(Sight::Absent), told);
                 reasons.push(format!("enemy {id} in view ({account})"));
             }
         }
@@ -444,13 +484,13 @@ unsafe fn check() {
         let found = unsafe { aggressor(&players) };
         let told = state.aggro.check(found.is_some(), ticks, || {
             // SAFETY: on the game's thread after a server tick, the client's world constructed.
-            found.is_some_and(|id| unsafe { sight(id) }.drawn())
+            found.is_some_and(|id| unsafe { sight(id) }.shown())
         });
         if let Some(told) = told
             && let Some(id) = found
         {
             // SAFETY: as above.
-            let account = unsafe { account(id, told) };
+            let account = account(unsafe { finish_fade(id) }, told);
             reasons.push(format!("enemy {id} turned on the party ({account})"));
         }
     }
