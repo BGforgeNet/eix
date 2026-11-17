@@ -1147,6 +1147,24 @@ impl UnitServer {
         // SAFETY: the caller guarantees the controller, the item and the thread.
         unsafe { f(this, kind, weapon) }
     }
+
+    /// Whether the unit fights: `CUnitServer::IsFighting` 0x54B580 (thiscall, no arguments, the answer in `al`), true
+    /// while its action is an attack or the cast of an attack spell; its target is [`UnitAction::target`].
+    /// `CPlayerServer::SendPartyState` asks it of each party unit for the danger state.
+    ///
+    /// # Safety
+    /// `this` must be a live unit controller of a supported game.exe, on the game's thread.
+    pub unsafe fn is_fighting(this: *mut Self) -> bool {
+        // SAFETY: 0x54B580 is `bool __thiscall ()` with a plain `ret`; only `al` holds the answer.
+        let f = unsafe {
+            code::<unsafe extern "thiscall" fn(*mut Self) -> u8>(
+                eix_sites::C_UNIT_SERVER_IS_FIGHTING,
+            )
+        };
+        // SAFETY: the caller guarantees the controller and the thread.
+        unsafe { f(this) != 0 }
+    }
+
     /// The unit's level from its experience: `CUnitServer::Level` 0x556760 (thiscall, no arguments).
     ///
     /// # Safety

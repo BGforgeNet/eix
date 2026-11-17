@@ -15,7 +15,10 @@
 //! - Aggression: each living hostile unit of the server world whose AI aggression is aimed at a party unit, as
 //!   `CPlayerServer::SendPartyState` finds it for the danger state (0x66E666). `EnemyAggro` also waits until the
 //!   client shows the aggressor, and fades it in so: the server's AI turns on the party before the client has the
-//!   unit at all.
+//!   unit at all. It does not pause when the party engaged every aggressor first: a party unit's action is an attack
+//!   at it, or the cast of an attack spell at it (`CUnitServer::IsFighting` 0x54B580, the target at +0x198), now or
+//!   within core's [`ENGAGED_TICKS`]. The game keeps no attacker for later: a unit's AI notes the last one on a hit
+//!   (`AIBrain` +0x30) and drops it at its next update (0x5D5697), before the aggression shows.
 //! - Fade-in: `GameMain` 0x456440 calls `FrameStep` 0x458010 (0x4575FD) on every frame, paused or not; before it,
 //!   each frame of the pause raises the fade of those enemies by the frame's time at the client ticks' pace (core's
 //!   [`paused_fade`]), and draws it. The first frame after the pause, or a load, ends it: `UpdateClient` goes on
@@ -32,8 +35,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use eix_core::auto_pause::{
-    AGGRO_KEY, DEAD_KEY, HEALTH_KEY, Limits, MAX_WAIT, PERCENT_KEY, ReadyOnset, SIGHTED_KEY, Told,
-    Triggers, Watch, death_in_view, is_enemy, paused_fade,
+    AGGRO_KEY, DEAD_KEY, ENGAGED_TICKS, Engaged, HEALTH_KEY, Limits, MAX_WAIT, PERCENT_KEY,
+    ReadyOnset, SIGHTED_KEY, Start, Told, Triggers, Watch, death_in_view, is_enemy, paused_fade,
 };
 use eix_engine::game::flow::{DRAW_ALL, UPDATE_PERIOD};
 use eix_engine::game::net::{is_multiplayer_client, live_server};
@@ -104,8 +107,10 @@ struct State {
     watch: Watch,
     /// Enemies in view, told once one is shown.
     sighted: ReadyOnset,
-    /// Enemies aggressive to the party, told once the aggressor is shown.
+    /// Enemies aggressive to the party, told once the aggressor is shown, unless the party engaged them first.
     aggro: ReadyOnset,
+    /// The units the party fights or fought lately.
+    engaged: Engaged,
     /// The enemies in view at the last check.
     in_view: Vec<i32>,
 }
@@ -123,6 +128,7 @@ static STATE: Mutex<State> = Mutex::new(State {
     watch: Watch::new(),
     sighted: ReadyOnset::new(),
     aggro: ReadyOnset::new(),
+    engaged: Engaged::new(),
     in_view: Vec::new(),
 });
 /// The units without a player that died since the last check.
@@ -441,11 +447,46 @@ fn account(sight: Sight, told: Told) -> String {
     }
 }
 
-/// The first living enemy of a player whose AI aggression is aimed at one of that player's units.
+/// The units the party fights: each living unit of a player whose action is an attack, or the cast of an attack
+/// spell, at a unit (`CUnitServer::IsFighting`, as `SendPartyState` asks it of the party), as (its id, the target's).
+///
+/// # Safety
+/// As for [`aggressors`].
+unsafe fn fights(players: &[*mut Player]) -> Vec<(i32, i32)> {
+    let mut fights = Vec::new();
+    for &player in players {
+        // SAFETY: a live player of the server's world.
+        for unit in unsafe { units(player) } {
+            // SAFETY: a live unit of the player's table.
+            let u = unsafe { &*unit };
+            let controller = u.controller.cast::<UnitServer>();
+            if controller.is_null() || u.dead != 0 {
+                continue;
+            }
+            // SAFETY: the unit's live server controller, on the game's thread.
+            if !unsafe { UnitServer::is_fighting(controller) } {
+                continue;
+            }
+            // SAFETY: the controller's live action; its target is counted, so live while set.
+            let target = unsafe { (*controller).action.target };
+            // SAFETY: a non-null target is a live engine object.
+            if target.is_null() || unsafe { EngineObject::class_id(target) } != CLASS_UNIT {
+                continue;
+            }
+            // SAFETY: the class id says it is a unit.
+            let target = unsafe { (*target.cast::<Unit>()).map_object.transform.base.id };
+            fights.push((u.map_object.transform.base.id, target));
+        }
+    }
+    fights
+}
+
+/// The living enemies of a player whose AI aggression is aimed at one of that player's units.
 ///
 /// # Safety
 /// On the game's thread right after a server tick, `players` the server world's live players.
-unsafe fn aggressor(players: &[*mut Player]) -> Option<i32> {
+unsafe fn aggressors(players: &[*mut Player]) -> Vec<i32> {
+    let mut found = Vec::new();
     // SAFETY: on the game's thread after the tick; nothing changes the map during the walk.
     for node in unsafe { ObjectMap::nodes(SERVER_OBJECTS.as_ptr()) } {
         // SAFETY: a node of the map.
@@ -485,11 +526,12 @@ unsafe fn aggressor(players: &[*mut Player]) -> Option<i32> {
             }
             // SAFETY: the class id says it is a unit.
             if unsafe { (*target.cast::<Unit>()).player } == player.cast() {
-                return Some(unit.map_object.transform.base.id);
+                found.push(unit.map_object.transform.base.id);
+                break;
             }
         }
     }
-    None
+    found
 }
 
 /// Pauses the game on a trigger of eix.ini's `[AutoPause]`.
@@ -581,17 +623,49 @@ unsafe fn check() {
     }
     if triggers.enemy_aggro {
         // SAFETY: on the game's thread after the tick, the server world's live players.
-        let found = unsafe { aggressor(&players) };
-        let told = state.aggro.check(found.is_some(), ticks, || {
-            // SAFETY: on the game's thread after a server tick, the client's world constructed.
-            found.is_some_and(|id| unsafe { sight(id) }.shown())
-        });
-        if let Some(told) = told
-            && let Some(id) = found
-        {
-            // SAFETY: as above.
-            let account = account(unsafe { fade_in(id, &mut fading) }, told);
-            reasons.push(format!("enemy {id} turned on the party ({account})"));
+        let fights = unsafe { fights(&players) };
+        state.engaged.tick(fights.iter().map(|&(_, target)| target));
+        // SAFETY: as above.
+        let found = unsafe { aggressors(&players) };
+        // The enemy a pause names: the first the party did not engage.
+        let named = found
+            .iter()
+            .copied()
+            .find(|&id| !state.engaged.contains(id))
+            .or_else(|| found.first().copied());
+        let provoked = found.iter().all(|&id| state.engaged.contains(id));
+        let start = state.aggro.check_provoked(
+            !found.is_empty(),
+            ticks,
+            || provoked,
+            || {
+                // SAFETY: on the game's thread after a server tick, the client's world constructed.
+                named.is_some_and(|id| unsafe { sight(id) }.shown())
+            },
+        );
+        match (start, named) {
+            (Some(Start::Told(told)), Some(id)) => {
+                // SAFETY: as above.
+                let account = account(unsafe { fade_in(id, &mut fading) }, told);
+                reasons.push(format!("enemy {id} turned on the party ({account})"));
+            }
+            (Some(Start::Provoked), Some(id)) => {
+                let by = fights
+                    .iter()
+                    .find(|&&(_, target)| target == id)
+                    .map_or_else(
+                        || format!("fought it within {ENGAGED_TICKS} server ticks"),
+                        |&(unit, _)| format!("unit {unit} fights it"),
+                    );
+                log::info(
+                    "autopause",
+                    &format!(
+                        "enemy {id} turned on the party, which engaged it first ({by}): no pause"
+                    ),
+                    "",
+                );
+            }
+            _ => {}
         }
     }
     drop(state);

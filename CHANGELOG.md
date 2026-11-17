@@ -8,6 +8,8 @@
   screen fades it in at the game's pace; it paused before the game had shown and faded the enemy in, so the paused
   screen showed it only on the map, also when the party walked up to an enemy after a game was loaded. `EnemyAggro`
   likewise waits for the aggressor to be shown.
+- [AutoPause](docs/engine.md#autopause): `EnemyAggro` no longer pauses when the party attacked the enemy first, as
+  in a backstab; it paused as the struck enemy turned on the party.
 
 ## 0.2.1
 

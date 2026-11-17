@@ -25,7 +25,7 @@ The events that pause single player ([AutoPause](engine.md#autopause)), each off
 | `Health` | Hit points; 0 (default): off |
 | `HealthPercent` | A percentage of the member's maximum hit points, 1 to 100; 0 (default): off |
 | `EnemySighted` | 1: an enemy comes into the party's view while none was in view, once its model is drawn |
-| `EnemyAggro` | 1: an enemy turns on a party member while no enemy was aggressive to the party |
+| `EnemyAggro` | 1: an enemy turns on a party member while no enemy was aggressive to the party, unless the party attacked it first |
 | `EnemyDead` | 1: an enemy in the party's view dies, whoever killed it |
 
 A negative `Health`, or a `HealthPercent` above 100, is logged and is off.

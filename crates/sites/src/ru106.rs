@@ -477,6 +477,7 @@ pub const C_UNIT_SERVER_ACTION_IN_REACH__140: Site = Site::new(0x54_9E80);
 pub const C_UNIT_SERVER_FINISH_ACTION__1D4: Site = Site::new(0x54_A094);
 pub const C_UNIT_SERVER_FINISH_ACTION__1D8: Site = Site::new(0x54_A098);
 pub const C_UNIT_SERVER_SYNC_MOVE_MODES__8D: Site = Site::new(0x54_A6AD);
+pub const C_UNIT_SERVER_IS_FIGHTING: Site = Site::new(0x54_B580);
 pub const C_UNIT_SERVER_IS_FIGHTING__76: Site = Site::new(0x54_B5F6);
 pub const C_UNIT_SERVER_HAS_RANGED_WEAPON: Site = Site::new(0x54_B680);
 pub const C_UNIT_SERVER_HAS_RANGED_WEAPON__1D: Site = Site::new(0x54_B69D);

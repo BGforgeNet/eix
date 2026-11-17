@@ -102,6 +102,10 @@ pauses. addon.log names what paused the game.
   enemies in view, or the aggressor, in, and play resumed mid-fade carries on from there. If none is shown within
   about four seconds of play, it pauses anyway; a loading zone uses none of that time.
   addon.log's pause line gives the enemy's state on screen and whether that wait ran out.
+- `EnemyAggro` does not pause when the party struck first: a party member attacks the enemy, or casts an attack spell
+  at it, or did so within about two seconds of play (a spell still in flight). The encounter still counts as
+  started, so enemies joining that fight do not pause the game either. addon.log names the enemy, and why it did not
+  pause.
 
 ### Encumbrance
 

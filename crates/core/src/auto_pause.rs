@@ -194,7 +194,26 @@ impl ReadyOnset {
         client_ticks: i32,
         ready: impl FnOnce() -> bool,
     ) -> Option<Told> {
+        match self.check_provoked(any, client_ticks, || false, ready) {
+            Some(Start::Told(told)) => Some(told),
+            Some(Start::Provoked) | None => None,
+        }
+    }
+
+    /// As [`check`](Self::check), but a start for which `provoked` holds (asked once, as the encounter starts) is
+    /// [`Start::Provoked`] at once: the encounter counts as started, and nothing waits or is told for it.
+    pub fn check_provoked(
+        &mut self,
+        any: bool,
+        client_ticks: i32,
+        provoked: impl FnOnce() -> bool,
+        ready: impl FnOnce() -> bool,
+    ) -> Option<Start> {
         if self.onset.check(any) {
+            if provoked() {
+                self.waited = None;
+                return Some(Start::Provoked);
+            }
             self.waited = Some(Wait {
                 ticks: 0,
                 last: client_ticks,
@@ -210,17 +229,68 @@ impl ReadyOnset {
             .saturating_add(u32::try_from(client_ticks.saturating_sub(wait.last)).unwrap_or(0));
         if ready() {
             self.waited = None;
-            return Some(Told::Ready);
+            return Some(Start::Told(Told::Ready));
         }
         if ticks >= MAX_WAIT {
             self.waited = None;
-            return Some(Told::Capped);
+            return Some(Start::Told(Told::Capped));
         }
         self.waited = Some(Wait {
             ticks,
             last: client_ticks,
         });
         None
+    }
+}
+
+/// How the start of an encounter that the party may have provoked comes out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Start {
+    /// Told, as [`ReadyOnset::check`] tells it.
+    Told(Told),
+    /// The party struck first: the encounter started, untold.
+    Provoked,
+}
+
+/// The server ticks a party unit's fight with a unit still counts once the fight's action is over (about two
+/// seconds): a spell flies on after its cast, and the unit hit turns on its attacker at its own AI's next update.
+pub const ENGAGED_TICKS: u32 = 30;
+
+/// The units the party fights, or fought within the last [`ENGAGED_TICKS`] server ticks.
+#[derive(Debug, Default)]
+pub struct Engaged {
+    /// The server ticks counted.
+    now: u32,
+    /// Each unit fought, by id, and the tick its fight was last seen.
+    seen: Vec<(i32, u32)>,
+}
+
+impl Engaged {
+    /// No fight yet.
+    pub const fn new() -> Self {
+        Self {
+            now: 0,
+            seen: Vec::new(),
+        }
+    }
+
+    /// Takes the ids of the units the party fights at this server tick.
+    pub fn tick(&mut self, fought: impl IntoIterator<Item = i32>) {
+        self.now = self.now.wrapping_add(1);
+        let now = self.now;
+        self.seen
+            .retain(|&(_, at)| now.wrapping_sub(at) <= ENGAGED_TICKS);
+        for id in fought {
+            match self.seen.iter_mut().find(|(seen, _)| *seen == id) {
+                Some(entry) => entry.1 = now,
+                None => self.seen.push((id, now)),
+            }
+        }
+    }
+
+    /// Whether the party fights unit `id`, or fought it within the last [`ENGAGED_TICKS`] server ticks.
+    pub fn contains(&self, id: i32) -> bool {
+        self.seen.iter().any(|&(seen, _)| seen == id)
     }
 }
 
@@ -433,6 +503,54 @@ mod tests {
         let mut onset = ReadyOnset::new();
         assert_eq!(onset.check(true, 0, || false), None);
         assert_eq!(onset.check(true, 100, || true), Some(Told::Ready));
+    }
+
+    #[test]
+    fn a_provoked_encounter_starts_untold_and_stays_started() {
+        let mut onset = ReadyOnset::new();
+        assert_eq!(
+            onset.check_provoked(true, 0, || true, || unreachable!()),
+            Some(Start::Provoked)
+        );
+        // Others joining the encounter are no new start, provoked or not.
+        assert_eq!(
+            onset.check_provoked(true, 1, || unreachable!(), || unreachable!()),
+            None
+        );
+        assert_eq!(
+            onset.check_provoked(false, 2, || unreachable!(), || unreachable!()),
+            None
+        );
+        // The next encounter that the party did not provoke is told.
+        assert_eq!(onset.check_provoked(true, 3, || false, || false), None);
+        assert_eq!(
+            onset.check_provoked(true, 4, || unreachable!(), || true),
+            Some(Start::Told(Told::Ready))
+        );
+    }
+
+    #[test]
+    fn a_fight_counts_while_it_lasts_and_a_while_after() {
+        let mut engaged = Engaged::new();
+        engaged.tick([7]);
+        assert!(engaged.contains(7));
+        assert!(!engaged.contains(8));
+        for _ in 0..ENGAGED_TICKS {
+            engaged.tick([]);
+        }
+        assert!(engaged.contains(7));
+        engaged.tick([]);
+        assert!(!engaged.contains(7));
+        // A fight seen again starts its time afresh.
+        engaged.tick([8]);
+        for _ in 0..ENGAGED_TICKS - 1 {
+            engaged.tick([]);
+        }
+        engaged.tick([8]);
+        for _ in 0..ENGAGED_TICKS {
+            engaged.tick([]);
+        }
+        assert!(engaged.contains(8));
     }
 
     #[test]
