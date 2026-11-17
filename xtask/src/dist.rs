@@ -149,15 +149,40 @@ fn read(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// Copies `from` to `to` without its execute bits: nothing in the package runs on the system that unpacks it, and the
+/// linker marks the DLLs executable.
 fn copy(from: &Path, to: &Path) -> Result<(), String> {
-    std::fs::copy(from, to)
-        .map(|_| ())
-        .map_err(|e| format!("{} -> {}: {e}", from.display(), to.display()))
+    let fail = |e: std::io::Error| format!("{} -> {}: {e}", from.display(), to.display());
+    std::fs::copy(from, to).map_err(fail)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(to).map_err(fail)?.permissions();
+        permissions.set_mode(permissions.mode() & !0o111);
+        std::fs::set_permissions(to, permissions).map_err(fail)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::release_notes;
+
+    #[cfg(unix)]
+    #[test]
+    fn a_copy_drops_the_execute_bits() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("eix-dist-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (from, to) = (dir.join("from.dll"), dir.join("to.dll"));
+        std::fs::write(&from, b"MZ").unwrap();
+        std::fs::set_permissions(&from, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let copied = super::copy(&from, &to);
+        let mode = std::fs::metadata(&to).map(|m| m.permissions().mode() & 0o777);
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(copied, Ok(()));
+        assert_eq!(mode.unwrap(), 0o644);
+    }
 
     const LOG: &str = "# Changelog\n\n## 0.2.0\n\n- New.\n\n## 0.1.0\n\nFirst release.\n\n- Old.\n";
 
