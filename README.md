@@ -35,8 +35,9 @@ For a ready-made gameplay and quality-of-life mod, see [EItweaks](https://github
 1. Install EIStarter-UM from [Universal Mod](https://github.com/Kyr4l/ei-universal-mod/releases). Just the starter,
    not the mod.
 2. Download eix's zip from [releases](https://github.com/BGforgeNet/eix/releases).
-3. Replace the starter's `dinput.dll` (beside `game.exe`) and `addon.dll` (in the starter's folder) with eix's. Keep
-   the starter's two files to switch back.
+3. Replace the starter's `dinput.dll` (in its `Engine` folder, beside its `game.exe`) and `addon.dll` (in the
+   starter's folder) with eix's. A mod that ships its own `addon.dll`, in its folder, loads that one instead: replace
+   it there too. Keep the replaced files to switch back.
 4. Put `spelladdon.ini` in the game folder. A mod's own `spelladdon.ini`, in its folder, takes precedence.
 5. Put `eix.ini` in the mod's folder (`Mods\<mod>`): eix's [own settings](docs/eix-ini.md), such as pausing on a
    party member's low health.
