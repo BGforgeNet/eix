@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- [AutoPause](docs/engine.md#autopause): `EnemySighted` pauses once the enemy is drawn; it paused before the game had
+  faded the enemy in, so the paused screen showed it only on the map.
+
 ## 0.2.1
 
 ### Fixed
