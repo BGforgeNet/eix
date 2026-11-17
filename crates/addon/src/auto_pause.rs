@@ -9,6 +9,7 @@
 //! - Health: the server-side vitals of every unit of each player.
 //! - In view: the units each party unit's AI sees (the list the script `PlayerSee` reads), less those with a player,
 //!   the dead and those not hostile to the player's side (its number, as the game's own danger test takes it).
+//!   `EnemySighted` waits until one of them is drawn: the client fades a unit in over its own ticks (`drawn`).
 //! - Aggression: each living hostile unit of the server world whose AI aggression is aimed at a party unit, as
 //!   `CPlayerServer::SendPartyState` finds it for the danger state (0x66E666).
 //! - Deaths: `CUnitServer::OnDamaged` is the one caller of `CUnitServer::SetDead` 0x546720 (0x553BB0); its call is
@@ -22,14 +23,14 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_core::auto_pause::{
-    AGGRO_KEY, DEAD_KEY, HEALTH_KEY, Limits, Onset, PERCENT_KEY, SIGHTED_KEY, Triggers, Watch,
-    death_in_view, is_enemy,
+    AGGRO_KEY, DEAD_KEY, HEALTH_KEY, Limits, Onset, PERCENT_KEY, ReadyOnset, SIGHTED_KEY, Triggers,
+    Watch, death_in_view, is_enemy,
 };
 use eix_engine::game::net::{is_multiplayer_client, live_server};
 use eix_engine::game::object::{CLASS_UNIT, EngineObject};
 use eix_engine::game::player::{Player, PlayerIterator, UnitMapNode};
 use eix_engine::game::stl::HashTable;
-use eix_engine::game::unit::{AiBrain, FLAG_REMOVED, Unit, UnitServer, server_vitals};
+use eix_engine::game::unit::{AiBrain, FLAG_REMOVED, Unit, UnitClient, UnitServer, server_vitals};
 use eix_engine::game::world::{CLIENT_WORLD, ObjectMap, SERVER_OBJECTS, SERVER_WORLD, World};
 use eix_engine::hook;
 use eix_sites::Site;
@@ -60,8 +61,8 @@ struct State {
     triggers: Triggers,
     /// The party's health.
     watch: Watch,
-    /// Enemies in view.
-    sighted: Onset,
+    /// Enemies in view, told once one is drawn.
+    sighted: ReadyOnset,
     /// Enemies aggressive to the party.
     aggro: Onset,
     /// The enemies in view at the last check.
@@ -79,7 +80,7 @@ static STATE: Mutex<State> = Mutex::new(State {
         enemy_dead: false,
     },
     watch: Watch::new(),
-    sighted: Onset::new(),
+    sighted: ReadyOnset::new(),
     aggro: Onset::new(),
     in_view: Vec::new(),
 });
@@ -205,6 +206,23 @@ unsafe fn in_view(player: *mut Player, ids: &mut Vec<i32>) {
     }
 }
 
+/// Whether the client's unit `id` is drawn in full: it is in the client's world and its fade-in has ended. The server's
+/// AI sees a unit before the client has it, and the client fades a new unit in over its own ticks, which a pause stops.
+///
+/// # Safety
+/// On the game's thread, with the client's world constructed and a zone loaded.
+unsafe fn drawn(id: i32) -> bool {
+    // SAFETY: the caller guarantees the client's world with a zone.
+    let unit = unsafe { World::find_unit(CLIENT_WORLD.as_ptr(), id) };
+    if unit.is_null() {
+        return false;
+    }
+    // SAFETY: a live unit; on the client its controller is a `CUnitClientSpecific` or null.
+    let client = unsafe { (*unit).controller }.cast::<UnitClient>();
+    // SAFETY: the controller's live fade, read only.
+    client.is_null() || unsafe { (*client).fade } >= 1.0
+}
+
 /// The first living enemy of a player whose AI aggression is aimed at one of that player's units.
 ///
 /// # Safety
@@ -310,7 +328,12 @@ unsafe fn check() {
             unsafe { in_view(player, &mut ids) };
         }
         if triggers.enemy_sighted
-            && state.sighted.check(!ids.is_empty())
+            && state.sighted.check(!ids.is_empty(), || {
+                ids.iter().any(|&id| {
+                    // SAFETY: on the game's thread after a server tick, the client's world constructed.
+                    unsafe { drawn(id) }
+                })
+            })
             && let Some(id) = ids.first()
         {
             reasons.push(format!("enemy {id} in view"));

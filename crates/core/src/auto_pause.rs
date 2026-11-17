@@ -146,6 +146,49 @@ impl Onset {
     }
 }
 
+/// The checks an encounter's start waits at most for its readiness test (about four seconds of server ticks); the
+/// start then counts anyway, so a test that never passes cannot lose the pause.
+pub const MAX_WAIT: u32 = 60;
+
+/// An [`Onset`] that tells only once a readiness test passes, as long as the encounter lasts.
+#[derive(Debug, Default)]
+pub struct ReadyOnset {
+    onset: Onset,
+    /// Checks made since the start while it waits, or `None` when nothing waits.
+    waited: Option<u32>,
+}
+
+impl ReadyOnset {
+    /// No enemy yet.
+    pub const fn new() -> Self {
+        Self {
+            onset: Onset::new(),
+            waited: None,
+        }
+    }
+
+    /// Takes whether the set holds an enemy now and tells whether the start of its encounter is ready: `ready` runs
+    /// only while a start waits, and the wait ends when it passes, after [`MAX_WAIT`] checks or when no enemy is left.
+    pub fn check(&mut self, any: bool, ready: impl FnOnce() -> bool) -> bool {
+        if self.onset.check(any) {
+            self.waited = Some(0);
+        }
+        let Some(waited) = self.waited else {
+            return false;
+        };
+        if !any {
+            self.waited = None;
+            return false;
+        }
+        if waited >= MAX_WAIT || ready() {
+            self.waited = None;
+            return true;
+        }
+        self.waited = Some(waited + 1);
+        false
+    }
+}
+
 /// The first of the units that died, `deaths`, that was among the enemies in view, `in_view`.
 pub fn death_in_view(deaths: &[i32], in_view: &[i32]) -> Option<i32> {
     deaths.iter().copied().find(|id| in_view.contains(id))
@@ -285,6 +328,41 @@ mod tests {
         assert!(!onset.check(true));
         assert!(!onset.check(false));
         assert!(onset.check(true));
+    }
+
+    #[test]
+    fn a_ready_encounter_starts_once_its_test_passes() {
+        let mut onset = ReadyOnset::new();
+        assert!(!onset.check(false, || unreachable!()));
+        assert!(!onset.check(true, || false));
+        assert!(!onset.check(true, || false));
+        assert!(onset.check(true, || true));
+        // Once told, the encounter stays told, and the test no longer runs.
+        assert!(!onset.check(true, || unreachable!()));
+        assert!(!onset.check(false, || unreachable!()));
+        // The next encounter waits again.
+        assert!(!onset.check(true, || false));
+        assert!(onset.check(true, || true));
+    }
+
+    #[test]
+    fn a_ready_encounter_that_ends_while_waiting_is_never_told() {
+        let mut onset = ReadyOnset::new();
+        assert!(!onset.check(true, || false));
+        assert!(!onset.check(false, || unreachable!()));
+        assert!(!onset.check(false, || unreachable!()));
+        assert!(!onset.check(true, || false));
+        assert!(onset.check(true, || true));
+    }
+
+    #[test]
+    fn a_ready_encounter_whose_test_never_passes_starts_after_the_limit() {
+        let mut onset = ReadyOnset::new();
+        for _ in 0..MAX_WAIT {
+            assert!(!onset.check(true, || false));
+        }
+        assert!(onset.check(true, || false));
+        assert!(!onset.check(true, || false));
     }
 
     #[test]

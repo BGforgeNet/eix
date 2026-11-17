@@ -732,6 +732,28 @@ const _: () = {
     assert!(offset_of!(UnitController, unit) == 0x1C);
 };
 
+/// `CUnitClientSpecific`: a unit's client controller, as far as the fade-in reaches.
+#[repr(C)]
+#[derive(Debug)]
+pub struct UnitClient {
+    /// The engine object.
+    pub base: EngineObject,
+    /// The unit.
+    pub unit: *mut Unit,
+    _unknown20: [u8; 0x78 - 0x20],
+    /// The fade-in alpha, 0 to 1: the unit's figure parts take it as their alpha, and `UpdateClient` 0x5341A0 adds
+    /// 1/15 on each client tick until it reaches 1. Creation sets 1; `CWorldClient::AddObject` 0x5647E0 restarts
+    /// it from 0 (`RestartFadeIn` 0x5344A0) for a unit with no player added to a running world.
+    pub fade: f32,
+}
+
+const _: () = {
+    assert!(offset_of!(UnitClient, base) == 0x0);
+    assert!(offset_of!(UnitClient, unit) == 0x1C);
+    assert!(offset_of!(UnitClient, _unknown20) == 0x20);
+    assert!(offset_of!(UnitClient, fade) == 0x78);
+};
+
 /// `CUnitServer`: a unit's server controller. Allocated as 0xB20 bytes (0x4D6A4A).
 #[repr(C)]
 #[derive(Debug)]
