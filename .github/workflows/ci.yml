@@ -40,6 +40,18 @@ jobs:
         run: cargo xtask container
         env:
           EIX_IMAGE_KEY: ${{ steps.key.outputs.key }}
+      # The release package of this commit, for testing before a release.
+      - name: Package
+        run: cargo xtask container dist
+        env:
+          EIX_IMAGE_KEY: ${{ steps.key.outputs.key }}
+      # Uploaded as it is, not zipped again: the artifact is the release zip itself.
+      - name: Upload the package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          path: target/container/dist/eix-*.zip
+          archive: false
+          if-no-files-found: error
       # Only pushes to main write the cache: a pull request's run reads it and never stores an image of its own.
       - name: Archive the build image
         if: github.event_name == 'push' && steps.image.outputs.cache-hit != 'true'
