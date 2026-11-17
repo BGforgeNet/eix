@@ -38,7 +38,12 @@ pub struct Player {
     _unknowna8: [u8; 0xC4 - 0xA8],
     /// The player's script variables: `NamedFloatTable::Set` 0x460BC0 is called on +0xC4.
     pub variables: NamedFloatTable,
-    _unknownd8: [u8; 0x108 - 0xD8],
+    _unknownd8: [u8; 0x100 - 0xD8],
+    /// 1 when the client draws only the units the player's party sees ([`FLAG_SEEN`](super::unit::FLAG_SEEN)):
+    /// `CWorldClient::CollectVisible` 0x56A9CB reads it on the client world's local player, and
+    /// `CWorldClient::AddObject` 0x564944 fades a new unit in only then.
+    pub view_mode: i32,
+    _unknown104: [u8; 0x108 - 0x104],
     /// Non-zero while the player is invulnerable (god mode): `CUnitServer::TakeHit` 0x554146 ignores the hit.
     pub god_mode: u8,
 }
@@ -55,6 +60,8 @@ const _: () = {
     assert!(offset_of!(Player, _unknowna8) == 0xA8);
     assert!(offset_of!(Player, variables) == 0xC4);
     assert!(offset_of!(Player, _unknownd8) == 0xD8);
+    assert!(offset_of!(Player, view_mode) == 0x100);
+    assert!(offset_of!(Player, _unknown104) == 0x104);
     assert!(offset_of!(Player, god_mode) == 0x108);
 };
 

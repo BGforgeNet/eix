@@ -94,10 +94,12 @@ pauses. addon.log names what paused the game.
 - An enemy is a living unit without a player that is hostile to the party's side. The party's view is what its
   members see, as the script `PlayerSee` gives it.
 - `EnemySighted` and `EnemyAggro` pause once per encounter: the next pause comes after no enemy is left in view, or
-  aggressive, and one appears again. Enemies already in view, or aggressive, when a game loads pause it at once.
-- `EnemySighted` waits until an enemy's model is drawn, and `EnemyAggro` until the aggressor's: the game fades a new
-  unit in over about a second of play, and a pause stops that. If none is drawn within about four seconds, it pauses
-  anyway.
+  aggressive, and one appears again. Enemies already in view, or aggressive, when a game loads pause it as soon as
+  one is drawn.
+- `EnemySighted` waits until an enemy's model is drawn, and `EnemyAggro` until the aggressor's: the game draws a unit
+  only once the party's view reaches it, and then fades it in over about a second of play; a pause stops
+  both. If none is drawn within about four seconds of play, it pauses anyway; a loading zone uses none of that time.
+  addon.log's pause line gives the enemy's state on screen and whether that wait ran out.
 
 ### Encumbrance
 

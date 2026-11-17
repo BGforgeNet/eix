@@ -9,7 +9,8 @@
 //! - Health: the server-side vitals of every unit of each player.
 //! - In view: the units each party unit's AI sees (the list the script `PlayerSee` reads), less those with a player,
 //!   the dead and those not hostile to the player's side (its number, as the game's own danger test takes it).
-//!   `EnemySighted` waits until one of them is drawn: the client fades a unit in over its own ticks (`drawn`).
+//!   `EnemySighted` waits until one of them is drawn (`sight`): the client draws a unit only once its party state
+//!   marks it seen, and fades it in over its own ticks from then.
 //! - Aggression: each living hostile unit of the server world whose AI aggression is aimed at a party unit, as
 //!   `CPlayerServer::SendPartyState` finds it for the danger state (0x66E666). `EnemyAggro` also waits until the
 //!   aggressor is drawn: the server's AI turns on the party before the client has the unit at all.
@@ -24,15 +25,20 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_core::auto_pause::{
-    AGGRO_KEY, DEAD_KEY, HEALTH_KEY, Limits, PERCENT_KEY, ReadyOnset, SIGHTED_KEY, Triggers, Watch,
-    death_in_view, is_enemy,
+    AGGRO_KEY, DEAD_KEY, HEALTH_KEY, Limits, MAX_WAIT, PERCENT_KEY, ReadyOnset, SIGHTED_KEY, Told,
+    Triggers, Watch, death_in_view, is_enemy,
 };
+use eix_engine::game::flow::DRAW_ALL;
 use eix_engine::game::net::{is_multiplayer_client, live_server};
 use eix_engine::game::object::{CLASS_UNIT, EngineObject};
 use eix_engine::game::player::{Player, PlayerIterator, UnitMapNode};
 use eix_engine::game::stl::HashTable;
-use eix_engine::game::unit::{AiBrain, FLAG_REMOVED, Unit, UnitClient, UnitServer, server_vitals};
-use eix_engine::game::world::{CLIENT_WORLD, ObjectMap, SERVER_OBJECTS, SERVER_WORLD, World};
+use eix_engine::game::unit::{
+    AiBrain, FLAG_REMOVED, FLAG_SEEN, Unit, UnitClient, UnitServer, server_vitals,
+};
+use eix_engine::game::world::{
+    CLIENT_WORLD, ClientWorld, ObjectMap, SERVER_OBJECTS, SERVER_WORLD, World,
+};
 use eix_engine::hook;
 use eix_sites::Site;
 
@@ -207,21 +213,100 @@ unsafe fn in_view(player: *mut Player, ids: &mut Vec<i32>) {
     }
 }
 
-/// Whether the client's unit `id` is drawn in full: it is in the client's world and its fade-in has ended. The server's
-/// AI sees a unit before the client has it, and the client fades a new unit in over its own ticks, which a pause stops.
+/// How the client shows a unit, as `CWorldClient::CollectVisible` 0x56A990 decides it and the fade-in goes.
+#[derive(Debug, Clone, Copy)]
+enum Sight {
+    /// The unit is not in the client's world yet: the server's AI sees a unit before the client has it.
+    Absent,
+    /// The unit is in the client's world.
+    Present {
+        /// Whether the client draws it: every unit, or (in the party's view mode) one the party state marks seen.
+        shown: bool,
+        /// Its fade-in alpha, which advances on client ticks only, so a pause stops it.
+        fade: f32,
+    },
+}
+
+impl Sight {
+    /// Whether the unit is drawn in full: shown, its fade-in ended.
+    fn drawn(self) -> bool {
+        matches!(self, Self::Present { shown: true, fade } if fade >= 1.0)
+    }
+}
+
+impl std::fmt::Display for Sight {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            Self::Absent => f.write_str("not in the client world"),
+            Self::Present { shown, fade } => {
+                write!(
+                    f,
+                    "fade {fade:.2}, {}",
+                    if shown { "shown" } else { "hidden" }
+                )
+            }
+        }
+    }
+}
+
+/// The client's world.
+fn client_world() -> *mut ClientWorld {
+    CLIENT_WORLD.as_ptr().cast()
+}
+
+/// The client's ticks since its zone loaded.
+///
+/// # Safety
+/// On the game's thread, with the client's world constructed.
+unsafe fn client_ticks() -> i32 {
+    // SAFETY: the caller guarantees the constructed client world; its tick count, read only.
+    unsafe { (*client_world()).ticks }
+}
+
+/// How the client shows its unit `id`. A unit loaded with the zone is in the client's world, faded in, from the
+/// start; in the party's view mode it is drawn only once a party state lists it seen, which restarts its fade-in.
 ///
 /// # Safety
 /// On the game's thread, with the client's world constructed and a zone loaded.
-unsafe fn drawn(id: i32) -> bool {
+unsafe fn sight(id: i32) -> Sight {
+    let world = client_world();
     // SAFETY: the caller guarantees the client's world with a zone.
-    let unit = unsafe { World::find_unit(CLIENT_WORLD.as_ptr(), id) };
+    let unit = unsafe { World::find_unit(world.cast(), id) };
     if unit.is_null() {
-        return false;
+        return Sight::Absent;
     }
+    // SAFETY: the client world's live local player, or null before a session.
+    let local = unsafe { (*world).local };
+    // SAFETY: the flag and the local player's view mode, read only, as `CollectVisible` reads them.
+    let all =
+        unsafe { DRAW_ALL.read() } == 0 || local.is_null() || unsafe { (*local).view_mode } != 1;
+    // SAFETY: a live unit.
+    let seen = unsafe { (*unit).map_object.transform.base.flags } & FLAG_SEEN != 0;
     // SAFETY: a live unit; on the client its controller is a `CUnitClientSpecific` or null.
     let client = unsafe { (*unit).controller }.cast::<UnitClient>();
-    // SAFETY: the controller's live fade, read only.
-    client.is_null() || unsafe { (*client).fade } >= 1.0
+    let fade = if client.is_null() {
+        1.0
+    } else {
+        // SAFETY: the controller's live fade, read only.
+        unsafe { (*client).fade }
+    };
+    Sight::Present {
+        shown: all || seen,
+        fade,
+    }
+}
+
+/// The pause line's account of a told start: the enemy's sight, and whether the wait ran out.
+///
+/// # Safety
+/// As for [`sight`].
+unsafe fn account(id: i32, told: Told) -> String {
+    // SAFETY: the caller's guarantee.
+    let s = unsafe { sight(id) };
+    match told {
+        Told::Ready => format!("{s}"),
+        Told::Capped => format!("{s}; not drawn after {MAX_WAIT} client ticks"),
+    }
 }
 
 /// The first living enemy of a player whose AI aggression is aimed at one of that player's units.
@@ -299,6 +384,8 @@ unsafe fn check() {
     let triggers = state.triggers;
     // SAFETY: on the game's thread.
     let players = unsafe { players() };
+    // SAFETY: on the game's thread, the client's world constructed.
+    let ticks = unsafe { client_ticks() };
     let mut reasons = Vec::new();
     if triggers.limits.any() {
         let mut party = Vec::new();
@@ -328,16 +415,22 @@ unsafe fn check() {
             // SAFETY: a live player of the server's world.
             unsafe { in_view(player, &mut ids) };
         }
-        if triggers.enemy_sighted
-            && state.sighted.check(!ids.is_empty(), || {
-                ids.iter().any(|&id| {
+        if triggers.enemy_sighted {
+            let mut drawn = None;
+            let told = state.sighted.check(!ids.is_empty(), ticks, || {
+                drawn = ids.iter().copied().find(|&id| {
                     // SAFETY: on the game's thread after a server tick, the client's world constructed.
-                    unsafe { drawn(id) }
-                })
-            })
-            && let Some(id) = ids.first()
-        {
-            reasons.push(format!("enemy {id} in view"));
+                    unsafe { sight(id) }.drawn()
+                });
+                drawn.is_some()
+            });
+            if let Some(told) = told
+                && let Some(id) = drawn.or_else(|| ids.first().copied())
+            {
+                // SAFETY: as above.
+                let account = unsafe { account(id, told) };
+                reasons.push(format!("enemy {id} in view ({account})"));
+            }
         }
         if triggers.enemy_dead
             && let Some(id) = death_in_view(&deaths, &state.in_view)
@@ -349,12 +442,16 @@ unsafe fn check() {
     if triggers.enemy_aggro {
         // SAFETY: on the game's thread after the tick, the server world's live players.
         let found = unsafe { aggressor(&players) };
-        if state.aggro.check(found.is_some(), || {
+        let told = state.aggro.check(found.is_some(), ticks, || {
             // SAFETY: on the game's thread after a server tick, the client's world constructed.
-            found.is_some_and(|id| unsafe { drawn(id) })
-        }) && let Some(id) = found
+            found.is_some_and(|id| unsafe { sight(id) }.drawn())
+        });
+        if let Some(told) = told
+            && let Some(id) = found
         {
-            reasons.push(format!("enemy {id} turned on the party"));
+            // SAFETY: as above.
+            let account = unsafe { account(id, told) };
+            reasons.push(format!("enemy {id} turned on the party ({account})"));
         }
     }
     drop(state);

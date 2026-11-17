@@ -146,16 +146,33 @@ impl Onset {
     }
 }
 
-/// The checks an encounter's start waits at most for its readiness test (about four seconds of server ticks); the
-/// start then counts anyway, so a test that never passes cannot lose the pause.
+/// The client ticks an encounter's start waits at most for its readiness test (about four seconds); the start then
+/// counts anyway, so a test that never passes cannot lose the pause. Client ticks, not checks: the server can tick
+/// while the client does not draw (a zone loading), and the test reads what the client draws.
 pub const MAX_WAIT: u32 = 60;
+
+/// How a waiting start of an encounter came to be told.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Told {
+    /// The readiness test passed.
+    Ready,
+    /// The test had not passed after [`MAX_WAIT`] client ticks.
+    Capped,
+}
+
+/// A start that waits: the client ticks counted so far, and the client's tick count at the last check.
+#[derive(Debug, Clone, Copy)]
+struct Wait {
+    ticks: u32,
+    last: i32,
+}
 
 /// An [`Onset`] that tells only once a readiness test passes, as long as the encounter lasts.
 #[derive(Debug, Default)]
 pub struct ReadyOnset {
     onset: Onset,
-    /// Checks made since the start while it waits, or `None` when nothing waits.
-    waited: Option<u32>,
+    /// The wait of a start not told yet, or `None` when nothing waits.
+    waited: Option<Wait>,
 }
 
 impl ReadyOnset {
@@ -167,25 +184,43 @@ impl ReadyOnset {
         }
     }
 
-    /// Takes whether the set holds an enemy now and tells whether the start of its encounter is ready: `ready` runs
-    /// only while a start waits, and the wait ends when it passes, after [`MAX_WAIT`] checks or when no enemy is left.
-    pub fn check(&mut self, any: bool, ready: impl FnOnce() -> bool) -> bool {
+    /// Takes whether the set holds an enemy now and the client's tick count `client_ticks`, and tells whether and how
+    /// the start of its encounter is told: `ready` runs only while a start waits, and the wait ends when it passes,
+    /// after [`MAX_WAIT`] client ticks or when no enemy is left. A tick count that falls (a zone loaded anew) adds
+    /// nothing.
+    pub fn check(
+        &mut self,
+        any: bool,
+        client_ticks: i32,
+        ready: impl FnOnce() -> bool,
+    ) -> Option<Told> {
         if self.onset.check(any) {
-            self.waited = Some(0);
+            self.waited = Some(Wait {
+                ticks: 0,
+                last: client_ticks,
+            });
         }
-        let Some(waited) = self.waited else {
-            return false;
-        };
+        let wait = self.waited?;
         if !any {
             self.waited = None;
-            return false;
+            return None;
         }
-        if waited >= MAX_WAIT || ready() {
+        let ticks = wait
+            .ticks
+            .saturating_add(u32::try_from(client_ticks.saturating_sub(wait.last)).unwrap_or(0));
+        if ready() {
             self.waited = None;
-            return true;
+            return Some(Told::Ready);
         }
-        self.waited = Some(waited + 1);
-        false
+        if ticks >= MAX_WAIT {
+            self.waited = None;
+            return Some(Told::Capped);
+        }
+        self.waited = Some(Wait {
+            ticks,
+            last: client_ticks,
+        });
+        None
     }
 }
 
@@ -333,36 +368,57 @@ mod tests {
     #[test]
     fn a_ready_encounter_starts_once_its_test_passes() {
         let mut onset = ReadyOnset::new();
-        assert!(!onset.check(false, || unreachable!()));
-        assert!(!onset.check(true, || false));
-        assert!(!onset.check(true, || false));
-        assert!(onset.check(true, || true));
+        assert_eq!(onset.check(false, 0, || unreachable!()), None);
+        assert_eq!(onset.check(true, 1, || false), None);
+        assert_eq!(onset.check(true, 2, || false), None);
+        assert_eq!(onset.check(true, 3, || true), Some(Told::Ready));
         // Once told, the encounter stays told, and the test no longer runs.
-        assert!(!onset.check(true, || unreachable!()));
-        assert!(!onset.check(false, || unreachable!()));
+        assert_eq!(onset.check(true, 4, || unreachable!()), None);
+        assert_eq!(onset.check(false, 5, || unreachable!()), None);
         // The next encounter waits again.
-        assert!(!onset.check(true, || false));
-        assert!(onset.check(true, || true));
+        assert_eq!(onset.check(true, 6, || false), None);
+        assert_eq!(onset.check(true, 7, || true), Some(Told::Ready));
     }
 
     #[test]
     fn a_ready_encounter_that_ends_while_waiting_is_never_told() {
         let mut onset = ReadyOnset::new();
-        assert!(!onset.check(true, || false));
-        assert!(!onset.check(false, || unreachable!()));
-        assert!(!onset.check(false, || unreachable!()));
-        assert!(!onset.check(true, || false));
-        assert!(onset.check(true, || true));
+        assert_eq!(onset.check(true, 0, || false), None);
+        assert_eq!(onset.check(false, 1, || unreachable!()), None);
+        assert_eq!(onset.check(false, 2, || unreachable!()), None);
+        assert_eq!(onset.check(true, 3, || false), None);
+        assert_eq!(onset.check(true, 4, || true), Some(Told::Ready));
     }
 
     #[test]
     fn a_ready_encounter_whose_test_never_passes_starts_after_the_limit() {
         let mut onset = ReadyOnset::new();
-        for _ in 0..MAX_WAIT {
-            assert!(!onset.check(true, || false));
+        let limit = i32::try_from(MAX_WAIT).unwrap_or(i32::MAX);
+        for tick in 0..limit {
+            assert_eq!(onset.check(true, tick, || false), None);
         }
-        assert!(onset.check(true, || false));
-        assert!(!onset.check(true, || false));
+        assert_eq!(onset.check(true, limit, || false), Some(Told::Capped));
+        assert_eq!(onset.check(true, limit + 1, || false), None);
+    }
+
+    #[test]
+    fn the_limit_counts_client_ticks_not_checks() {
+        let mut onset = ReadyOnset::new();
+        // Checks while the client does not tick (a zone loading) use none of the wait.
+        for _ in 0..MAX_WAIT * 2 {
+            assert_eq!(onset.check(true, 10, || false), None);
+        }
+        // A tick count that starts again (the zone loaded anew) adds nothing for the fall.
+        assert_eq!(onset.check(true, 0, || false), None);
+        assert_eq!(onset.check(true, 59, || false), None);
+        assert_eq!(onset.check(true, 60, || false), Some(Told::Capped));
+    }
+
+    #[test]
+    fn a_passing_test_is_told_as_ready_even_at_the_limit() {
+        let mut onset = ReadyOnset::new();
+        assert_eq!(onset.check(true, 0, || false), None);
+        assert_eq!(onset.check(true, 100, || true), Some(Told::Ready));
     }
 
     #[test]

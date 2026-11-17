@@ -50,6 +50,30 @@ pub const SERVER_WORLD: Global<World> = Global::at(eix_sites::DATA_7AFF60);
 /// `CWorldClient::Construct` 0x5612F0).
 pub const CLIENT_WORLD: Global<World> = Global::at(eix_sites::DATA_7AF5B8);
 
+/// `CWorldClient` past its [`World`] head, as far as the drawing of units reaches; [`CLIENT_WORLD`] is one.
+#[repr(C)]
+#[derive(Debug)]
+pub struct ClientWorld {
+    /// The world.
+    pub base: World,
+    _unknown70: [u8; 0x20C - 0x70],
+    /// The local player, made by `CPlayerManager::CreateSessionPlayer` 0x66C180 (stored at 0x562253);
+    /// `CollectVisible` 0x56A9C1 reads its [`Player::view_mode`].
+    pub local: *mut Player,
+    _unknown210: [u8; 0x6EC - 0x210],
+    /// The client ticks since the zone loaded: the client's tick 0x5641F0 counts it up first thing (0x564228),
+    /// `LoadZone` sets 0 (0x5681C0).
+    pub ticks: i32,
+}
+
+const _: () = {
+    assert!(offset_of!(ClientWorld, base) == 0x0);
+    assert!(offset_of!(ClientWorld, _unknown70) == 0x70);
+    assert!(offset_of!(ClientWorld, local) == 0x20C);
+    assert!(offset_of!(ClientWorld, _unknown210) == 0x210);
+    assert!(offset_of!(ClientWorld, ticks) == 0x6EC);
+};
+
 /// The head of the world's player manager, up to its player count.
 #[repr(C)]
 #[derive(Debug)]

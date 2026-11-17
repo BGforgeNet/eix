@@ -93,6 +93,12 @@ const _: () = {
 /// collects the ids of the objects that have it (0x58D7BC).
 pub const FLAG_REMOVED: u32 = 0x1;
 
+/// The bit of [`EngineObject::flags`] on a client unit that the local party sees: `CPlayerClient::OnPartyState`
+/// 0x668C50 clears it on the units of the last party state and sets it on those of the new one (0x668E13); with
+/// [`Player::view_mode`](super::player::Player::view_mode) 1, `CWorldClient::CollectVisible` 0x56AA64 draws a unit
+/// only while it has the bit.
+pub const FLAG_SEEN: u32 = 1 << 22;
+
 /// An active spell effect on a map object, copied as five words by `CMapObject::AddEffectImpl` 0x50F1E0
 /// (`rep movsd`, ecx 5) and saved field by field by `MapEffect::Save` 0x6885A0.
 #[repr(C)]
@@ -742,8 +748,9 @@ pub struct UnitClient {
     pub unit: *mut Unit,
     _unknown20: [u8; 0x78 - 0x20],
     /// The fade-in alpha, 0 to 1: the unit's figure parts take it as their alpha, and `UpdateClient` 0x5341A0 adds
-    /// 1/15 on each client tick until it reaches 1. Creation sets 1; `CWorldClient::AddObject` 0x5647E0 restarts
-    /// it from 0 (`RestartFadeIn` 0x5344A0) for a unit with no player added to a running world.
+    /// 1/15 on each client tick until it reaches 1. Creation sets 1; `RestartFadeIn` 0x5344A0 restarts it from 0
+    /// for a unit with no player, called by `CWorldClient::AddObject` 0x5647E0 when the unit is added to a running
+    /// world and by `CPlayerClient::OnPartyState` 0x668E5E when the party comes to see it ([`FLAG_SEEN`]).
     pub fade: f32,
 }
 
