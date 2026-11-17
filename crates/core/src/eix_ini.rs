@@ -88,19 +88,23 @@ pub struct EixIni {
 
 impl Default for EixIni {
     fn default() -> Self {
-        Self::read(|_, _, default| default).0
+        Self::read(|_, _, default| default, |_, _| String::new()).0
     }
 }
 
 impl EixIni {
-    /// The settings from `int(section, key, default)`, the system's profile reader on the file, and a warning for
-    /// each value left out.
-    pub fn read(int: impl Fn(&str, &str, i32) -> i32) -> (Self, Vec<String>) {
+    /// The settings from `int(section, key, default)` and `text(section, key)` (empty for a missing key), the
+    /// system's profile readers on the file, and a warning for each value left out. The lists of `[AutoPause]`
+    /// (`Health`, `HealthPercent`) read as text.
+    pub fn read(
+        int: impl Fn(&str, &str, i32) -> i32,
+        text: impl Fn(&str, &str) -> String,
+    ) -> (Self, Vec<String>) {
         let fixes = FixSettings::read(|key, default| int(FIXES_SECTION, key, default));
         let pause = |key| int(auto_pause::SECTION, key, 0);
-        let (limits, mut warnings) = Limits::from_values(
-            pause(auto_pause::HEALTH_KEY),
-            pause(auto_pause::PERCENT_KEY),
+        let (limits, mut warnings) = Limits::parse(
+            &text(auto_pause::SECTION, auto_pause::HEALTH_KEY),
+            &text(auto_pause::SECTION, auto_pause::PERCENT_KEY),
         );
         let auto_pause = Triggers {
             limits,
@@ -139,19 +143,36 @@ mod tests {
 
     /// eix.ini with the one value `section` / `key` = `value`.
     fn with(section: &str, key: &str, value: i32) -> EixIni {
-        EixIni::read(|s, k, default| {
-            if s.eq_ignore_ascii_case(section) && k.eq_ignore_ascii_case(key) {
-                value
-            } else {
-                default
-            }
-        })
+        EixIni::read(
+            |s, k, default| {
+                if s.eq_ignore_ascii_case(section) && k.eq_ignore_ascii_case(key) {
+                    value
+                } else {
+                    default
+                }
+            },
+            |_, _| String::new(),
+        )
         .0
+    }
+
+    /// eix.ini with the one text value `section` / `key` = `value`, and the warnings.
+    fn with_text(section: &str, key: &str, value: &str) -> (EixIni, Vec<String>) {
+        EixIni::read(
+            |_, _, default| default,
+            |s, k| {
+                if s.eq_ignore_ascii_case(section) && k.eq_ignore_ascii_case(key) {
+                    value.to_owned()
+                } else {
+                    String::new()
+                }
+            },
+        )
     }
 
     #[test]
     fn no_file_gives_the_defaults() {
-        let none = EixIni::read(|_, _, default| default).0;
+        let none = EixIni::default();
         assert_eq!(none, EixIni::default());
         let f = none.fixes;
         assert_eq!(
@@ -215,15 +236,17 @@ mod tests {
 
     #[test]
     fn auto_pause_reads_its_section() {
-        let ini = with("AutoPause", "HealthPercent", 30);
-        assert_eq!(ini.auto_pause.limits.percent, 30);
+        let (ini, warnings) = with_text("AutoPause", "HealthPercent", "75, 50,x,10");
+        assert_eq!(ini.auto_pause.limits.percent.values(), [75, 50, 10]);
+        assert_eq!(ini.auto_pause.limits.health.values(), Vec::<u32>::new());
         assert_eq!(
-            with(FIXES_SECTION, "HealthPercent", 30)
-                .auto_pause
-                .limits
-                .percent,
-            0
+            warnings,
+            ["HealthPercent entry \"x\" is not a number: left out"]
         );
+        let (ini, _) = with_text("AutoPause", "Health", "40,20");
+        assert_eq!(ini.auto_pause.limits.health.values(), [40, 20]);
+        let (ini, _) = with_text(FIXES_SECTION, "HealthPercent", "30");
+        assert!(!ini.auto_pause.limits.any());
         let pause = |key| with("AutoPause", key, 1).auto_pause;
         let t = pause("EnemySighted");
         assert_eq!(
@@ -241,14 +264,8 @@ mod tests {
             (false, false, true)
         );
         assert!(!with(FIXES_SECTION, "EnemyDead", 1).auto_pause.enemy_dead);
-        let (_, warnings) = EixIni::read(|s, k, d| {
-            if s == "AutoPause" && k == "Health" {
-                -5
-            } else {
-                d
-            }
-        });
-        assert_eq!(warnings, ["Health -5 is negative: off"]);
+        let (_, warnings) = with_text("AutoPause", "Health", "-5");
+        assert_eq!(warnings, ["Health entry -5 is negative: left out"]);
     }
 
     #[test]
@@ -271,13 +288,16 @@ mod tests {
             with("Encumbrance", "RunSlope", 30).encumbrance.run_slope,
             30
         );
-        let (ini, warnings) = EixIni::read(|s, k, d| {
-            if s == "Encumbrance" && k == "RunSlope" {
-                150
-            } else {
-                d
-            }
-        });
+        let (ini, warnings) = EixIni::read(
+            |s, k, d| {
+                if s == "Encumbrance" && k == "RunSlope" {
+                    150
+                } else {
+                    d
+                }
+            },
+            |_, _| String::new(),
+        );
         assert_eq!(ini.encumbrance.run_slope, 20);
         assert_eq!(warnings, ["RunSlope 150 is not 0 to 100: 20"]);
     }

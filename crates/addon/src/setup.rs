@@ -155,6 +155,9 @@ fn setting_values() -> SettingValues {
     values
 }
 
+/// The bytes a text value of eix.ini is read into; a longer value is cut.
+const TEXT_SIZE: usize = 256;
+
 /// eix.ini of the mod folder `mod_dir` (ending in `\`, empty for no mod); the defaults without a mod or a file.
 fn eix_ini(mod_dir: &[u8]) -> EixIni {
     if mod_dir.is_empty() {
@@ -167,9 +170,17 @@ fn eix_ini(mod_dir: &[u8]) -> EixIni {
         return EixIni::default();
     }
     log::info("options", "eix.ini", &shown);
-    let (ini, warnings) = EixIni::read(|section, key, default| {
-        ansi::profile_int(section.as_bytes(), key.as_bytes(), default, &file)
-    });
+    let (ini, warnings) = EixIni::read(
+        |section, key, default| {
+            ansi::profile_int(section.as_bytes(), key.as_bytes(), default, &file)
+        },
+        |section, key| {
+            let buf =
+                ansi::profile_string(section.as_bytes(), key.as_bytes(), b"", TEXT_SIZE, 0, &file);
+            let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+            String::from_utf8_lossy(&buf[..end]).into_owned()
+        },
+    );
     for w in &warnings {
         log::warn("options", w, &shown);
     }

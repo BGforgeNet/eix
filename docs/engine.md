@@ -87,10 +87,13 @@ In single player, the game pauses when a party member's health drops low, an ene
 the party, or an enemy in view dies; each event has its own [setting](eix-ini.md#autopause). A network game never
 pauses. addon.log names what paused the game.
 
-- Health: a party member's health drops below `Health` or `HealthPercent`; with both set, either limit pauses the
-  game. It pauses once per drop: the member's health must rise to the limit again before the next drop pauses the
-  game. A member that is already low when it comes into view (a zone loads, a new member joins) does not pause the
-  game.
+- Health: a party member's health drops below a limit of `Health` or `HealthPercent`. Each key takes a list; per
+  member, every limit becomes hit points from that member's maximum, the two keys form one set, and limits equal in
+  hit points count once. A member pauses the game when its health falls below a limit it was at or above at the
+  last check; a drop past several limits at once pauses once. A limit pauses once per drop: the member's health must
+  be back at or above it before the next drop below it pauses the game (45 healed to 60 re-arms 50, not 75). A
+  member that is already low when it comes into view (a zone loads, a new member joins) only sets its state and does
+  not pause the game. addon.log names the limit crossed.
 - An enemy is a living unit without a player that is hostile to the party's side. The party's view is what its
   members see, as the script `PlayerSee` gives it.
 - `EnemySighted` and `EnemyAggro` pause once per encounter: the next pause comes after no enemy is left in view, or

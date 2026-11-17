@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- [AutoPause](docs/eix-ini.md#autopause): `Health` and `HealthPercent` take a comma-separated list, such as
+  `HealthPercent=75,50,10`; the game pauses at each limit a member's health drops below. A single value works as
+  before.
+
 ### Fixed
 
 - [AutoPause](docs/engine.md#autopause): `EnemySighted` pauses as soon as the game shows the enemy, and the paused

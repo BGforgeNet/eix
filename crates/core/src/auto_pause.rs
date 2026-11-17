@@ -2,6 +2,8 @@
 //! view, an enemy turns on the party or an enemy in view dies, as eix.ini's `[AutoPause]` section sets
 //! (`docs/engine.md`, `docs/eix-ini.md`).
 
+use core::fmt;
+
 /// The section of eix.ini.
 pub const SECTION: &str = "AutoPause";
 /// The key of [`Limits::health`].
@@ -9,51 +11,178 @@ pub const HEALTH_KEY: &str = "Health";
 /// The key of [`Limits::percent`].
 pub const PERCENT_KEY: &str = "HealthPercent";
 
-/// The two limits; 0 turns a limit off.
+/// The most limits one key keeps; a longer list loses its tail, with a warning. A fixed capacity keeps [`Limits`],
+/// [`Triggers`] and eix.ini's settings `Copy`, and the addon's `static` state needs no allocation.
+pub const MAX_LIMITS: usize = 8;
+
+/// The values of one key, in the order given, without 0 and without repeats.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Ladder {
+    values: [u32; MAX_LIMITS],
+    len: usize,
+}
+
+impl Ladder {
+    /// No value.
+    pub const fn new() -> Self {
+        Self {
+            values: [0; MAX_LIMITS],
+            len: 0,
+        }
+    }
+
+    /// The values kept.
+    pub fn values(&self) -> &[u32] {
+        &self.values[..self.len]
+    }
+
+    /// The comma-separated list `text` of key `key`, each value at most `max`, and a warning for each entry left
+    /// out: one that is not a number, is negative, is above `max` or past [`MAX_LIMITS`]. An empty entry and a 0 add
+    /// nothing, silently.
+    pub fn parse(key: &str, text: &str, max: u32) -> (Self, Vec<String>) {
+        let mut ladder = Self::new();
+        let mut warnings = Vec::new();
+        for entry in text.split(',').map(str::trim).filter(|e| !e.is_empty()) {
+            let value = match entry.parse::<i64>() {
+                Err(_) => {
+                    warnings.push(format!("{key} entry \"{entry}\" is not a number: left out"));
+                    continue;
+                }
+                Ok(v) if v < 0 => {
+                    warnings.push(format!("{key} entry {v} is negative: left out"));
+                    continue;
+                }
+                Ok(v) => match u32::try_from(v) {
+                    Ok(v) if v <= max => v,
+                    _ => {
+                        let range = if max == 100 {
+                            "not 0 to 100"
+                        } else {
+                            "too large"
+                        };
+                        warnings.push(format!("{key} entry {v} is {range}: left out"));
+                        continue;
+                    }
+                },
+            };
+            if value == 0 || ladder.values().contains(&value) {
+                continue;
+            }
+            if ladder.len == MAX_LIMITS {
+                warnings.push(format!(
+                    "{key} has more than {MAX_LIMITS} limits: entry {value} left out"
+                ));
+                continue;
+            }
+            ladder.values[ladder.len] = value;
+            ladder.len += 1;
+        }
+        (ladder, warnings)
+    }
+}
+
+impl fmt::Display for Ladder {
+    /// The values with commas, or `0` for none.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.len == 0 {
+            return f.write_str("0");
+        }
+        for (i, v) in self.values().iter().enumerate() {
+            if i > 0 {
+                f.write_str(",")?;
+            }
+            write!(f, "{v}")?;
+        }
+        Ok(())
+    }
+}
+
+/// The health limits: both keys' lists form one set, in hit points from each member's maximum.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Limits {
     /// Hit points.
-    pub health: u32,
-    /// A percentage of the unit's maximum hit points, 0 to 100.
-    pub percent: u32,
+    pub health: Ladder,
+    /// Percentages of the unit's maximum hit points, 1 to 100.
+    pub percent: Ladder,
+}
+
+/// The limit a member's health fell below.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Crossed {
+    /// The key of the list the limit is in.
+    pub key: &'static str,
+    /// The limit as that list gives it.
+    pub value: u32,
+}
+
+impl fmt::Display for Crossed {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} {}", self.key, self.value)
+    }
 }
 
 impl Limits {
-    /// The limits from eix.ini's values, and a warning for each value left out: a negative one, or a percentage
-    /// above 100.
-    pub fn from_values(health: i32, percent: i32) -> (Self, Vec<String>) {
-        let mut warnings = Vec::new();
-        let health = u32::try_from(health).unwrap_or_else(|_| {
-            warnings.push(format!("{HEALTH_KEY} {health} is negative: off"));
-            0
-        });
-        let percent = match u32::try_from(percent) {
-            Ok(p) if p <= 100 => p,
-            _ => {
-                warnings.push(format!("{PERCENT_KEY} {percent} is not 0 to 100: off"));
-                0
-            }
-        };
+    /// No limit.
+    pub const OFF: Self = Self {
+        health: Ladder::new(),
+        percent: Ladder::new(),
+    };
+
+    /// The limits from eix.ini's two lists, and a warning for each entry left out.
+    pub fn parse(health: &str, percent: &str) -> (Self, Vec<String>) {
+        let (health, mut warnings) = Ladder::parse(HEALTH_KEY, health, u32::MAX);
+        let (percent, more) = Ladder::parse(PERCENT_KEY, percent, 100);
+        warnings.extend(more);
         (Self { health, percent }, warnings)
     }
 
-    /// Whether either limit is on.
+    /// Whether any limit is on.
     pub fn any(self) -> bool {
-        self.health != 0 || self.percent != 0
+        !self.health.values().is_empty() || !self.percent.values().is_empty()
     }
 
-    /// Whether `hit_points` of `max_hit_points` is below a limit that is on.
-    pub fn is_low(self, hit_points: f32, max_hit_points: f32) -> bool {
-        let (hit_points, max_hit_points) = (f64::from(hit_points), f64::from(max_hit_points));
-        (self.health != 0 && hit_points < f64::from(self.health))
-            || (self.percent != 0 && hit_points * 100.0 < max_hit_points * f64::from(self.percent))
+    /// The lowest limit that a member went below, from `before` hit points at the last check to `now` of
+    /// `max_hit_points`: one it was at or above and is now under. Several crossed at once name the lowest. A
+    /// percentage and a health limit that are equal in hit points count once (the health limit is named).
+    pub fn crossed(self, before: f32, now: f32, max_hit_points: f32) -> Option<Crossed> {
+        let (before, now, max) = (
+            f64::from(before) * 100.0,
+            f64::from(now) * 100.0,
+            f64::from(max_hit_points),
+        );
+        // Each limit in hit points times 100, so a percentage needs no division.
+        let health = self.health.values().iter().map(|&v| {
+            (
+                f64::from(v) * 100.0,
+                Crossed {
+                    key: HEALTH_KEY,
+                    value: v,
+                },
+            )
+        });
+        let percent = self.percent.values().iter().map(|&v| {
+            (
+                max * f64::from(v),
+                Crossed {
+                    key: PERCENT_KEY,
+                    value: v,
+                },
+            )
+        });
+        let mut lowest: Option<(f64, Crossed)> = None;
+        for (limit, crossed) in health.chain(percent) {
+            if before >= limit && now < limit && lowest.is_none_or(|(l, _)| limit < l) {
+                lowest = Some((limit, crossed));
+            }
+        }
+        lowest.map(|(_, crossed)| crossed)
     }
 }
 
-/// The party members seen at the last check, by unit id, and whether each was low then.
+/// The party members seen at the last check, by unit id, with their hit points then.
 #[derive(Debug, Default)]
 pub struct Watch {
-    seen: Vec<(i32, bool)>,
+    seen: Vec<(i32, f32)>,
 }
 
 impl Watch {
@@ -63,24 +192,28 @@ impl Watch {
     }
 
     /// Takes the party's units as `(id, hit points, maximum hit points)` and returns the first that pauses the game
-    /// now: a member seen at the last check, not low then, is low now. A member seen for the first time (a zone
-    /// loaded, a new member) only sets its state, so a unit already low does not pause the game; a member stays low
-    /// until its health is back at the limits, so one drop pauses once.
+    /// now with the limit it crossed: a member seen at the last check, at or above a limit then, is below it now.
+    /// One check that crosses several limits pauses once. A limit re-arms when the member's health is back at or
+    /// above it. A member seen for the first time (a zone loaded, a new member) only sets its state, so a unit
+    /// already low does not pause the game.
     pub fn check(
         &mut self,
         limits: Limits,
         units: impl IntoIterator<Item = (i32, f32, f32)>,
-    ) -> Option<i32> {
+    ) -> Option<(i32, Crossed)> {
         let mut pause = None;
-        let seen: Vec<(i32, bool)> = units
+        let seen: Vec<(i32, f32)> = units
             .into_iter()
             .map(|(id, hit_points, max_hit_points)| {
-                let low = limits.is_low(hit_points, max_hit_points);
-                let was_low = self.seen.iter().find(|&&(i, _)| i == id).map(|&(_, l)| l);
-                if low && was_low == Some(false) {
-                    pause = pause.or(Some(id));
+                let before = self.seen.iter().find(|&&(i, _)| i == id).map(|&(_, hp)| hp);
+                if let Some(before) = before
+                    && pause.is_none()
+                {
+                    pause = limits
+                        .crossed(before, hit_points, max_hit_points)
+                        .map(|crossed| (id, crossed));
                 }
-                (id, low)
+                (id, hit_points)
             })
             .collect();
         self.seen = seen;
@@ -317,72 +450,129 @@ pub fn paused_fade(fade: f32, elapsed: core::time::Duration, period_ms: i32) -> 
 mod tests {
     use super::*;
 
-    const HEALTH_50: Limits = Limits {
-        health: 50,
-        percent: 0,
-    };
-    const PERCENT_25: Limits = Limits {
-        health: 0,
-        percent: 25,
-    };
+    /// The limits of two eix.ini values, with no warning.
+    fn lim(health: &str, percent: &str) -> Limits {
+        let (limits, warnings) = Limits::parse(health, percent);
+        assert_eq!(warnings, Vec::<String>::new());
+        limits
+    }
 
-    #[test]
-    fn values_out_of_range_are_off_with_a_warning() {
-        assert_eq!(
-            Limits::from_values(40, 30),
-            (
-                Limits {
-                    health: 40,
-                    percent: 30
-                },
-                vec![]
-            )
-        );
-        let (limits, warnings) = Limits::from_values(-1, 101);
-        assert_eq!(limits, Limits::default());
-        assert_eq!(
-            warnings,
-            [
-                "Health -1 is negative: off",
-                "HealthPercent 101 is not 0 to 100: off"
-            ]
-        );
-        assert_eq!(Limits::from_values(0, -5).0, Limits::default());
+    fn health_50() -> Limits {
+        lim("50", "")
+    }
+
+    fn percents(percent: &str) -> Limits {
+        lim("", percent)
     }
 
     #[test]
-    fn either_limit_makes_a_unit_low() {
-        let both = Limits {
-            health: 50,
-            percent: 25,
-        };
-        assert!(both.is_low(49.0, 1000.0));
-        assert!(both.is_low(99.0, 400.0));
-        assert!(!both.is_low(100.0, 400.0));
-        assert!(!HEALTH_50.is_low(50.0, 60.0));
-        assert!(PERCENT_25.is_low(24.9, 100.0));
-        assert!(!PERCENT_25.is_low(25.0, 100.0));
-        assert!(!Limits::default().is_low(0.0, 100.0));
-        assert!(!Limits::default().any());
+    fn a_list_takes_spaces_and_one_value_as_before() {
+        assert_eq!(lim("40", "30").health.values(), [40]);
+        assert_eq!(lim("40", "30").percent.values(), [30]);
+        assert_eq!(percents("75,50,10").percent.values(), [75, 50, 10]);
+        assert_eq!(percents("  75 ,50 ,   10 ").percent.values(), [75, 50, 10]);
+        assert_eq!(lim("100, 50", "").health.values(), [100, 50]);
+    }
+
+    #[test]
+    fn an_empty_value_and_a_0_are_off() {
+        for text in ["", "  ", "0", " 0 ", "0,0", ",", "75,,"] {
+            let (limits, warnings) = Limits::parse(text, text);
+            assert!(warnings.is_empty(), "{text:?}: {warnings:?}");
+            assert_eq!(limits.any(), text.contains("75"), "{text:?}");
+        }
+        assert_eq!(Limits::parse("", "").0, Limits::OFF);
+        // A 0 inside a list adds no limit; the rest applies.
+        assert_eq!(percents("0,50,0,25").percent.values(), [50, 25]);
+        assert_eq!(percents("75,,50").percent.values(), [75, 50]);
+    }
+
+    #[test]
+    fn a_bad_entry_is_left_out_with_a_warning() {
+        let (limits, warnings) = Limits::parse("-1, 20, abc", "75, 101, x1, 50, 1.5, 10");
+        assert_eq!(limits.health.values(), [20]);
+        assert_eq!(limits.percent.values(), [75, 50, 10]);
+        assert_eq!(
+            warnings,
+            [
+                "Health entry -1 is negative: left out",
+                "Health entry \"abc\" is not a number: left out",
+                "HealthPercent entry 101 is not 0 to 100: left out",
+                "HealthPercent entry \"x1\" is not a number: left out",
+                "HealthPercent entry \"1.5\" is not a number: left out",
+            ]
+        );
+        let (limits, warnings) = Limits::parse("99999999999", "-5");
+        assert!(!limits.any());
+        assert_eq!(
+            warnings,
+            [
+                "Health entry 99999999999 is too large: left out",
+                "HealthPercent entry -5 is negative: left out"
+            ]
+        );
+    }
+
+    #[test]
+    fn repeats_count_once_and_the_list_has_a_cap() {
+        assert_eq!(percents("50,75,50,75").percent.values(), [50, 75]);
+        let long = (1..=MAX_LIMITS as u32 + 2)
+            .map(|v| v.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        let (limits, warnings) = Limits::parse(&long, "");
+        assert_eq!(limits.health.values().len(), MAX_LIMITS);
+        assert_eq!(warnings.len(), 2);
+        assert!(warnings[0].starts_with("Health has more than 8 limits: entry 9"));
+    }
+
+    #[test]
+    fn the_lists_show_as_written_or_0() {
+        let limits = lim("", " 75 , 50,10");
+        assert_eq!(limits.health.to_string(), "0");
+        assert_eq!(limits.percent.to_string(), "75,50,10");
+    }
+
+    #[test]
+    fn either_key_makes_a_limit() {
+        let both = lim("50", "25");
+        assert!(both.crossed(100.0, 49.0, 1000.0).is_some());
+        assert!(both.crossed(100.0, 99.0, 400.0).is_some());
+        assert_eq!(both.crossed(200.0, 100.0, 400.0), None);
+        assert_eq!(health_50().crossed(60.0, 50.0, 60.0), None);
+        assert_eq!(
+            percents("25").crossed(30.0, 24.9, 100.0),
+            Some(Crossed {
+                key: PERCENT_KEY,
+                value: 25
+            })
+        );
+        assert_eq!(percents("25").crossed(30.0, 25.0, 100.0), None);
+        assert_eq!(Limits::OFF.crossed(100.0, 0.0, 100.0), None);
+        assert!(!Limits::OFF.any());
     }
 
     #[test]
     fn a_drop_below_the_limit_pauses_once() {
         let mut watch = Watch::default();
+        let hp50 = Crossed {
+            key: HEALTH_KEY,
+            value: 50,
+        };
         assert_eq!(
-            watch.check(HEALTH_50, [(1, 80.0, 100.0), (2, 90.0, 100.0)]),
+            watch.check(health_50(), [(1, 80.0, 100.0), (2, 90.0, 100.0)]),
             None
         );
         assert_eq!(
-            watch.check(HEALTH_50, [(1, 40.0, 100.0), (2, 90.0, 100.0)]),
-            Some(1)
+            watch.check(health_50(), [(1, 40.0, 100.0), (2, 90.0, 100.0)]),
+            Some((1, hp50))
         );
         assert_eq!(
-            watch.check(HEALTH_50, [(1, 30.0, 100.0), (2, 90.0, 100.0)]),
+            watch.check(health_50(), [(1, 30.0, 100.0), (2, 90.0, 100.0)]),
             None
         );
         assert_eq!(
-            watch.check(HEALTH_50, [(1, 0.0, 100.0), (2, 90.0, 100.0)]),
+            watch.check(health_50(), [(1, 0.0, 100.0), (2, 90.0, 100.0)]),
             None
         );
     }
@@ -390,9 +580,11 @@ mod tests {
     #[test]
     fn of_two_drops_at_once_the_first_is_named() {
         let mut watch = Watch::default();
-        watch.check(HEALTH_50, [(1, 80.0, 100.0), (2, 90.0, 100.0)]);
+        watch.check(health_50(), [(1, 80.0, 100.0), (2, 90.0, 100.0)]);
         assert_eq!(
-            watch.check(HEALTH_50, [(1, 40.0, 100.0), (2, 10.0, 100.0)]),
+            watch
+                .check(health_50(), [(1, 40.0, 100.0), (2, 10.0, 100.0)])
+                .map(|p| p.0),
             Some(1)
         );
     }
@@ -400,31 +592,135 @@ mod tests {
     #[test]
     fn healing_back_to_the_limit_arms_it_again() {
         let mut watch = Watch::default();
-        watch.check(HEALTH_50, [(1, 80.0, 100.0)]);
-        assert_eq!(watch.check(HEALTH_50, [(1, 40.0, 100.0)]), Some(1));
-        assert_eq!(watch.check(HEALTH_50, [(1, 50.0, 100.0)]), None);
-        assert_eq!(watch.check(HEALTH_50, [(1, 45.0, 100.0)]), Some(1));
+        watch.check(health_50(), [(1, 80.0, 100.0)]);
+        assert!(watch.check(health_50(), [(1, 40.0, 100.0)]).is_some());
+        assert_eq!(watch.check(health_50(), [(1, 50.0, 100.0)]), None);
+        assert!(watch.check(health_50(), [(1, 45.0, 100.0)]).is_some());
+    }
+
+    /// The percentage limit a check of the ladder `75,50,10` on a maximum of 100 names, if any.
+    fn step(watch: &mut Watch, limits: Limits, hp: f32) -> Option<u32> {
+        watch
+            .check(limits, [(1, hp, 100.0)])
+            .map(|(_, crossed)| crossed.value)
+    }
+
+    #[test]
+    fn each_limit_of_a_ladder_pauses_once() {
+        let l = percents("75,50,10");
+        let mut watch = Watch::default();
+        assert_eq!(step(&mut watch, l, 100.0), None);
+        assert_eq!(step(&mut watch, l, 80.0), None);
+        assert_eq!(step(&mut watch, l, 70.0), Some(75));
+        assert_eq!(step(&mut watch, l, 60.0), None);
+        assert_eq!(step(&mut watch, l, 49.0), Some(50));
+        assert_eq!(step(&mut watch, l, 30.0), None);
+        assert_eq!(step(&mut watch, l, 9.0), Some(10));
+        assert_eq!(step(&mut watch, l, 1.0), None);
+    }
+
+    #[test]
+    fn several_limits_crossed_in_one_check_pause_once() {
+        let l = percents("75,50,10");
+        let mut watch = Watch::default();
+        step(&mut watch, l, 80.0);
+        // 80 to 40 passes 75 and 50: one pause, naming the lowest.
+        assert_eq!(step(&mut watch, l, 40.0), Some(50));
+        // Both are spent: no pause until the next limit.
+        assert_eq!(step(&mut watch, l, 30.0), None);
+        assert_eq!(step(&mut watch, l, 5.0), Some(10));
+    }
+
+    #[test]
+    fn healing_re_arms_only_the_limits_it_reaches() {
+        let l = percents("75,50,10");
+        let mut watch = Watch::default();
+        step(&mut watch, l, 80.0);
+        assert_eq!(step(&mut watch, l, 45.0), Some(50));
+        // 45 healed to 60 re-arms 50, not 75.
+        assert_eq!(step(&mut watch, l, 60.0), None);
+        assert_eq!(step(&mut watch, l, 55.0), None);
+        assert_eq!(step(&mut watch, l, 49.0), Some(50));
+        // Back at 75 re-arms that too.
+        assert_eq!(step(&mut watch, l, 75.0), None);
+        assert_eq!(step(&mut watch, l, 74.0), Some(75));
+    }
+
+    #[test]
+    fn the_two_keys_form_one_set_of_limits() {
+        // Health 30 is 30 hit points; 50 percent of 100 is 50; 25 percent of 200 is 50 too.
+        let l = lim("30", "50");
+        let mut watch = Watch::default();
+        watch.check(l, [(1, 100.0, 100.0), (2, 200.0, 200.0)]);
+        let first = watch.check(l, [(1, 40.0, 100.0), (2, 190.0, 200.0)]);
+        assert_eq!(
+            first,
+            Some((
+                1,
+                Crossed {
+                    key: PERCENT_KEY,
+                    value: 50
+                }
+            ))
+        );
+        // Unit 1 now crosses its health limit; unit 2 its 50 percent (100 of 200).
+        let second = watch.check(l, [(1, 20.0, 100.0), (2, 90.0, 200.0)]);
+        assert_eq!(
+            second,
+            Some((
+                1,
+                Crossed {
+                    key: HEALTH_KEY,
+                    value: 30
+                }
+            ))
+        );
+        let third = watch.check(l, [(1, 20.0, 100.0), (2, 25.0, 200.0)]);
+        assert_eq!(third.map(|p| p.0), Some(2));
+    }
+
+    #[test]
+    fn limits_equal_in_hit_points_count_once() {
+        // 50 hit points and 50 percent of 100 are one limit: one pause, the health limit named.
+        let l = lim("50", "50");
+        let mut watch = Watch::default();
+        watch.check(l, [(1, 80.0, 100.0)]);
+        assert_eq!(
+            watch.check(l, [(1, 40.0, 100.0)]),
+            Some((
+                1,
+                Crossed {
+                    key: HEALTH_KEY,
+                    value: 50
+                }
+            ))
+        );
+        assert_eq!(watch.check(l, [(1, 30.0, 100.0)]), None);
     }
 
     #[test]
     fn a_member_first_seen_low_does_not_pause() {
         let mut watch = Watch::default();
-        assert_eq!(watch.check(PERCENT_25, [(1, 10.0, 100.0)]), None);
-        assert_eq!(
-            watch.check(PERCENT_25, [(1, 10.0, 100.0), (2, 5.0, 100.0)]),
-            None
-        );
+        let l = percents("25");
+        assert_eq!(watch.check(l, [(1, 10.0, 100.0)]), None);
+        assert_eq!(watch.check(l, [(1, 10.0, 100.0), (2, 5.0, 100.0)]), None);
         let three = [(1, 10.0, 100.0), (2, 5.0, 100.0), (3, 90.0, 100.0)];
-        assert_eq!(watch.check(PERCENT_25, three), None);
-        assert_eq!(watch.check(PERCENT_25, [(3, 20.0, 100.0)]), Some(3));
+        assert_eq!(watch.check(l, three), None);
+        assert_eq!(watch.check(l, [(3, 20.0, 100.0)]).map(|p| p.0), Some(3));
+        // A ladder's first sight sets the state only, below every limit or between two.
+        let l = percents("75,50,10");
+        let mut watch = Watch::default();
+        assert_eq!(watch.check(l, [(1, 40.0, 100.0), (2, 5.0, 100.0)]), None);
+        // From 40 only the limit below it is left to cross.
+        assert_eq!(step(&mut watch, l, 9.0), Some(10));
     }
 
     #[test]
     fn a_member_gone_and_back_starts_afresh() {
         let mut watch = Watch::default();
-        watch.check(HEALTH_50, [(1, 80.0, 100.0)]);
-        watch.check(HEALTH_50, []);
-        assert_eq!(watch.check(HEALTH_50, [(1, 10.0, 100.0)]), None);
+        watch.check(health_50(), [(1, 80.0, 100.0)]);
+        watch.check(health_50(), []);
+        assert_eq!(watch.check(health_50(), [(1, 10.0, 100.0)]), None);
     }
 
     #[test]
@@ -568,7 +864,7 @@ mod tests {
         let none = Triggers::default();
         assert_eq!(
             on(Triggers {
-                limits: HEALTH_50,
+                limits: health_50(),
                 ..none
             }),
             (true, false)

@@ -22,18 +22,20 @@ The events that pause single player ([AutoPause](engine.md#autopause)), each off
 
 | Key | Value |
 |---|---|
-| `Health` | Hit points; 0 (default): off |
-| `HealthPercent` | A percentage of the member's maximum hit points, 1 to 100; 0 (default): off |
+| `Health` | A list of limits in hit points, such as `40,20`; 0 or empty (default): off |
+| `HealthPercent` | A list of limits as percentages of the member's maximum hit points, 1 to 100, such as `75,50,10`; 0 or empty (default): off |
 | `EnemySighted` | 1: an enemy comes into the party's view while none was in view, once its model is drawn |
 | `EnemyAggro` | 1: an enemy turns on a party member while no enemy was aggressive to the party, unless the party attacked it first |
 | `EnemyDead` | 1: an enemy in the party's view dies, whoever killed it |
 
-A negative `Health`, or a `HealthPercent` above 100, is logged and is off.
+`Health` and `HealthPercent` take comma-separated lists; spaces around the commas are fine, and a single value works
+as a list of one. A 0 in a list adds no limit. An entry that is negative, is a percentage above 100 or is not a
+number is logged as a warning and left out; the rest of the list applies. A list keeps its first 8 entries.
 
 ```ini
 [AutoPause]
 Health=0
-HealthPercent=25
+HealthPercent=75,50,10
 EnemySighted=1
 EnemyAggro=0
 EnemyDead=1

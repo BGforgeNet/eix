@@ -117,10 +117,7 @@ struct State {
 
 static STATE: Mutex<State> = Mutex::new(State {
     triggers: Triggers {
-        limits: Limits {
-            health: 0,
-            percent: 0,
-        },
+        limits: Limits::OFF,
         enemy_sighted: false,
         enemy_aggro: false,
         enemy_dead: false,
@@ -578,10 +575,12 @@ unsafe fn check() {
                 }
             }
         }
-        if let Some(id) = state.watch.check(triggers.limits, party.iter().copied())
+        if let Some((id, crossed)) = state.watch.check(triggers.limits, party.iter().copied())
             && let Some(&(_, hp, max)) = party.iter().find(|u| u.0 == id)
         {
-            reasons.push(format!("unit {id} at {hp} of {max} hit points"));
+            reasons.push(format!(
+                "unit {id} at {hp} of {max} hit points, below {crossed}"
+            ));
         }
     }
     if triggers.needs_view() {
