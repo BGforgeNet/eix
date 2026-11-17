@@ -231,8 +231,14 @@ fn container(task: &str) -> Result<(), String> {
 
 /// The repository's shared git directory, as an absolute path.
 fn git_common_dir(root: &Path) -> Result<PathBuf, String> {
+    rev_parse(root, &["--path-format=absolute", "--git-common-dir"]).map(PathBuf::from)
+}
+
+/// What `git rev-parse <args>` prints in `root`, trimmed.
+fn rev_parse(root: &Path, args: &[&str]) -> Result<String, String> {
     let out = Command::new("git")
-        .args(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+        .arg("rev-parse")
+        .args(args)
         .current_dir(root)
         .output()
         .map_err(|e| format!("git rev-parse could not start: {e}"))?;
@@ -242,7 +248,7 @@ fn git_common_dir(root: &Path) -> Result<PathBuf, String> {
             String::from_utf8_lossy(&out.stderr).trim()
         ));
     }
-    Ok(PathBuf::from(String::from_utf8_lossy(&out.stdout).trim()))
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_owned())
 }
 
 /// The read-only mount a linked worktree needs: its `.git` file points at the shared git directory by absolute path,

@@ -1,15 +1,16 @@
 //! `cargo xtask dist`: the release package. Builds the DLLs, then writes to `<target>/dist/`:
-//! `eix-<version>.zip` (a folder `eix-<version>` with the two DLLs, spelladdon.ini, eix.ini, README.md, LICENSE,
-//! CHANGELOG.md, THIRD-PARTY-NOTICES.txt and the `docs` folder, less the site's own files) and `notes.md`
-//! (CHANGELOG.md's section for the version, for the release page).
+//! `<name>.zip` (a folder `<name>` with the two DLLs, spelladdon.ini, eix.ini, README.md, LICENSE, CHANGELOG.md,
+//! THIRD-PARTY-NOTICES.txt and the `docs` folder, less the site's own files) and `notes.md` (CHANGELOG.md's section
+//! for the version, for the release page).
 //!
 //! Runs where the gate runs (the build image has cargo-about and zip). With `EIX_TAG` set, the tag must be
-//! `v<version>`, so a release never ships a version its tag does not name.
+//! `v<version>`, so a release never ships a version its tag does not name, and the name is `eix-<version>`; without
+//! it, the name is `eix-<short commit hash>`.
 
 use std::path::Path;
 use std::process::Command;
 
-use crate::{WINDOWS, release_build, root, run, say, target_dir, tool};
+use crate::{WINDOWS, release_build, rev_parse, root, run, say, target_dir, tool};
 
 /// The environment variable holding the release tag.
 pub(crate) const TAG_VAR: &str = "EIX_TAG";
@@ -30,19 +31,23 @@ const INIS: [&str; 2] = ["spelladdon.ini", "eix.ini"];
 const DLLS: [&str; 2] = ["dinput.dll", "addon.dll"];
 
 pub(crate) fn dist() -> Result<(), String> {
-    if let Some(tag) = std::env::var_os(TAG_VAR) {
-        let tag = tag.to_string_lossy().into_owned();
-        if tag != format!("v{VERSION}") {
-            return Err(format!(
-                "tag {tag} does not name version {VERSION} (Cargo.toml): expected v{VERSION}"
-            ));
+    // A build between releases is named for its commit: the version still names the last release.
+    let name = match std::env::var_os(TAG_VAR) {
+        Some(tag) => {
+            let tag = tag.to_string_lossy().into_owned();
+            if tag != format!("v{VERSION}") {
+                return Err(format!(
+                    "tag {tag} does not name version {VERSION} (Cargo.toml): expected v{VERSION}"
+                ));
+            }
+            format!("eix-{VERSION}")
         }
-    }
+        None => format!("eix-{}", rev_parse(&root(), &["--short", "HEAD"])?),
+    };
     let notes = release_notes(&read(&root().join("CHANGELOG.md"))?, VERSION)?;
     release_build().run()?;
 
     let out = target_dir().join("dist");
-    let name = format!("eix-{VERSION}");
     let stage = out.join(&name);
     if out.exists() {
         std::fs::remove_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;

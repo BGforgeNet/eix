@@ -15,9 +15,10 @@ cargo xtask container
 - Debian packages come from the dated snapshot in `build/debian.sources`; advance its date deliberately to update
   them. The base image is pinned by digest in `build/Containerfile`.
 - Output: `target/container/i686-pc-windows-gnu/release/{dinput,addon}.dll`.
-- Release package: `cargo xtask container dist` writes `target/container/dist/eix-<version>.zip` (the DLLs,
-  `dist/spelladdon.ini`, `dist/eix.ini`, the README, the licence, the changelog, the third-party notices and
-  `docs/`) and the release notes.
+- Release package: `cargo xtask container dist` writes `target/container/dist/eix-<short commit hash>.zip` (the
+  DLLs, `dist/spelladdon.ini`, `dist/eix.ini`, the README, the licence, the changelog, the third-party notices and
+  `docs/`) and the release notes. With `EIX_TAG` set, as the release workflow sets it, the name is
+  `eix-<version>` instead.
 - Without podman: the toolchain from `rust-toolchain.toml`, `i686-w64-mingw32-gcc` on `PATH`, Wine, and the tools
   `build/Containerfile` installs, then `cargo xtask check`.
 - Tests that need the game's files are ignored by the gate. Run them with `EIX_GAME_DIR` set to the game folder as a
