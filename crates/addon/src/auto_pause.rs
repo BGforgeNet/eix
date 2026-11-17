@@ -11,7 +11,8 @@
 //!   the dead and those not hostile to the player's side (its number, as the game's own danger test takes it).
 //!   `EnemySighted` waits until one of them is drawn: the client fades a unit in over its own ticks (`drawn`).
 //! - Aggression: each living hostile unit of the server world whose AI aggression is aimed at a party unit, as
-//!   `CPlayerServer::SendPartyState` finds it for the danger state (0x66E666).
+//!   `CPlayerServer::SendPartyState` finds it for the danger state (0x66E666). `EnemyAggro` also waits until the
+//!   aggressor is drawn: the server's AI turns on the party before the client has the unit at all.
 //! - Deaths: `CUnitServer::OnDamaged` is the one caller of `CUnitServer::SetDead` 0x546720 (0x553BB0); its call is
 //!   redirected to note the unit, and the next check pauses when the unit was in view at the check before.
 #![expect(
@@ -23,8 +24,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eix_core::auto_pause::{
-    AGGRO_KEY, DEAD_KEY, HEALTH_KEY, Limits, Onset, PERCENT_KEY, ReadyOnset, SIGHTED_KEY, Triggers,
-    Watch, death_in_view, is_enemy,
+    AGGRO_KEY, DEAD_KEY, HEALTH_KEY, Limits, PERCENT_KEY, ReadyOnset, SIGHTED_KEY, Triggers, Watch,
+    death_in_view, is_enemy,
 };
 use eix_engine::game::net::{is_multiplayer_client, live_server};
 use eix_engine::game::object::{CLASS_UNIT, EngineObject};
@@ -63,8 +64,8 @@ struct State {
     watch: Watch,
     /// Enemies in view, told once one is drawn.
     sighted: ReadyOnset,
-    /// Enemies aggressive to the party.
-    aggro: Onset,
+    /// Enemies aggressive to the party, told once the aggressor is drawn.
+    aggro: ReadyOnset,
     /// The enemies in view at the last check.
     in_view: Vec<i32>,
 }
@@ -81,7 +82,7 @@ static STATE: Mutex<State> = Mutex::new(State {
     },
     watch: Watch::new(),
     sighted: ReadyOnset::new(),
-    aggro: Onset::new(),
+    aggro: ReadyOnset::new(),
     in_view: Vec::new(),
 });
 /// The units without a player that died since the last check.
@@ -348,8 +349,10 @@ unsafe fn check() {
     if triggers.enemy_aggro {
         // SAFETY: on the game's thread after the tick, the server world's live players.
         let found = unsafe { aggressor(&players) };
-        if state.aggro.check(found.is_some())
-            && let Some(id) = found
+        if state.aggro.check(found.is_some(), || {
+            // SAFETY: on the game's thread after a server tick, the client's world constructed.
+            found.is_some_and(|id| unsafe { drawn(id) })
+        }) && let Some(id) = found
         {
             reasons.push(format!("enemy {id} turned on the party"));
         }
