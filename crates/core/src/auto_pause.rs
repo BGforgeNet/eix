@@ -143,8 +143,12 @@ impl Limits {
 
     /// The lowest limit that a member went below, from `before` hit points at the last check to `now` of
     /// `max_hit_points`: one it was at or above and is now under. Several crossed at once name the lowest. A
-    /// percentage and a health limit that are equal in hit points count once (the health limit is named).
+    /// percentage and a health limit that are equal in hit points count once (the health limit is named). A percentage
+    /// is at least 1 hit point. A member left at 0 or below is dead, which is not a health pause.
     pub fn crossed(self, before: f32, now: f32, max_hit_points: f32) -> Option<Crossed> {
+        if now <= 0.0 {
+            return None;
+        }
         let (before, now, max) = (
             f64::from(before) * 100.0,
             f64::from(now) * 100.0,
@@ -162,7 +166,7 @@ impl Limits {
         });
         let percent = self.percent.values().iter().map(|&v| {
             (
-                max * f64::from(v),
+                (max * f64::from(v)).max(100.0),
                 Crossed {
                     key: PERCENT_KEY,
                     value: v,
@@ -696,6 +700,28 @@ mod tests {
             ))
         );
         assert_eq!(watch.check(l, [(1, 30.0, 100.0)]), None);
+    }
+
+    #[test]
+    fn a_drop_that_kills_does_not_pause() {
+        let l = percents("75,10");
+        let mut watch = Watch::default();
+        watch.check(l, [(1, 50.0, 100.0)]);
+        assert_eq!(watch.check(l, [(1, 0.0, 100.0)]), None);
+        watch.check(l, [(1, 50.0, 100.0)]);
+        assert_eq!(watch.check(l, [(1, -0.2, 100.0)]), None);
+        // Past a limit while alive still pauses.
+        watch.check(l, [(1, 50.0, 100.0)]);
+        assert_eq!(step(&mut watch, l, 0.5), Some(10));
+    }
+
+    #[test]
+    fn a_percentage_is_at_least_one_hit_point() {
+        // 10 percent of 5 is half a hit point; the limit is 1.
+        let l = percents("10");
+        let mut watch = Watch::default();
+        watch.check(l, [(1, 3.0, 5.0)]);
+        assert_eq!(watch.check(l, [(1, 0.8, 5.0)]).map(|p| p.1.value), Some(10));
     }
 
     #[test]

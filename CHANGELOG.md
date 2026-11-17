@@ -6,7 +6,7 @@
 
 - [AutoPause](docs/eix-ini.md#autopause): `Health` and `HealthPercent` take a comma-separated list, such as
   `HealthPercent=75,50,10`; the game pauses at each limit a member's health drops below. A single value works as
-  before.
+  before. A hit that kills the member no longer pauses the game, and a percentage limit is at least 1 hit point.
 
 ### Fixed
 

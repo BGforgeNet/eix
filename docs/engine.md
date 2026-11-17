@@ -89,11 +89,12 @@ pauses. addon.log names what paused the game.
 
 - Health: a party member's health drops below a limit of `Health` or `HealthPercent`. Each key takes a list; per
   member, every limit becomes hit points from that member's maximum, the two keys form one set, and limits equal in
-  hit points count once. A member pauses the game when its health falls below a limit it was at or above at the
-  last check; a drop past several limits at once pauses once. A limit pauses once per drop: the member's health must
-  be back at or above it before the next drop below it pauses the game (45 healed to 60 re-arms 50, not 75). A
-  member that is already low when it comes into view (a zone loads, a new member joins) only sets its state and does
-  not pause the game. addon.log names the limit crossed.
+  hit points count once; a percentage is at least 1 hit point. A member pauses the game when its health falls below
+  a limit it was at or above at the last check; a drop past several limits at once pauses once. A limit pauses once
+  per drop: the member's health must be back at or above it before the next drop below it pauses the game (45
+  healed to 60 re-arms 50, not 75). A member that is already low when it comes into view (a zone loads, a new
+  member joins) only sets its state and does not pause the game. A drop that leaves the member at 0 or below (dead)
+  does not pause the game either. addon.log names the limit crossed.
 - An enemy is a living unit without a player that is hostile to the party's side. The party's view is what its
   members see, as the script `PlayerSee` gives it.
 - `EnemySighted` and `EnemyAggro` pause once per encounter: the next pause comes after no enemy is left in view, or
