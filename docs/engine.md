@@ -98,8 +98,9 @@ pauses. addon.log names what paused the game.
   one is shown.
 - `EnemySighted` waits until the game shows an enemy, and `EnemyAggro` until it shows the aggressor: the game draws a
   unit only once the party's view reaches it, and then fades it in over about a second of play, which a pause would
-  stop. So the pause ends that fade-in at once: the paused screen draws the enemies in view, or the aggressor, in
-  full. If none is shown within about four seconds of play, it pauses anyway; a loading zone uses none of that time.
+  stop. So the fade-in goes on while the game is paused, at the pace play would give it: the paused screen fades the
+  enemies in view, or the aggressor, in, and play resumed mid-fade carries on from there. If none is shown within
+  about four seconds of play, it pauses anyway; a loading zone uses none of that time.
   addon.log's pause line gives the enemy's state on screen and whether that wait ran out.
 
 ### Encumbrance

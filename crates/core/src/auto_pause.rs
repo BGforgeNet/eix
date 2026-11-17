@@ -229,6 +229,20 @@ pub fn death_in_view(deaths: &[i32], in_view: &[i32]) -> Option<i32> {
     deaths.iter().copied().find(|id| in_view.contains(id))
 }
 
+/// What a unit's fade-in gains each client tick: the game adds 1/15 a tick, so a fade-in from 0 lasts 15 ticks.
+pub const FADE_PER_TICK: f32 = 1.0 / 15.0;
+
+/// A unit's fade-in `fade` after `elapsed` of paused frames, at the pace the game's client ticks would give it:
+/// [`FADE_PER_TICK`] each `period_ms` (the game speed's milliseconds per tick), up to 1. A period that is not
+/// positive leaves the fade as it is.
+pub fn paused_fade(fade: f32, elapsed: core::time::Duration, period_ms: i32) -> f32 {
+    if period_ms <= 0 {
+        return fade;
+    }
+    let ticks = elapsed.as_secs_f64() * 1000.0 / f64::from(period_ms);
+    (f64::from(fade) + ticks * f64::from(FADE_PER_TICK)).min(1.0) as f32
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -462,5 +476,38 @@ mod tests {
             }),
             (true, true)
         );
+    }
+
+    #[test]
+    fn a_paused_fade_in_keeps_the_games_pace() {
+        use core::time::Duration;
+        let close = |a: f32, b: f32| (a - b).abs() < 1e-5;
+        // One tick at the normal speed (55 ms) and at the double speed (27 ms).
+        assert!(close(
+            paused_fade(0.0, Duration::from_millis(55), 55),
+            FADE_PER_TICK
+        ));
+        assert!(close(
+            paused_fade(0.0, Duration::from_millis(27), 27),
+            FADE_PER_TICK
+        ));
+        // 15 ticks fade a unit in from 0; half of them half of the way.
+        assert!(close(
+            paused_fade(0.0, Duration::from_millis(15 * 55), 55),
+            1.0
+        ));
+        assert!(close(
+            paused_fade(0.25, Duration::from_micros(15 * 55 * 1000 / 2), 55),
+            0.75
+        ));
+        // Frames add up as the ticks would.
+        let mut fade = 0.0;
+        for _ in 0..5 {
+            fade = paused_fade(fade, Duration::from_millis(11), 55);
+        }
+        assert!(close(fade, FADE_PER_TICK));
+        assert_eq!(paused_fade(0.9, Duration::from_secs(5), 55), 1.0);
+        assert_eq!(paused_fade(0.3, Duration::from_secs(1), 0), 0.3);
+        assert_eq!(paused_fade(0.3, Duration::ZERO, 55), 0.3);
     }
 }

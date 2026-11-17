@@ -10,27 +10,32 @@
 //! - In view: the units each party unit's AI sees (the list the script `PlayerSee` reads), less those with a player,
 //!   the dead and those not hostile to the player's side (its number, as the game's own danger test takes it).
 //!   `EnemySighted` waits until the client shows one of them (`sight`): it draws a unit only once its party state
-//!   marks it seen, and fades it in over its own ticks from then, which a pause would stop. So the pause ends the
-//!   fade-in of every shown enemy in view at once, and the paused screen draws them in full.
+//!   marks it seen, and fades it in over its own ticks from then, which a pause would stop. So the fade-in of every
+//!   shown enemy in view goes on over the paused frames.
 //! - Aggression: each living hostile unit of the server world whose AI aggression is aimed at a party unit, as
 //!   `CPlayerServer::SendPartyState` finds it for the danger state (0x66E666). `EnemyAggro` also waits until the
-//!   client shows the aggressor, and ends its fade-in: the server's AI turns on the party before the client has the
+//!   client shows the aggressor, and fades it in so: the server's AI turns on the party before the client has the
 //!   unit at all.
+//! - Fade-in: `GameMain` 0x456440 calls `FrameStep` 0x458010 (0x4575FD) on every frame, paused or not; before it,
+//!   each frame of the pause raises the fade of those enemies by the frame's time at the client ticks' pace (core's
+//!   [`paused_fade`]), and draws it. The first frame after the pause, or a load, ends it: `UpdateClient` goes on
+//!   from the fade reached.
 //! - Deaths: `CUnitServer::OnDamaged` is the one caller of `CUnitServer::SetDead` 0x546720 (0x553BB0); its call is
 //!   redirected to note the unit, and the next check pauses when the unit was in view at the check before.
 #![expect(
     unsafe_code,
-    reason = "hooks the server's tick and a unit's death, and reads game.exe's players and units"
+    reason = "hooks the server's tick, a unit's death and the frame, and reads game.exe's players and units"
 )]
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Instant;
 
 use eix_core::auto_pause::{
     AGGRO_KEY, DEAD_KEY, HEALTH_KEY, Limits, MAX_WAIT, PERCENT_KEY, ReadyOnset, SIGHTED_KEY, Told,
-    Triggers, Watch, death_in_view, is_enemy,
+    Triggers, Watch, death_in_view, is_enemy, paused_fade,
 };
-use eix_engine::game::flow::DRAW_ALL;
+use eix_engine::game::flow::{DRAW_ALL, UPDATE_PERIOD};
 use eix_engine::game::net::{is_multiplayer_client, live_server};
 use eix_engine::game::object::{CLASS_UNIT, EngineObject};
 use eix_engine::game::player::{Player, PlayerIterator, UnitMapNode};
@@ -54,16 +59,43 @@ const TICK_CALL_BYTES: [u8; 5] = [0xE8, 0xC0, 0xFA, 0xFF, 0xFF];
 /// The call of `CUnitServer::SetDead` in `CUnitServer::OnDamaged`, `ecx` the dying unit's controller.
 const DEATH_CALL: Site = eix_sites::C_UNIT_SERVER_ON_DAMAGED__F0;
 const DEATH_CALL_BYTES: [u8; 5] = [0xE8, 0x6B, 0x2B, 0xFF, 0xFF];
+/// The call of `FrameStep` in `GameMain`, once a frame.
+const FRAME_CALL: Site = eix_sites::GAME_MAIN__11BD;
+const FRAME_CALL_BYTES: [u8; 5] = [0xE8, 0x0E, 0x0A, 0x00, 0x00];
 
 /// `CWorldServer::Tick` (thiscall, `ret 4`); `Update` drops what it returns.
 type Tick = unsafe extern "thiscall" fn(*mut World, i32) -> u32;
 /// `CUnitServer::SetDead` (thiscall, `ret 4`): the dead flag to set.
 type SetDead = unsafe extern "thiscall" fn(*mut UnitServer, i32);
+/// `FrameStep` (fastcall, two flags in `cl` and `dl`, plain `ret`); `GameMain` reads nothing it returns.
+type FrameStep = unsafe extern "fastcall" fn(u8, u8);
 
 /// `CWorldServer::Tick`, the call's old target.
 static TICK: AtomicUsize = AtomicUsize::new(0);
 /// `CUnitServer::SetDead`, the call's old target.
 static SET_DEAD: AtomicUsize = AtomicUsize::new(0);
+/// `FrameStep`, the call's old target.
+static FRAME_STEP: AtomicUsize = AtomicUsize::new(0);
+
+/// The enemies a pause is about, whose fade-in goes on over its frames; the game's thread alone uses it.
+#[derive(Debug)]
+struct Fading {
+    /// Their unit ids, found anew each frame.
+    ids: Vec<i32>,
+    /// When the last frame ran.
+    last: Option<Instant>,
+    /// The client's tick count the last frame saw: it falls only when a zone loads.
+    ticks: i32,
+    /// Whether a frame saw the game paused.
+    paused: bool,
+}
+
+static FADING: Mutex<Fading> = Mutex::new(Fading {
+    ids: Vec::new(),
+    last: None,
+    ticks: 0,
+    paused: false,
+});
 
 /// What the checks keep between ticks; the game's thread alone runs them.
 struct State {
@@ -128,6 +160,73 @@ extern "thiscall" fn set_dead(controller: *mut UnitServer, dead: i32) {
     {
         deaths.push(u.map_object.transform.base.id);
     }
+}
+
+/// The pause's fade-in for this frame, then the frame.
+extern "fastcall" fn frame_step(a: u8, b: u8) {
+    // SAFETY: the game's thread, between two frames.
+    unsafe { fade_paused() };
+    // SAFETY: FRAME_STEP holds FrameStep, of this type, once `install` ran; the call is redirected only after.
+    let frame_step = unsafe { hook::as_fn_at::<FrameStep>(FRAME_STEP.load(Ordering::Relaxed)) };
+    // SAFETY: the game's own call, with its arguments.
+    unsafe { frame_step(a, b) };
+}
+
+/// Raises the fade-in of the enemies the pause is about by the time since the last frame, while the game stays
+/// paused, and draws it. Ends when they are faded in or gone, on the first frame after the pause (from then the
+/// game's own ticks take the fade on), or after a load.
+///
+/// # Safety
+/// On the game's thread, between two frames, with the client's world constructed.
+unsafe fn fade_paused() {
+    let Ok(mut fading) = FADING.lock() else {
+        return;
+    };
+    if fading.ids.is_empty() {
+        return;
+    }
+    let world = client_world();
+    // SAFETY: the client's world is constructed at start-up; its pause flag, read only.
+    let paused = unsafe { (*world).base.paused } != 0;
+    // SAFETY: as above; its tick count, read only.
+    let ticks = unsafe { (*world).ticks };
+    let now = Instant::now();
+    if !paused {
+        if fading.paused {
+            fading.ids.clear();
+            return;
+        }
+        // The pause is asked for but not yet on: the client's ticks still fade the units in.
+        fading.ticks = ticks;
+        fading.last = Some(now);
+        return;
+    }
+    // The client's tick counts up first thing, so the count goes on while the flag is set (its units are not
+    // updated then, and the fade stays); it falls only when a zone loads.
+    if ticks < fading.ticks {
+        fading.ids.clear();
+        return;
+    }
+    fading.ticks = ticks;
+    fading.paused = true;
+    let elapsed = fading.last.map_or_else(Default::default, |last| now - last);
+    fading.last = Some(now);
+    // SAFETY: the game speed, read only.
+    let period = unsafe { UPDATE_PERIOD.read() };
+    fading.ids.retain(|&id| {
+        // SAFETY: on the game's thread between frames; a unit gone with a load is not found.
+        let (sight, client) = unsafe { look(id) };
+        let Sight::Present { shown: true, fade } = sight else {
+            return false;
+        };
+        if client.is_null() || fade >= 1.0 {
+            return false;
+        }
+        let fade = paused_fade(fade, elapsed, period);
+        // SAFETY: the live unit's client controller, on the game's thread.
+        unsafe { UnitClient::set_fade(client, fade) };
+        fade < 1.0
+    });
 }
 
 /// The server world's players.
@@ -308,33 +407,33 @@ unsafe fn look(id: i32) -> (Sight, *mut UnitClient) {
     (sight, client)
 }
 
-/// Ends the fade-in of the client's unit `id` when the client shows it, so a pause from now draws it in full.
-/// Returns its sight from before.
+/// Adds the client's unit `id` to `fading` when the client shows it and its fade-in is under way, so the pause's
+/// frames fade it in. Returns its sight.
 ///
 /// # Safety
 /// As for [`sight`].
-unsafe fn finish_fade(id: i32) -> Sight {
+unsafe fn fade_in(id: i32, fading: &mut Vec<i32>) -> Sight {
     // SAFETY: the caller's guarantee.
     let (sight, client) = unsafe { look(id) };
     if let Sight::Present { shown: true, fade } = sight
         && fade < 1.0
         && !client.is_null()
+        && !fading.contains(&id)
     {
-        // SAFETY: the live unit's client controller, on the game's thread.
-        unsafe { UnitClient::complete_fade(client) };
+        fading.push(id);
     }
     sight
 }
 
-/// The pause line's account of a told start: the enemy's sight from before [`finish_fade`] and what the pause
-/// shows, and whether the wait ran out.
-fn account(before: Sight, told: Told) -> String {
-    let s = if let Sight::Present { shown: true, fade } = before
+/// The pause line's account of a told start: the enemy's sight at the pause, whether the pause fades it in, and
+/// whether the wait ran out.
+fn account(sight: Sight, told: Told) -> String {
+    let s = if let Sight::Present { shown: true, fade } = sight
         && fade < 1.0
     {
-        format!("fade {fade:.2} -> 1.00, shown")
+        format!("{sight}, fading in")
     } else {
-        format!("{before}")
+        format!("{sight}")
     };
     match told {
         Told::Ready => s,
@@ -420,6 +519,7 @@ unsafe fn check() {
     // SAFETY: on the game's thread, the client's world constructed.
     let ticks = unsafe { client_ticks() };
     let mut reasons = Vec::new();
+    let mut fading = Vec::new();
     if triggers.limits.any() {
         let mut party = Vec::new();
         for &player in &players {
@@ -460,15 +560,15 @@ unsafe fn check() {
             if let Some(told) = told
                 && let Some(id) = shown.or_else(|| ids.first().copied())
             {
-                let mut before = None;
+                let mut sight = None;
                 for &other in &ids {
                     // SAFETY: as above.
-                    let s = unsafe { finish_fade(other) };
+                    let s = unsafe { fade_in(other, &mut fading) };
                     if other == id {
-                        before = Some(s);
+                        sight = Some(s);
                     }
                 }
-                let account = account(before.unwrap_or(Sight::Absent), told);
+                let account = account(sight.unwrap_or(Sight::Absent), told);
                 reasons.push(format!("enemy {id} in view ({account})"));
             }
         }
@@ -490,7 +590,7 @@ unsafe fn check() {
             && let Some(id) = found
         {
             // SAFETY: as above.
-            let account = account(unsafe { finish_fade(id) }, told);
+            let account = account(unsafe { fade_in(id, &mut fading) }, told);
             reasons.push(format!("enemy {id} turned on the party ({account})"));
         }
     }
@@ -499,6 +599,14 @@ unsafe fn check() {
         return;
     }
     log::info("autopause", &format!("{}: paused", reasons.join(", ")), "");
+    if let Ok(mut f) = FADING.lock() {
+        *f = Fading {
+            ids: fading,
+            last: Some(Instant::now()),
+            ticks,
+            paused: false,
+        };
+    }
     // SAFETY: the client's world, constructed with its session in a game, on the game's thread.
     unsafe { World::send_pause(CLIENT_WORLD.as_ptr(), 1) };
 }
@@ -554,6 +662,15 @@ pub(crate) fn install(token: &BeforeWinMain, triggers: Triggers) {
             &SET_DEAD,
         ));
     }
+    if triggers.enemy_sighted || triggers.enemy_aggro {
+        built.push(redirect(
+            "AutoPause frame",
+            FRAME_CALL,
+            FRAME_CALL_BYTES,
+            frame_step as *const () as usize,
+            &FRAME_STEP,
+        ));
+    }
     let built = built
         .into_iter()
         .collect::<Result<Vec<_>, _>>()
@@ -567,7 +684,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_calls_go_to_the_servers_tick_and_the_death() {
+    fn the_calls_go_to_the_servers_tick_the_death_and_the_frame() {
         for (site, bytes, target) in [
             (TICK_CALL, TICK_CALL_BYTES, eix_sites::C_WORLD_SERVER_TICK),
             (
@@ -575,6 +692,7 @@ mod tests {
                 DEATH_CALL_BYTES,
                 eix_sites::C_UNIT_SERVER_SET_DEAD,
             ),
+            (FRAME_CALL, FRAME_CALL_BYTES, eix_sites::FRAME_STEP),
         ] {
             let rel = i32::from_le_bytes(bytes[1..].try_into().unwrap());
             assert_eq!(
@@ -589,6 +707,7 @@ mod tests {
         for ours in [
             TICK_CALL..TICK_CALL.offset(TICK_CALL_BYTES.len()),
             DEATH_CALL..DEATH_CALL.offset(DEATH_CALL_BYTES.len()),
+            FRAME_CALL..FRAME_CALL.offset(FRAME_CALL_BYTES.len()),
         ] {
             for (name, w) in spelladdon::writes() {
                 assert!(

@@ -763,15 +763,15 @@ const _: () = {
 };
 
 impl UnitClient {
-    /// Ends the unit's fade-in at once: the fade set to 1, then the controller's virtual slot 13
+    /// Sets the unit's fade-in to `fade` and draws it so: the fade set, then the controller's virtual slot 13
     /// (`CUnitClientSpecific::FiguresLoaded` 0x5344E0), which writes the fade to every figure part as
-    /// `RestartFadeIn` does. `UpdateClient` leaves a fade of 1 alone, so the unit stays drawn in full.
+    /// `RestartFadeIn` does. `UpdateClient` goes on from there below 1 and leaves a fade of 1 alone.
     ///
     /// # Safety
     /// `this` must be a live unit's client controller, on the game's thread.
-    pub unsafe fn complete_fade(this: *mut Self) {
+    pub unsafe fn set_fade(this: *mut Self, fade: f32) {
         // SAFETY: the caller guarantees a live controller.
-        unsafe { (*this).fade = 1.0 };
+        unsafe { (*this).fade = fade };
         // SAFETY: a live object's first word is its vtable.
         let vtable = unsafe { (*this).base.vtable }.cast::<usize>();
         // SAFETY: a unit client controller's vtable (0x73ECD8) has slot 13 (+0x34).
