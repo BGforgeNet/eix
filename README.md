@@ -40,7 +40,8 @@ For a ready-made gameplay and quality-of-life mod, see [EItweaks](https://github
    it there too. Keep the replaced files to switch back.
 4. Put `spelladdon.ini` in the game folder. A mod's own `spelladdon.ini`, in its folder, takes precedence.
 5. Put `eix.ini` in the mod's folder (`Mods\<mod>`): eix's [own settings](docs/eix-ini.md), such as pausing on a
-   party member's low health.
+   party member's low health. With no mod selected, eix reads no `eix.ini` and every setting keeps its default:
+   engine fixes and FLAC music on, AutoPause and encumbrance off. Changing a setting needs a mod.
 
 To uninstall, put the starter's `dinput.dll` and `addon.dll` back.
 <!-- ANCHOR_END: install -->
