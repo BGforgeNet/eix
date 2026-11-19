@@ -3,6 +3,7 @@
 
 use std::path::PathBuf;
 
+use eix_core::mod_files::mod_then_game;
 use eix_core::spelladdon::{Profile, Values, duplicate_keys};
 use eix_engine::ansi;
 use eix_engine::group::{Outcome, SiteWrite};
@@ -138,20 +139,18 @@ fn current_dir() -> Option<Vec<u8>> {
 /// The INI to read: the mod folder's, else the game folder's (the built-in SpellAddon's choice); `None` when neither
 /// exists, and SpellAddon then does nothing.
 fn ini_file(mod_dir: &[u8], log: Log) -> Option<Vec<u8>> {
-    let mut candidates = Vec::new();
-    if !mod_dir.is_empty() {
-        candidates.push([mod_dir, INI].concat());
-    }
-    match current_dir() {
-        Some(dir) => candidates.push([&dir[..], b"\\", INI].concat()),
-        None => log(
+    let game_dir = current_dir().unwrap_or_else(|| {
+        log(
             Level::Warn,
             "spelladdon",
             "cannot read the working folder; its spelladdon.ini is not looked for",
             "",
-        ),
-    }
-    candidates.into_iter().find(|c| path(c).is_file())
+        );
+        Vec::new()
+    });
+    mod_then_game(mod_dir, &game_dir, INI)
+        .into_iter()
+        .find(|c| path(c).is_file())
 }
 
 /// Runs SpellAddon: from the hook on the sound system's start, on the game's main thread, after addon.dll's writes

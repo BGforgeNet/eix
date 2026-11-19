@@ -16,6 +16,7 @@
 use std::sync::{Mutex, OnceLock};
 
 use eix_core::ini::{self, Document};
+use eix_core::mod_files::mod_then_game;
 use eix_engine::game::script::ScriptCommand;
 use eix_engine::hook::{self, Context, Mode};
 
@@ -23,7 +24,7 @@ use crate::game::BeforeWinMain;
 use crate::groups::{Labelled, Tally, apply_built};
 use crate::log;
 use crate::lua::ptr;
-use crate::setup::{ansi, path};
+use crate::setup::{game_dir, path};
 
 /// The mod folder (ending in `\`, empty without a mod) and the game folder (the working folder, without a `\`).
 static FOLDERS: OnceLock<(Vec<u8>, Vec<u8>)> = OnceLock::new();
@@ -42,11 +43,7 @@ fn shown(bytes: &[u8]) -> String {
 fn load(file: &[u8]) -> Option<Document> {
     let name = [file, b".ini"].concat();
     let (mod_dir, game_dir) = FOLDERS.get()?;
-    let candidates = [
-        (!mod_dir.is_empty()).then(|| [&mod_dir[..], &name].concat()),
-        (!game_dir.is_empty()).then(|| [&game_dir[..], b"\\", &name].concat()),
-    ];
-    for candidate in candidates.into_iter().flatten() {
+    for candidate in mod_then_game(mod_dir, game_dir, &name) {
         match std::fs::read(path(&candidate)) {
             Ok(text) => {
                 log::info("ini", "variables read from", &shown(&candidate));
@@ -140,18 +137,7 @@ extern "C" fn get_var(_: usize, ctx: &mut Context) {
 
 /// Installs the hook: the mod folder from the setup, the game folder as the working folder at start.
 pub(crate) fn install(token: &BeforeWinMain, mod_dir: &[u8]) {
-    let game_dir = match std::env::current_dir() {
-        Ok(dir) => ansi(dir.as_os_str()),
-        Err(e) => {
-            log::warn(
-                "ini",
-                &format!("no working folder: {e}"),
-                "the game folder is not looked in",
-            );
-            Vec::new()
-        }
-    };
-    let _ = FOLDERS.set((mod_dir.to_vec(), game_dir));
+    let _ = FOLDERS.set((mod_dir.to_vec(), game_dir()));
     let built = hook::context_hook(
         eix_sites::SSC_CMD_CALC_FLOAT__E7A,
         &[0xB9, 0x20, 0xFE, 0x7A, 0x00],

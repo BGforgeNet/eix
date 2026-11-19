@@ -45,7 +45,7 @@ group and logs why.
 | `MP Speed-control` (MPSpeedControl) | 0 | Nonzero allows speed keys and clock buttons in multiplayer | same |
 | `MP console` (MPConsole) | 0 | Nonzero allows console commands in multiplayer | same |
 
-eix's own settings are in the mod folder's [eix.ini](eix-ini.md), not in the registry.
+eix's own settings are in [eix.ini](eix-ini.md), not in the registry.
 
 `Settings\AddonPath` is a string naming the selected mod folder. The loader searches for addon.dll using the
 starter root's `AddonPath` (full DLL path), then `Settings\AddonPath\addon.dll`, then the starter root's

@@ -8,7 +8,7 @@ page.
 | File | Where | Reference |
 |---|---|---|
 | `spelladdon.ini` | The mod's folder (`Mods\<mod>`, beside its `config.reg`); without one there, the game folder's. eix reads one of the two, without merging them. | [SpellAddon options](spelladdon.md) |
-| `eix.ini` | The mod's folder | [eix.ini](eix-ini.md) |
+| `eix.ini` | The same as `spelladdon.ini`: the mod's folder, else the game folder's | [eix.ini](eix-ini.md) |
 
 - Edit them in any text editor, then restart the game.
 - Write fractions with a decimal point: `0.25`.

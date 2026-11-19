@@ -19,6 +19,20 @@ pub fn from_last_slash(path: &[u8]) -> Option<&[u8]> {
     path.iter().rposition(|&c| c == b'\\').map(|i| &path[i..])
 }
 
+/// Where a mod's settings file `name` is looked for, in order: the mod folder (`mod_dir`, ending in `\`), then the
+/// game folder (`game_dir`, the working folder, without a trailing `\`). An empty folder (no mod, or a working
+/// folder the system could not name) is left out.
+pub fn mod_then_game(mod_dir: &[u8], game_dir: &[u8], name: &[u8]) -> Vec<Bytes> {
+    let mut candidates = Vec::new();
+    if !mod_dir.is_empty() {
+        candidates.push([mod_dir, name].concat());
+    }
+    if !game_dir.is_empty() {
+        candidates.push([game_dir, b"\\", name].concat());
+    }
+    candidates
+}
+
 /// `bytes` with ASCII letters lowered; the game's archive keys and the addon's name lookups compare this way.
 pub fn lower(bytes: &[u8]) -> Bytes {
     bytes.to_ascii_lowercase()
@@ -170,6 +184,26 @@ mod tests {
             Some(&b"\\intro.bik"[..])
         );
         assert_eq!(from_last_slash(b"intro.bik"), None);
+    }
+
+    #[test]
+    fn settings_files_come_from_the_mod_then_the_game() {
+        assert_eq!(
+            mod_then_game(b"C:\\EI\\Mods\\inv\\", b"C:\\EI", b"eix.ini"),
+            [
+                b"C:\\EI\\Mods\\inv\\eix.ini".to_vec(),
+                b"C:\\EI\\eix.ini".to_vec()
+            ]
+        );
+        assert_eq!(
+            mod_then_game(b"", b"C:\\EI", b"eix.ini"),
+            [b"C:\\EI\\eix.ini".to_vec()]
+        );
+        assert_eq!(
+            mod_then_game(b"C:\\EI\\Mods\\inv\\", b"", b"eix.ini"),
+            [b"C:\\EI\\Mods\\inv\\eix.ini".to_vec()]
+        );
+        assert!(mod_then_game(b"", b"", b"eix.ini").is_empty());
     }
 
     #[test]

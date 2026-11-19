@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use eix_core::ei_plugin::{self, AsiFile};
 use eix_core::eix_ini::EixIni;
-use eix_core::mod_files::{ResConfig, with_slash};
+use eix_core::mod_files::{ResConfig, mod_then_game, with_slash};
 use eix_core::options::{
     AiReg, CommandLine, ConfigReg, Environment, Options, SETTING_DWORDS, SettingValue,
     SettingValues, Settings,
@@ -102,6 +102,21 @@ pub(crate) fn mod_dir() -> Vec<u8> {
     with_slash(reg_ansi(SETTINGS, "AddonPath"))
 }
 
+/// The game folder: the working folder, without a `\` added; empty, with a warning, where the system cannot name it.
+pub(crate) fn game_dir() -> Vec<u8> {
+    match std::env::current_dir() {
+        Ok(dir) => ansi(dir.as_os_str()),
+        Err(e) => {
+            log::warn(
+                "options",
+                &format!("no working folder: {e}"),
+                "the game folder is not looked in",
+            );
+            Vec::new()
+        }
+    }
+}
+
 /// The starter's folder with a `\` added: `EI_Starter\path`, else the
 /// folder of addon.dll's file. Empty only where the system cannot name that file; paths built on it are then relative
 /// to the working folder, as the original's.
@@ -158,25 +173,28 @@ fn setting_values() -> SettingValues {
 /// The bytes a text value of eix.ini is read into; a longer value is cut.
 const TEXT_SIZE: usize = 256;
 
-/// eix.ini of the mod folder `mod_dir` (ending in `\`, empty for no mod); the defaults without a mod or a file.
-fn eix_ini(mod_dir: &[u8]) -> EixIni {
-    if mod_dir.is_empty() {
+/// eix.ini of the mod folder `mod_dir` (ending in `\`, empty for no mod), else of the game folder `game_dir`
+/// (without a trailing `\`, empty when unknown); the defaults without either file.
+fn eix_ini(mod_dir: &[u8], game_dir: &[u8]) -> EixIni {
+    let candidates = mod_then_game(mod_dir, game_dir, b"eix.ini");
+    let Some(file) = candidates.iter().find(|c| path(c).is_file()) else {
+        let looked: Vec<String> = candidates.iter().map(|c| ansi_text(c)).collect();
+        log::info(
+            "options",
+            "no eix.ini in the mod folder or the game folder: its defaults",
+            &looked.join(", "),
+        );
         return EixIni::default();
-    }
-    let file = [mod_dir, b"eix.ini"].concat();
-    let shown = ansi_text(&file);
-    if !path(&file).is_file() {
-        log::info("options", "no eix.ini: its defaults", &shown);
-        return EixIni::default();
-    }
-    log::info("options", "eix.ini", &shown);
+    };
+    let shown = ansi_text(file);
+    log::info("options", "eix.ini read from", &shown);
     let (ini, warnings) = EixIni::read(
         |section, key, default| {
-            ansi::profile_int(section.as_bytes(), key.as_bytes(), default, &file)
+            ansi::profile_int(section.as_bytes(), key.as_bytes(), default, file)
         },
         |section, key| {
             let buf =
-                ansi::profile_string(section.as_bytes(), key.as_bytes(), b"", TEXT_SIZE, 0, &file);
+                ansi::profile_string(section.as_bytes(), key.as_bytes(), b"", TEXT_SIZE, 0, file);
             let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
             String::from_utf8_lossy(&buf[..end]).into_owned()
         },
@@ -341,7 +359,7 @@ pub(crate) fn read_for(exe_enables_t2: bool, mod_dir: Vec<u8>) -> Setup {
         );
     }
     setup.options.settings = settings;
-    setup.options.eix = eix_ini(&mod_dir);
+    setup.options.eix = eix_ini(&mod_dir, &game_dir());
     setup.autoexec_lines = autoexec_lines();
     setup.autoexec_registry_lines = registry::hkcu_multi_string(SETTINGS, "Console AutoExec")
         .map(|lines| lines.iter().map(|l| to_ansi(l)).collect())

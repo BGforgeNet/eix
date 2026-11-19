@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- [eix.ini](docs/eix-ini.md) is read from the game folder when the mod's folder has none or no mod is selected, as
+  `spelladdon.ini` is. addon.log names the file read, or the places looked in.
+
 ## 0.3.0
 
 ### Added

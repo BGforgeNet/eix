@@ -1,9 +1,10 @@
 # eix.ini
 
-eix's own settings, in `eix.ini` in the mod's folder (`Mods\<mod>`, beside its `config.reg`). Without the file, or
-with no mod selected, every key takes its default. The package's copy holds every key at its default.
+eix's own settings, in `eix.ini` in the mod's folder (`Mods\<mod>`, beside its `config.reg`). Without one there, or
+with no mod selected, eix reads the game folder's (beside `spelladdon.ini`); it reads one of the two, without merging
+them. Without either file, every key takes its default. The package's copy holds every key at its default.
 
-addon.log names the file read, and each value left out with the reason.
+addon.log names the file read, or the places looked in when there is none, and each value left out with the reason.
 
 ## EngineFixes
 
